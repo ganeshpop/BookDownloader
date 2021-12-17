@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_writing_hql_queries"><a id="writing_hql_queries"/><h3 class="docSection1Title">9.1. Writing HQL Queries</h3><p class="docText">We've already shown that you can get by with fewer pieces in an HQL query than you might be used to in SQL (the queries we've been using, such as those in <a class="docLink" href="0596006969_harnessing_hibernate.xhtml#harnessing_hibernate">Chapter 3</a>, have generally omitted the "select" clause). In fact, the only thing you really <span class="docEmphasis">need</span> to specify is the class in which you're interested. <a class="docLink" href="#the_simplest_hql_query">Example 9-1</a> shows a minimal query that's a perfectly valid way to get a list of all <tt>Track</tt> instances persisted in the database.</p><blockquote><p class="docText"><span class="docEmphasis">HQL stands for Hibernate Query Language. And SQL? It depends who you ask</span>.</p></blockquote><a id="the_simplest_hql_query"/><h5 id="title-ID0EGIBG" class="docExampleTitle">Example 9-1. The simplest HQL query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+	from Track
+</pre><br/>
+</td></tr></table><p class="docText">There's not much to it, is there? This is the HQL equivalent of <a class="docLink" href="0596006969_using_simple_criteria.xhtml#the_beginnings_of_a_criteria_query">Example 8-1</a>, in which we built a criteria query on the <tt>Track</tt> class and supplied no criteria.</p><p class="docText">By default, Hibernate automatically "imports" the names of each class you map, which means you don't have to provide a fully qualified package name when you want to use it, the simple class name is enough. As long as you've not mapped more than one class with the same name, you don't need to use fully qualified class names in your queries. You are certainly free to do so if you prefer–as I have in this book to help readers remember that the queries are expressed in terms of Java data beans and their properties, <tt>not</tt> database tables and columns (like you'd find in SQL). <a class="docLink" href="#explicit_package_naming_but_still_pretty">Example 9-2</a> produces precisely the same result as our first query.</p><a id="explicit_package_naming_but_still_pretty"/><h5 id="title-ID0E6IBG" class="docExampleTitle">Example 9-2. Explicit package naming, but still pretty simple</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+	from com.oreilly.hh.Track
+</pre><br/>
+</td></tr></table><p class="docText">If you do have more than one mapped class with the same name, you can either use the fully qualified package name to refer to each, or you can assign an alternate name for one or both classes using an <tt>import</tt> tag in their mapping documents. You can also turn off the auto-import facility for a mapping file by adding<tt>auto-import="false"</tt> to the <tt>hibernate-mapping</tt> tag's attributes.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">You're probably used to queries being case-insensitive, since SQL behaves this way. For the most part, <a id="idx-CHP-9-0305"/>HQL acts the same, with the important exceptions of class and property names. Just as in the rest of Java, these are case-sensitive, so you must get the capitalization right.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">Let's look at an extreme example of how <a id="idx-CHP-9-0306"/>HQL differs from SQL, by pushing its polymorphic query capability to its logical limit.</p><a id="how_do_i_do_that-id027"/><h4 id="title-ID0EDKBG" class="docSection2Title">9.1.1. How do I do that?</h4><p class="docText">A powerful way to highlight the fundamental difference between SQL and HQL is to consider what happens when you query "<tt>from java.lang.Object</tt>". At first glance this might not even seem to make sense! In fact, Hibernate supports queries that return polymorphic results. If you've got mapped classes that extend each other, or have some shared ancestor or interface, whether you've mapped the classes to the same table or to different tables, you can query the superclass. Since every Java object extends <tt>Object</tt>, this query asks Hibernate to return every single entity it knows about in the database.</p><p class="docText">We can test this by making a quick variant of our query test. Copy <span class="docEmphasis">QueryTest.java</span> to <span class="docEmphasis">QueryTest3.java</span>, and make the changes shown in <a class="docLink" href="#look_toto_were_not_in_sql_anymore">Example 9-3</a> (most of the changes, which don't show up in the example, involve deleting example queries we don't need here).</p><a id="look_toto_were_not_in_sql_anymore"/><h5 id="title-ID0EZKBG" class="docExampleTitle">Example 9-3. Look, Toto, we're not in SQL anymore</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+1   package com.oreilly.hh;
+2
+3   import net.sf.hibernate.*;
+4   import net.sf.hibernate.cfg.Configuration;
+5
+6   import java.util.*;
+7
+8    /**
+9     * <b>Retrieve all persistent objects</b>
+10    */
+11  public class <b>QueryTest3</b> {
+12
+13      /**
+14       * Look up and print <b>all entities</b> when invoked from the command line.
+15       */
+16      public static void main(String args[]) throws Exception {
+17          // Create a configuration based on the properties file we've put
+18          // in the standard place.
+19          Configuration config = new Configuration();
+20
+21          // Tell it about the classes we want mapped, taking advantage of
+22          // the way we've named their mapping documents.
+23          config.addClass(Track.class).addClass(Artist.class);
+24          <b>config.addClass(Album.class);</b>
+25
+26          // Get the session factory we can use for persistence
+27          SessionFactory sessionFactory = config.buildSessionFactory();
+28
+29          // Ask for a session using the JDBC information we've configured
+30          Session session = sessionFactory.openSession();
+31          try {
+32              // Print <b>every mapped object in the database</b>
+33              List <b>all = session.find("from java.lang.Object");</b>
+34              for (ListIterator iter = all.listIterator() ;
+35                   iter.hasNext() ; ) {
+36                   <b>System.out.println(iter.next());</b>
+37              }
+38          } finally {
+39              // No matter what, close the session
+40              session.close();
+41          }
+42
+43          // Clean up after ourselves
+44          sessionFactory.close();
+45      }
+46  }
+</pre><br/>
+</td></tr></table><p class="docText">We added line 24 because Hibernate will only return objects whose mappings it has
+been asked to load, and we'd like to see everything we can put in the database. To be sure you've got all the sample data created, run <tt><b>ant schema ctest atest</b></tt>. Line 33 invokes the odd and powerful query, and line 36 prints what we've found. We can't do much more than call <tt>toString()</tt> on the objects we get back because we don't know what they might be. <tt>Object</tt> is not very deep as a shared interface.</p><blockquote><p class="docText"><span class="docEmphasis">As usual, these examples assume you've set up the environment by following the preceding chapters. You can also just use the downloadable sample source for this chapter</span>.</p></blockquote><p class="docText">There's one more step we need to take before we can run this. Add	another target to <span class="docEmphasis">build.xml</span>, as shown in <a class="docLink" href="#invoking_the_uuml-query">Example 9-4</a>.</p><a id="invoking_the_uuml-query"/><h5 id="title-ID0EMMBG" class="docExampleTitle">Example 9-4. Invoking the über-query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;target name="qtest3" description="Retrieve all mapped objects"
+        depends="compile"&gt;
+   &lt;java classname="com.oreilly.hh.QueryTest3" fork="true"&gt;
+    &lt;classpath refid="project.class.path"/&gt;
+   &lt;/java&gt;
+ &lt;/target&gt;
+</pre><br/>
+</td></tr></table><p class="docText">Then you can test it by running <tt><b>ant qtest3.</b></tt> You'll see results like <a class="docLink" href="#everything_hibernate_can_find">Example 9-5</a>.</p><a id="everything_hibernate_can_find"/><h5 id="title-ID0E2MBG" class="docExampleTitle">Example 9-5. Everything Hibernate can find</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% ant <b>qtest3</b>
+Buildfile: build.xml
+
+prepare:
+
+compile:
+    [javac] Compiling 1 source file to /Users/jim/Documents/Work/OReilly/
+Hibernate/Examples/ch09/classes
+
+qtest3:
+     [java] com.oreilly.hh.Album@397cea[id=0,title=Counterfeit e.p.,tracks=[com.
+oreilly.hh.AlbumTrack@5e60f2[track=com.oreilly.hh.
+Track@aaa10[id=7,title=Compulsion,sourceMedia=Compact Disc]], com.oreilly.hh.
+AlbumTrack@2ed1e8[track=com.oreilly.hh.Track@231e35[id=8,title=In a Manner of
+Speaking,sourceMedia=Compact Disc]], com.oreilly.hh.AlbumTrack@d6f84a[track=com.
+oreilly.hh.Track@9432e0[id=9,title=Smile in the Crowd,sourceMedia=Compact Disc]],
+com.oreilly.hh.AlbumTrack@46ca65[track=com.oreilly.hh.
+Track@9830bc[id=10,title=Gone,sourceMedia=Compact Disc]], com.oreilly.hh.
+AlbumTrack@91e365[track=com.oreilly.hh.Track@a79447[id=11,title=Never Turn Your
+Back on Mother Earth,sourceMedia=Compact Disc]], com.oreilly.hh.
+AlbumTrack@e823ac[track=com.oreilly.hh.Track@f801c4[id=12,title=Motherless
+Child,sourceMedia=Compact Disc]]]]
+     [java] com.oreilly.hh.Artist@e7736c[id=0,name=PPK,actualArtist=&lt;null&gt;]
+     [java] com.oreilly.hh.Artist@a59727[id=1,name=The
+Buggles,actualArtist=&lt;null&gt;]
+     [java] com.oreilly.hh.Artist@1f7fbe[id=2,name=Laurie
+Anderson,actualArtist=&lt;null&gt;]
+     [java] com.oreilly.hh.Artist@f42d53[id=3,name=William
+Orbit,actualArtist=&lt;null&gt;]
+     [java] com.oreilly.hh.Artist@ba63a2[id=4,name=Ferry
+Corsten,actualArtist=&lt;null&gt;]
+     [java] com.oreilly.hh.Artist@e668c2[id=5,name=Samuel
+Barber,actualArtist=&lt;null&gt;]
+     [java] com.oreilly.hh.Artist@d67d61[id=6,name=ATB,actualArtist=&lt;null&gt;]
+     [java] com.oreilly.hh.Artist@e9a555[id=7,name=Pulp
+Victim,actualArtist=&lt;null&gt;]
+     [java] com.oreilly.hh.Artist@6a4aef[id=8,name=Martin L.
+Gore,actualArtist=&lt;null&gt;]
+     [java] com.oreilly.hh.Track@4dba7f[id=0,title=Russian
+Trance,sourceMedia=Compact Disc]
+     [java] com.oreilly.hh.Track@906563[id=1,title=Video Killed the Radio
+Star,sourceMedia=VHS Videocassette Tape]
+     [java] com.oreilly.hh.Track@f068b9[id=2,title=Gravity's
+Angel,sourceMedia=Compact Disc]
+     [java] com.oreilly.hh.Track@6b54ef[id=3,title=Adagio for Strings (Ferry
+Corsten Remix),sourceMedia=Compact Disc]
+     [java] com.oreilly.hh.Track@954549[id=4,title=Adagio for Strings (ATB
+Remix),sourceMedia=Compact Disc]
+     [java] com.oreilly.hh.Track@f7dab1[id=5,title=The World
+'99,sourceMedia=Digital Audio Stream]
+     [java] com.oreilly.hh.Track@36d1d7[id=6,title=Test Tone 1,sourceMedia=&lt;null&gt;]
+     [java] com.oreilly.hh.Track@aaa10[id=7,title=Compulsion,sourceMedia=Compact
+Disc]
+     [java] com.oreilly.hh.Track@231e35[id=8,title=In a Manner of
+Speaking,sourceMedia=Compact Disc]
+     [java] com.oreilly.hh.Track@9432e0[id=9,title=Smile in the
+Crowd,sourceMedia=Compact Disc]
+     [java] com.oreilly.hh.Track@9830bc[id=10,title=Gone,sourceMedia=Compact
+Disc]
+    [java] com.oreilly.hh.Track@a79447[id=11,title=Never Turn Your Back on Mother
+Earth,sourceMedia=Compact Disc]
+     [java] com.oreilly.hh.Track@f801c4[id=12,title=Motherless
+Child,sourceMedia=Compact Disc]
+
+BUILD SUCCESSFUL
+Total time: 17 seconds
+</pre><br/>
+</td></tr></table><a id="what_just_happened-id013"/><h4 id="title-ID0EFNBG" class="docSection2Title">9.1.2. What just happened?</h4><p class="docText">Well it's pretty remarkable if you think about it, because Hibernate had to do several separate SQL queries in order to obtain the results for us. A whole lot of work went on behind the scenes to hand us that list of every known persisted entity. Although it's hard to imagine a situation where you'll actually need to do something exactly like this, it certainly highlights some of the interesting capabilities of HQL and Hibernate.</p><p class="docText">And there are certainly times when slightly less comprehensive queries will be very useful to you, so it's worth keeping in mind that table-spanning polymorphic queries are not only possible, but easy to use.</p><p class="docText"><a id="some"/>There are some <a id="idx-CHP-9-0307"/>limitations that come into play when you run an HQL query that requires multiple separate SQL queries to implement. You can't use <tt>order</tt> by clauses to sort the entire set of results, nor can you use the <tt>Query</tt> interface's <tt>scroll()</tt> method to walk through them.</p><a id="what_abouthellip-id011"/><h4 id="title-ID0E4NBG" class="docSection2Title">9.1.3. What about…</h4><p class="docText">…Associations <a id="idx-CHP-9-0308"/>and joins? These are easy to work with as well. You can traverse associations by simply following the property chain, using periods as delimiters. To help you refer to a particular entity in your query expressions, HQL lets you assign aliases, just like SQL. This is particularly important if you want to refer to two separate entities of the same class, for example:</p><pre>
+	from com.oreilly.hh.Track as track1
+</pre><br/>
+<p class="docText">which is equivalent to</p><pre>
+	from com.oreilly.hh.Track track1
+</pre><br/>
+<p class="docText">The version you'll use will most likely depend on what you're used to, or the style guidelines established for your project.</p><p class="docText">We'll see examples of joins below, once we introduce enough other HQL elements to make them interesting.</p></div></div></body>
+</html>

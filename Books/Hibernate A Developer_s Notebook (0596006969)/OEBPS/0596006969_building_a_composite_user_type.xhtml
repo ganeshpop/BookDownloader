@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_building_a_composite_user_type"><a id="building_a_composite_user_type"/><h3 class="docSection1Title">7.3. Building a Composite User Type</h3><p class="docText">Recall that in our <tt>Track</tt> object we have a property that determines our preferred playback volume for the track. Suppose we'd like the jukebox system to be able to adjust the <span class="docEmphasis">balance</span> of tracks for playback, rather than just their volume. To accomplish this we'd need to store separate volumes for the left and right channels. The quick solution would be to edit the <tt>Track</tt>
+				<a id="idx-CHP-7-0268"/>mapping to store these as separate mapped properties.<a id="idx-CHP-7-0269"/></p><p class="docText">If we're serious about object-oriented architecture, we might want to encapsulate these two values into a <tt>StereoVolume</tt> class. This class could then simply be mapped as a <tt>composite-element</tt>, as we did with the <tt>AlbumTrack</tt> component in lines 38–45 of <a class="docLink" href="0596006969_augmenting_associations_in_collections.xhtml#albumhbmxml_the_mapping_definition_for_a">Example 5-4</a>. This is still fairly straightforward.<a id="I_indexterm7_d1e6389"/></p><p class="docText">There is a drawback to this simple approach. It's likely we will discover other places in our system where we want to represent <tt>StereoVolume</tt> values. If we build a playlist mechanism that can override a track's default playback options, and also want to be  able to assign volume control to entire albums, suddenly we have to recreate the <a id="idx-CHP-7-0270"/>composite mapping in several places, and we might not do it consistently everywhere (this is more likely to be an issue with a more complex compound type, but you get the idea). The Hibernate reference documentation says that it's a good practice to use a <a id="idx-CHP-7-0271"/>composite user type in situations like this, and I agree.</p><a id="how_do_i_do_that-id023"/><h4 id="title-ID0E23AG" class="docSection2Title">7.1.1. How do I do that?</h4><p class="docText">Let's start by defining the <tt>StereoVolume</tt> class. There's no reason for this to be an entity (to have its own existence independent of some other persistent object), so we'll write it as an ordinary (and rather simple) Java object. <a class="docLink" href="#stereovolumejava_which_is_a_value_class_">Example 7-4</a> shows the source.</p><blockquote><p class="docText"><span class="docEmphasis">The JavaDoc in this example has been compressed to take less space. I'm trusting you not to do this in real projects… the downloadable version is more complete</span>.</p></blockquote><a id="stereovolumejava_which_is_a_value_class_"/><h5 id="title-ID0EM4AG" class="docExampleTitle">Example 7-4. StereoVolume.java, which is a value class representing a stereo volume level</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1 package com.oreilly.hh;
+ 2
+ 3 import java.io.Serializable;
+ 4
+ 5 /**
+ 6  * A simple structure encapsulating a stereo volume level.
+ 7  */
+ 8 public class StereoVolume implements Serializable {
+ 9
+10     /** The minimum legal volume level. */
+11     public static final short MINIMUM = 0;
+12
+13     /** The maximum legal volume level. */
+14     public static final short MAXIMUM = 100;
+15
+16     /** Stores the volume of the left channel. */
+17     private short left;
+18
+19     /** Stores the volume of the right channel. */
+20     private short right;
+21
+22     /** Default constructor sets full volume in both channels. */
+23     public StereoVolume() {
+24         this(MAXIMUM, MAXIMUM);
+25     }
+26
+27     /** Constructor that establishes specific volume levels. */
+28     public StereoVolume(short left, short right) {
+29         setLeft(left);
+30         setRight(right);
+31     }
+32
+33     /**
+34      * Helper method to make sure a volume value is legal.
+35      * @param volume the level that is being set.
+36      * @throws IllegalArgumentException if it is out of range.
+37      */
+38     private void checkVolume(short volume) {
+39         if (volume &lt; MINIMUM) {
+40             throw new IllegalArgumentException("volume cannot be less than " + 
+41                                                 MINIMUM);
+42         }
+43         if (volume &gt; MAXIMUM) {
+44             throw new IllegalArgumentException("volume cannot be more than " +
+45                                                MAXIMUM);
+46         }
+47     }
+48
+49     /** Set the volume of the left channel. */
+50     public void setLeft(short volume) {
+51         checkVolume(volume);
+52         left = volume;
+53     }
+54
+55     /** Set the volume of the right channel. */
+56     public void setRight(short volume) {
+57         checkVolume(volume);
+58         right = volume;
+59     }
+60
+61     /** Get the volume of the left channel */
+62     public short getLeft() {
+63         return left;
+64     }
+65
+66     /** Get the volume of the right channel. */
+67     public short getRight() {
+68         return right;
+69     }
+70
+71     /** Format a readable version of the volume levels. */
+72     public String toString() {
+73         return "Volume[left=" + left + ", right=" + right + ']';
+74     }
+75
+76     /**
+77      * Compare whether another object is equal to this one.
+78      * @param obj the object to be compared.
+79      * @return true if obj is also a StereoVolume instance, and represents
+80      *         the same volume levels.
+81      */
+82     public boolean equals(Object obj) {
+83         if (obj instanceof StereoVolume) {
+84            stereoVolume other = (StereoVolume)obj;
+85            return other.getLeft() == getLeft() &amp;&amp;
+86                other.getRight() == getRight();
+87         }
+88         return false; // It wasn't a StereoVolume
+89     }
+90
+91     /**
+92      * Returns a hash code value for the StereoVolume. This method must be
+93      * consistent with the {@link #equals} method.
+94      */
+95     public int hashCode() {
+96         return (int)getLeft() * MAXIMUM * 10 + getRight();
+97     }
+98  }
+</pre><br/>
+</td></tr></table><p class="docText">Since we want to be able to persist this with Hibernate, we provide a default constructor (lines 22–25) and property accessors (lines 49–69).Correct support for the Java <tt>equals()</tt> and <tt>hashCode()</tt> contracts is also important, since this is a mutable value object (lines 76 to the end).</p><p class="docText">To let us persist this as a <a id="idx-CHP-7-0272"/>composite type, rather than defining it as an nested compound object each time we use it, we build a custom user type to manage its persistence. A lot of what we need to provide in our custom type is the same as what we put in <tt>SourceMediaType</tt> (<a class="docLink" href="0596006969_defining_a_user_type.xhtml#sourcemediatypejava_our_custom_type_mapp">Example 7-1</a>). We'll focus discussion on the new and interesting stuff. <a class="docLink" href="#stereovolumetypejava_which_is_a_composit">Example 7-5</a> shows one way to persist <tt>StereoVolume</tt> as a <a id="idx-CHP-7-0273"/>composite user type.</p><a id="stereovolumetypejava_which_is_a_composit"/><h5 id="title-ID0EV5AG" class="docExampleTitle">Example 7-5. StereoVolumeType.java, which is a composite user type to persist StereoVolume</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1 package com.oreilly.hh;
+ 2
+ 3 import java.io.Serializable;
+ 4 import java.sql.PreparedStatement;
+ 5 import java.sql.ResultSet;
+ 6 import java.sql.SQLException;
+ 7 import java.sql.Types;
+ 8
+ 9 import net.sf.hibernate.CompositeUserType;
+10 import net.sf.hibernate.Hibernate;
+11 import net.sf.hibernate.HibernateException;
+12 import net.sf.hibernate.engine.SessionImplementor;
+13 import net.sf.hibernate.type.Type;
+14
+15 /**
+16  * Manages persistence for the {@link StereoVolume} composite type.
+17  */
+18 public class StereoVolumeType implements <a id="idx-CHP-7-0274"/>CompositeUserType {
+19
+20     /**
+21      *Get the names of the properties that make up this <a id="idx-CHP-7-0275"/>composite type,
+22      * and that may be used in a query involving it.
+23      */
+24     public String[] getPropertyNames() {
+25         // Allocate a new response each time, because arrays are mutable
+26         return new String[] { "left", "right" };
+27     }
+28
+29     /**
+30      * Get the types associated with the properties that make up this
+31      * composite type.
+32      *
+33      * @return the types of the parameters reported by
+34      *         {@link #getPropertynames}, in the same order.
+35      */
+36     public Type[] getPropertyTypes() {
+37         return new Type[] { Hibernate.SHORT, Hibernate.SHORT };
+38     }
+39
+40     /**
+41      * Look up the value of one of the properties making up this composite
+42      * type.
+43      *
+44      * @param component a {@link StereoVolume} instance being managed.
+45      * @param property the index of the desired property.
+46      * @return the corresponding value.
+47      * @see #getPropertyNames
+48      */
+49     public Object getPropertyValue(Object component, int property) {
+50         StereoVolume volume = (StereoVolume)component;
+51         short result;
+52
+53         switch (property) {
+54
+55         case 0:
+56             result = volume.getLeft();
+57             break;
+58
+59         case 1:
+60             result = volume.getRight();
+61             break;
+62
+63         default:
+64             throw new IllegalArgumentException("unknown property: " +
+65                                                property);
+66         }
+67
+68         return new Short(result);
+69     }
+70
+71     /**
+72      * Set the value of one of the properties making up this <a id="idx-CHP-7-0276"/>composite
+73      * type.
+74      *
+75      * @param component a {@link StereoVolume} instance being managed.
+76      * @param property the index of the desired property.
+77      * @object value the new value to be established.
+78      * @see #getPropertyNames
+79      */
+80     public void setPropertyValue(Object component, int property, Object value)
+81     {
+82         StereoVolume volume = (StereoVolume)component;
+83         short newLevel = ((Short)value).shortValue();
+84         switch (property) {
+85
+86         case 0:
+87             volume.setLeft(newLevel);
+88             break;
+89
+90         case 1:
+91             volume.setRight(newLevel);
+92             break;
+93
+94         default:
+95             throw new IllegalArgumentException("unknown property: " +
+96                                                property);
+97         }
+98     }
+99
+100    /**
+101     * Determine the class that is returned by {@link #nullSafeGet}.
+102     *
+103     * @return {@link StereoVolume}, the actual type returned
+104     * by {@link #nullSafeGet}.
+105     */
+106    public Class returnedClass() {
+107      return StereoVolume.class;
+108   }
+109
+110    /**
+111     * Compare two instances of the class mapped by this type for persistence
+112     * "equality".
+113     *
+114     * @param x first object to be compared.
+115     * @param y second object to be compared.
+116     * @return &lt;code&gt;true&lt;/code&gt; iff both represent the same volume levels.
+117     * @throws ClassCastException if x or y isn't a {@link StereoVolume}.
+118     */
+119    public boolean equals(Object x, Object y) {
+120        if (x == y) { // This is a trivial success
+121            return true;
+122        }
+123        if (x == null || y == null) { // Don't blow up if either is null!
+124            return false;
+125        }
+126        // Now it's safe to delegate to the class' own sense of equality
+127        return ((StereoVolume)x).equals(y);
+128    }
+129
+130    /**
+131     * Return a deep copy of the persistent state, stopping at
+132     * entities and collections.
+133     *
+134     * @param value the object whose state is to be copied.
+135     * @return the same object, since enumeration instances are singletons.
+136     * @throws ClassCastException for non {@link StereoVolume} values.
+137     */
+138    public Object deepCopy(Object value) {
+139        if (value == null) return null;
+140        StereoVolume volume = (StereoVolume)value;
+141        return new StereoVolume(volume.getLeft(), volume.getRight());
+142    }
+143
+144    /**
+145     * Indicates whether objects managed by this type are mutable.
+146     *
+147     * @return &lt;code&gt;true&lt;/code&gt;, since {@link StereoVolume} is mutable.
+148     */
+149    public boolean isMutable() {
+150        return true;
+151    }
+152
+153    /**
+154     * Retrieve an instance of the mapped class from a JDBC {@link ResultSet}.
+155     *
+156     * @param rs the results from which the instance should be retrieved.
+157     * @param names the columns from which the instance should be retrieved.
+158     * @param session, an extension of the normal Hibernate session interface
+159     *        that gives you much more access to the internals.
+160     * @param owner the entity containing the value being retrieved.
+161     * @return the retrieved {@link StereoVolume} value, or &lt;code&gt;null&lt;/code&gt;.
+162     * @throws HibernateException if there is a problem performing the mapping.
+163     * @throws SQLException if there is a problem accessing the database.
+164     */
+165    public Object nullSafeGet(ResultSet rs, String[] names,
+166                              SessionImplementor session, Object owner)
+167     throws HibernateException, SQLException
+168    {
+169        Short left = (Short) Hibernate.SHORT.nullSafeGet(rs, names[0]);
+170        Short right = (Short) Hibernate.SHORT.nullSafeGet(rs, names[1]);
+171
+172        if (left == null || right == null) {
+173            return null; // We don't have a specified volume for the channels
+174        }
+175
+176        return new StereoVolume(left.shortValue(), right.shortValue());
+177    }
+178
+179    /**
+180     * Write an instance of the mapped class to a {@link PreparedStatement},
+181     * handling null values.
+182     *
+183     * @param st a JDBC prepared statement.
+184     * @param value the StereoVolume value to write.
+185     * @param index the parameter index within the prepared statement at which
+186     *        this value is to be written.
+187     * @param session, an extension of the normal Hibernate session interface
+188     *        that gives you much more access to the internals.
+189     * @throws HibernateException if there is a problem performing the mapping.
+190     * @throws SQLException if there is a problem accessing the database.
+191     */
+192    public void nullSafeSet(PreparedStatement st, Object value, int index,
+193                            SessionImplementor session)
+194        throws HibernateException, SQLException
+195    {
+196        if (value == null) {
+197            Hibernate.SHORT.nullSafeSet(st, null, index);
+198            Hibernate.SHORT.nullSafeSet(st, null, index + 1);
+199        }
+200        else {
+201            StereoVolume vol = (StereoVolume)value;
+202            Hibernate.SHORT.nullSafeSet(st, new Short(vol.getLeft()), index);
+203            Hibernate.SHORT.nullSafeSet(st, new Short(vol.getRight()),
+204                                        index + 1);
+205        }
+206    }
+207
+208    /**
+209     * Reconstitute a working instance of the managed class from the cache.
+210     *
+211     * @param cached the serializable version that was in the cache.
+212     * @param session, an extension of the normal Hibernate session interface
+213     *        that gives you much more access to the internals.
+214     * @param owner the entity containing the value being retrieved.
+215     * @return a copy of the value as a {@link StereoVolume} instance.
+216     */
+217    public Object assemble(Serializable cached, SessionImplementor session,
+218                           Object owner)
+219    {
+220        // Our value type happens to be serializable, so we have an easy out.
+221        return deepCopy(cached);
+222    }
+223
+224    /**
+225     * Translate an instance of the managed class into a serializable form to
+226     * be stored in the cache.
+227     *
+228     * @param session, an extension of the normal Hibernate session interface
+229     *        that gives you much more access to the internals.
+230     * @param value the StereoVolume value to be cached.
+231     * @return a serializable copy of the value.
+232     */
+233    public Serializable disassemble(Object value,
+234                                    SessionImplementor session) {
+235        return (Serializable) deepCopy(value);
+236    }
+237 }
+</pre><br/>
+</td></tr></table><p class="docText"><a id="The"/>The <tt>getPropertyNames()</tt> and <tt>getPropertyTypes()</tt> methods at lines 20 and 29 are how Hibernate knows the "pieces" that make up the <a id="idx-CHP-7-0277"/>composite type. These are the values that are available when you write HQL queries using the type. In our case they correspond to the properties of the actual <tt>StereoVolume</tt> class we're persisting, but that isn't required. This is our opportunity, for example, to provide a friendly property interface to some legacy object that wasn't designed for persistence at all.</p><p class="docText">The translation between the virtual properties provided by the <a id="idx-CHP-7-0278"/>composite user type and the real data on which they are based is handled by the <tt>getPropertyValue()</tt> and <tt>setPropertyValue()</tt> methods in lines 40–98. In essence, Hibernate hands us an instance of the type we're supposed to manage, about which it makes no assumptions at all, and says "hey, give me the second property" or "set the first property to this value. " You can see how this lets us do any work needed to add a property interface to old or third-party code. In this case, since we don't actually need that power, the hoops we need to jump through to pass the property manipulation on to the underlying <tt>StereoVolume</tt> class are just boilerplate.<a id="idx-CHP-7-0279"/><a id="idx-CHP-7-0280"/><a id="idx-CHP-7-0281"/><a id="idx-CHP-7-0282"/><a id="idx-CHP-7-0283"/></p><p class="docText">The next lengthy stretch of code consists of methods we've seen before in <a class="docLink" href="0596006969_defining_a_user_type.xhtml#sourcemediatypejava_our_custom_type_mapp">Example 7-1</a>. Some of the differences in this version are interesting. Most of the changes have to do with the fact that, unlike <tt>SourceMedia</tt>, our <tt>StereoVolume</tt> class is mutable—it contains values that can be changed. So we have to come up with full implementations for some methods we finessed last time: comparing  instances in <tt>equals()</tt> at line 110, and making copies in <tt>deepCopy()</tt> at line 130.</p><p class="docText">The actual persistence methods, <tt>nullSafeGet()</tt> at line 153 and <tt>nullSafeSet()</tt> at 179, are quite similar to <a class="docLink" href="0596006969_defining_a_user_type.xhtml#sourcemediatypejava_our_custom_type_mapp">Example 7-1</a>, with one difference we didn't need to exploit. They both have a <tt>SessionImplementor</tt> parameter, which gives you some really deep access to the gears and pulleys that make Hibernate work. This is only needed for truly complex persistence challenges, and it is well outside the scope of this book. If you need to use <tt>SessionImplementor</tt> methods, you're doing something quite tricky, and you must have a profound understanding of the architecture of Hibernate. You're essentially writing an extension to the system, and you probably need to study the source code to develop the requisite level of expertise.<a id="idx-CHP-7-0284"/></p><p class="docText">Finally, the <tt>assemble()</tt> method at line 208 and <tt>disassemble()</tt> at 224 allow custom types to support caching of values that aren't already <tt>Serializable</tt>. They give our persistence manager a place to copy any important values into another object that is capable of being serialized, using any means necessary. Since it was trivial to make <tt>StereoVolume</tt> serializable in the first place, we don't need this flexibility either. Our implementation can just make copies of the serializable <tt>StereoVolume</tt> instances for storing in the cache. (We make copies because, again our data class is mutable, and it wouldn't do to have cached values mysteriously changing.)<a id="idx-CHP-7-0285"/><a id="idx-CHP-7-0286"/></p><blockquote><p class="docText"><span class="docEmphasis">That was a lot of work for a simple value class, but the example is a good starting point for more complicated needs</span>.</p></blockquote><p class="docText">All right, we've created this beast, how do we use it? <a class="docLink" href="#changes_to_trackhbmxml_to_use_stereovolu">Example 7-6</a> shows how to enhance the <tt>volume</tt> property in the <tt>Track</tt> mapping document to use the new <a id="idx-CHP-7-0287"/><a id="to"/>composite type. Let's also take this opportunity to add it to <tt>Track's toString()</tt> method so we can see it in test output.</p><a id="changes_to_trackhbmxml_to_use_stereovolu"/><h5 id="title-ID0E4DBG" class="docExampleTitle">Example 7-6. Changes to Track.hbm.xml to use StereoVolume</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+&lt;property name="volume" type="<b>com.oreilly.hh.StereoVolumeType</b>"&gt;
+  &lt;meta attribute="field-description"&gt;How loud to play the track&lt;/meta&gt;
+  <b>&lt;meta attribute="use-in-tostring"&gt;true&lt;/meta&gt;
+  &lt;column name="VOL_LEFT"/&gt;
+  &lt;column name="VOL_RIGHT"/&gt;</b>
+&lt;/property&gt;
+...
+</pre><br/>
+</td></tr></table><p class="docText">Notice again that we supply the name of our custom user type, responsible for managing persistence, rather than the raw type that it is managing. This is just like <a class="docLink" href="0596006969_using_a_custom_type_mapping.xhtml#custom_type_mapping_for_the_sourcemedia_">Example 7-2</a>. Also, our <a id="idx-CHP-7-0288"/>composite type uses two columns to store its data, so we need to supply two column names here.</p><p class="docText">Now when we regenerate the source for <tt>Track</tt> by running <a id="idx-CHP-7-0289"/><tt><b>ant codegen</b></tt><a id="in"/>, we get the results shown in <a class="docLink" href="#changes_to_the_generated_trackjava_sourc">Example 7-7</a>.</p><a id="changes_to_the_generated_trackjava_sourc"/><h5 id="title-ID0EHFBG" class="docExampleTitle">Example 7-7. Changes to the generated Track.java source</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+/** nullable persistent field */
+private <b>com.oreilly.hh.StereoVolume</b> volume;
+...
+/** full constructor */
+public Track(String title, String filePath, Date playTime, Date added, com.
+oreilly.hh.<b>StereoVolume</b> volume, com.oreilly.hh.SourceMedia sourceMedia, Set
+artists, Set comments) {
+...
+}
+...
+/**
+ * How loud to play the track
+ */
+public <b>com.oreilly.hh.StereoVolume</b> getVolume() {
+    return this.volume;
+}
+
+public void setVolume(<b>com.oreilly.hh.StereoVolume</b> volume) {
+    this.volume = volume;
+}
+...
+public String toString() {
+    return new ToStringBuilder(this)
+        .append("id", getId())
+        .append("title", getTitle())
+        <b>.append("volume", getVolume())</b>
+        .append("sourceMedia", getSourceMedia())
+        .toString();
+}
+...
+</pre><br/>
+</td></tr></table><p class="docText">At this point we are ready to run <tt><b>ant schema</b></tt> to recreate the database tables. <a class="docLink" href="#creation_of_the_track_schema_from_the_ne">Example 7-8</a> shows the relevant output.</p><a id="creation_of_the_track_schema_from_the_ne"/><h5 id="title-ID0EGGBG" class="docExampleTitle">Example 7-8. Creation of the Track schema from the new mapping</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+[schemaexport] create table TRACK (
+[schemaexport]    TRACK_ID INTEGER NOT NULL IDENTITY,
+[schemaexport]    title VARCHAR(255) not null,
+[schemaexport]    filePath VARCHAR(255) not null,
+[schemaexport]    playTime TIME,
+[schemaexport]    added DATE,
+[schemaexport]    <b>VOL_LEFT SMALLINT,</b>
+[schemaexport]    <b>VOL_RIGHT SMALLINT,</b>
+[schemaexport]    sourceMedia VARCHAR(255)
+[schemaexport] )
+...
+</pre><br/>
+</td></tr></table><p class="docText">Let's beef up the data creation test so it can work with the new <tt>Track</tt> structure. <a class="docLink" href="#changes_required_to_createtestjava_to_te">Example 7-9</a> shows the kind of changes we need.</p><a id="changes_required_to_createtestjava_to_te"/><h5 id="title-ID0E3GBG" class="docExampleTitle">Example 7-9. Changes required to CreateTest.java to test stereo volumes</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+// Create some data and persist it
+tx = session.beginTransaction();
+<a id="idx-CHP-7-0290"/><b>StereoVolume fullVolume = new StereoVolume();</b>
+
+Track track = new Track("Russian Trance",
+                        "vol2/album610/track02.mp3",
+                        Time.valueOf("00:03:30"), new Date(),
+                        <b>fullVolume,</b> SourceMedia.CD,
+                        new HashSet(), new HashSet());
+addTrackArtist(track, getArtist("PPK", true, session));
+session.save(track);
+...
+<b>// The other tracks created use fullVolume too, until...</b>
+...
+track = new Track("Test Tone 1",
+                  "vol2/singles/test01.mp3",
+                  Time.valueOf("00:00:10"), new Date(),
+                  <b>new StereoVolume((short)50, (short)75),</b> null,
+                  new HashSet(), new HashSet());
+track.getComments().add("Pink noise to test equalization");
+session.save(track);
+...
+</pre><br/>
+</td></tr></table><p class="docText">Now if we execute <tt><b>ant ctest</b></tt> and look at the results with <tt><b>ant db</b></tt>, we'll find values like those shown in <a class="docLink" href="#stereo_volume_information_in_the_track_t">Figure 7-2</a>.</p><a id="stereo_volume_information_in_the_track_t"/><p/><div class="center"><h5 class="docFigureTitle">Figure 7-2. Stereo volume information in the TRACK table</h5><a id="I_mediaobject7_d1e6723"/><p class="docText"><img src="Images/0596006969_building_a_composite_user_type_image01.png" alt="" width="396" height="245"/></p></div><br/><p class="docText"><a id="in"/>We only need to make the single change, shown in <a class="docLink" href="#change_to_albumtestjava_to_support_stere">Example 7-10</a>, Change to <tt>AlbumTest</tt> to make it compatible with this new <tt>Track</tt> format.</p><a id="change_to_albumtestjava_to_support_stere"/><h5 id="title-ID0EVIBG" class="docExampleTitle">Example 7-10. Change to AlbumTest.java to support stereo track volumes</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+private static void addAlbumTrack(Album album, String title, String file,
+                                  Time length, Artist artist, int disc,
+                                  int positionOnDisc, Session session)
+    throws HibernateException
+{
+    Track track = new Track(title, file, length, new Date(),
+                            <b>new StereoVolume()</b>, SourceMedia.CD,
+                            new HashSet(), new HashSet());
+...
+</pre><br/>
+</td></tr></table><p class="docText">This lets us run <tt><b>ant atest</b></tt>, and see the stereo volume information shown by the new version of <tt>Track's toString()</tt> method in <a class="docLink" href="#an_album_with_stereo_track_information">Example 7-11</a>.</p><a id="an_album_with_stereo_track_information"/><h5 id="title-ID0ELJBG" class="docExampleTitle">Example 7-11. An album with stereo track information</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+atest:
+     [java] com.oreilly.hh.Album@a49182[id=0,title=Counterfeit e.p.,tracks=[com.
+oreilly.hh.AlbumTrack@548719[track=com.oreilly.hh.Track@719d5b[id=&lt;null&gt;,
+title=Compulsion,<b>volume=Volume[left=100, right=100],</b>sourceMedia=Compact Disc]],
+com.oreilly.hh.AlbumTrack@afebc9[track=com.oreilly.hh.Track@a0fbd6[id=&lt;null&gt;,
+title=In a Manner of Speaking,<b>volume=Volume[left=100,
+right=100],</b>sourceMedia=Compact Disc]], com.oreilly.hh.
+AlbumTrack@f5c8fb[track=com.oreilly.hh.Track@5dfb22[id=&lt;null&gt;,title=Smile in the
+Crowd,<b>volume=Volume[left=100, right=100],</b>sourceMedia=Compact Disc]], com.oreilly.
+hh.AlbumTrack@128f03[track=com.oreilly.hh.Track@6b2ab7[id=&lt;null&gt;,
+title=Gone,<b>volume=Volume[left=100, right=100],</b>sourceMedia=Compact Disc]], com.
+oreilly.hh.AlbumTrack@c17a8c[track=com.oreilly.hh.Track@549f0e[id=&lt;null&gt;,
+title=Never Turn Your Back on Mother Earth,<b>volume=Volume[left=100,
+right=100],</b>sourceMedia=Compact Disc]], com.oreilly.hh.
+AlbumTrack@9652dd[track=com.oreilly.hh.Track@1a67fe[id=&lt;null&gt;,title=Motherless
+Child,<b>volume=Volume[left=100, right=100],</b>sourceMedia=Compact Disc]]]]
+</pre><br/>
+</td></tr></table><p class="docText">Well, that may have been more in-depth than you wanted right now about creating custom types, but someday you might come back and mine this example for the exact nugget you're looking for. In the meantime, let's change gears and look at something new, simple, and completely different. The next chapter introduces criteria queries, a unique and very programmer-friendly capability in Hibernate.</p><blockquote><p class="docText"><span class="docEmphasis">Phew</span>!</p></blockquote></div></div></body>
+</html>

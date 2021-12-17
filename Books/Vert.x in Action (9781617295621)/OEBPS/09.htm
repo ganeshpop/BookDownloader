@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1020816"/>9 Messaging and event streaming with Vert.x</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>Messaging with AMQP</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>Event streaming with Apache Kafka</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011861"/>Sending emails</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011871"/>Integration testing with messaging and event-streaming middleware</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011881"/>Reactive applications are a good fit for messaging and event-streaming technologies. So far we have mostly looked at services that expose HTTP APIs. But although HTTP is a versatile and effective protocol for interacting with a service, it should not be the only choice.</p>
+
+  <p class="body"><a id="pgfId-1011887"/>There are several options for integrating Vert.x-based services using messaging and event streaming. This chapter introduces AMQP message brokers and Apache Kafka. We will also discuss sending email using an SMTP server.</p>
+
+  <p class="body"><a id="pgfId-1011893"/>In this chapter we’ll dive into the implementation of the ingester and congratulation services. The ingester receives step updates from devices over HTTP and AMQP, and it forwards them into the system as Kafka events. The congratulation service listens for certain Kafka events to spot when a user has reached 10,000 steps in a day, and it sends a congratulation email.</p>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011899"/>9.1 Event-driven services beyond HTTP with Vert.x</h2>
+
+  <p class="body"><a id="pgfId-1011916"/><a id="marker-1011910"/><a id="marker-1011912"/>HTTP is a sensible choice as a networked interface for an event-driven service, especially when a service offers an API. Messaging and event-streaming middleware offer useful tools for decoupling and integrating services. They are also typically better suited than HTTP for exchanging lots of events between services.</p>
+
+  <h3 class="fm-head1" id="heading_id_4"><a id="pgfId-1011921"/>9.1.1 What Vert.x provides</h3>
+
+  <p class="body"><a id="pgfId-1011931"/>Vert.x provides clients for message brokers, event streaming with Apache Kafka, and a general-purpose TCP protocol for the event bus.</p>
+
+  <p class="fm-head2"><a id="pgfId-1011937"/>Message brokers</p>
+
+  <p class="body"><a id="pgfId-1011956"/><a id="marker-1011948"/><a id="marker-1011950"/><a id="marker-1011952"/>Messaging middleware can be more effective than HTTP for service-to-service communications with better throughput, and it can also provide durability guarantees when a consumer or producer service is temporarily unavailable. Vert.x provides several modules for doing integration work with messaging middleware:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1011961"/>An <i class="fm-italics1">Advanced Message Queuing Protocol</i> (AMQP) client</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1011984"/>A <i class="fm-italics1">Simple Text Oriented Messaging Protocol</i> (STOMP) client</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012003"/>A RabbitMQ client</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012013"/>A <i class="fm-italics1">Message Queuing Telemetry Transport</i> (MQTT) client</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012032"/>AMQP <a id="marker-1012034"/>is a standard protocol for messaging middleware, and it’s implemented by a large number of brokers such as Apache ActiveMQ , JBoss A-MQ , Windows Azure Service Bus, RabbitMQ , and more. Vert.x provides a dedicated client for RabbitMQ and its extensions. Note that it is also possible to use the Vert.x AMQP client with RabbitMQ , since it exposes an AMQP server alongside the RabbitMQ-specific server.</p>
+
+  <p class="body"><a id="pgfId-1012044"/>STOMP <a id="marker-1012046"/><a id="marker-1012049"/><a id="marker-1012051"/>is a text-based protocol for messaging middleware. It has fewer features than AMQP, but they may be enough for simple messaging. It is supported by popular message brokers.</p>
+
+  <p class="body"><a id="pgfId-1012060"/>MQTT <a id="marker-1012062"/><a id="marker-1012065"/>is a protocol designed for machine-to-machine publish/subscribe interactions. It is quite popular for embedded/Internet of Things devices because it uses low bandwidth. <a id="marker-1012070"/><a id="marker-1012073"/><a id="marker-1012075"/></p>
+
+  <p class="fm-head2"><a id="pgfId-1012081"/>Kafka event streaming</p>
+
+  <p class="body"><a id="pgfId-1012100"/><a id="marker-1012092"/><a id="marker-1012094"/><a id="marker-1012096"/>Vert.x provides support for Apache Kafka, a popular implementation of event-streaming middleware.</p>
+
+  <p class="body"><a id="pgfId-1012105"/>At first glance, event-streaming middleware resembles messaging systems, but it allows for interesting architectural patterns because different services can consume the same set of events at their own pace. Message brokers support publish/subscribe mechanisms for multiple services to consume the same events, but event-streaming middleware also has the ability to replay events at will. Rewinding event streams is a distinctive feature. Event-streaming middleware also allows new services to be plugged into the processing pipeline without impacting other services.</p>
+
+  <p class="body"><a id="pgfId-1012111"/>You can use event-streaming middleware just like messaging middleware, but there is more to it than just passing events between services. <a id="marker-1012113"/><a id="marker-1012116"/><a id="marker-1012118"/></p>
+
+  <p class="fm-head2"><a id="pgfId-1012124"/>Event-bus TCP bridge</p>
+
+  <p class="body"><a id="pgfId-1012143"/><a id="marker-1012135"/><a id="marker-1012137"/><a id="marker-1012139"/>Last but not least, Vert.x provides an event-bus bridge over a simple TCP protocol, with binding in JavaScript, Go, C#, C, and Python. This allows us to use the event bus to connect with non-Java applications. We will not cover this event-bus bridge in the book, but you can easily learn how to use it from the official Vert.x documentation. From the Vert.x side, this is really just the event bus, except that some of the events can be produced and consumed outside of the JVM. <a id="marker-1012144"/><a id="marker-1012147"/><a id="marker-1012149"/></p>
+
+  <h3 class="fm-head1" id="heading_id_5"><a id="pgfId-1012155"/>9.1.2 The middleware and services that we’ll use</h3>
+
+  <p class="body"><a id="pgfId-1012174"/><a id="marker-1012166"/><a id="marker-1012168"/><a id="marker-1012170"/>The 10k steps challenge application allows us to explore AMQP for messaging, Kafka for event streaming, and sending email with an SMTP server:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012179"/>AMQP <a class="calibre9" id="marker-1012189"/>is used by the ingestion service because it receives pedometer device updates over either HTTP or AMQP.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012199"/>Kafka is used to convey events between many services of the application.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012209"/>SMTP is used to send congratulation emails to users.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012219"/>As in the previous chapter, Docker Compose can be used to start the required middleware services for local development purposes: Apache Kafka (which also requires Apache ZooKeeper), Apache ActiveMQ Artemis, and MailHog (a test-friendly SMTP server). You can, of course, install and run each service by yourself if you want to, but starting disposable containers with Docker offers a simplified development experience.</p>
+
+  <p class="body"><a id="pgfId-1012225"/>On the Vert.x side, we’ll use the following modules to build our services:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012231"/><code class="fm-code-in-text">vertx-amqp-client</code>--The AMQP client <a class="calibre9" id="marker-1012248"/></p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012255"/><code class="fm-code-in-text">vertx-kafka-client</code>--The Apache Kafka client <a class="calibre9" id="marker-1012268"/></p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012275"/><code class="fm-code-in-text">vertx-mail-client</code>--The SMTP client that <a class="calibre9" id="marker-1012288"/>will send emails <a class="calibre9" id="marker-1012294"/><a class="calibre9" id="marker-1012297"/><a class="calibre9" id="marker-1012299"/></p>
+    </li>
+  </ul>
+
+  <h3 class="fm-head1" id="heading_id_6"><a id="pgfId-1012305"/>9.1.3 What is AMQP (and a message broker)?</h3>
+
+  <p class="body"><a id="pgfId-1012330"/><a id="marker-1012316"/><a id="marker-1012318"/><a id="marker-1012320"/>The <i class="fm-italics">Advanced Message Queuing Protocol</i> (AMQP) is a widely used network protocol for messaging middleware backed by an open specification. The protocol itself is binary, based on TCP, and it supports authentication and encryption. We’ll use Apache ActiveMQ in the project, and it supports AMQP.</p>
+
+  <p class="body"><a id="pgfId-1012339"/>Message brokers are a classic form of service integration, as they typically support message queues and publish/subscribe communications. They allow services to communicate through message passing, and the broker ensures message durability.</p>
+
+  <p class="body"><a id="pgfId-1012345"/>Figure 9.1 shows the interactions between a device, an AMQP queue that collects step events, and the ingestion service.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH09_F01_Ponge.png" width="751" height="229"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034695"/>Figure 9.1 Overview of an AMQP queue</p>
+
+  <p class="body"><a id="pgfId-1012361"/>Messages can be made <i class="fm-italics">durable</i>, so that <a id="marker-1012386"/>they are not lost if the broker crashes. Producers and consumers can use acknowledgements to ensure that a message has been properly sent or retrieved and then processed. Brokers also offer various quality-of-service features, such as expiration dates and advanced routing. Depending on the broker, messages can be transformed from one representation to another, such as converting from a binary format to JSON. Some brokers also support aggregating multiple messages into one, or conversely splitting one message to produce many.</p>
+
+  <p class="fm-callout"><a id="pgfId-1012406"/><span class="fm-callout-head">Note</span> If you are new to ActiveMQ, I suggest reading <i class="fm-italics">ActiveMQ in Action</i> by Bruce Snyder, Dejan Bosanac, and Rob Davies (Manning, 2011). <a id="marker-1012417"/><a id="marker-1012420"/><a id="marker-1012422"/></p>
+
+  <h3 class="fm-head1" id="heading_id_7"><a id="pgfId-1012428"/>9.1.4 What is Kafka?</h3>
+
+  <p class="body"><a id="pgfId-1012447"/><a id="marker-1012439"/><a id="marker-1012441"/><a id="marker-1012443"/>Apache Kafka is event-streaming middleware based on distributed logs. While that may sound complicated, all you really need to understand is that Kafka offers streams of event records, where producers can append new records and consumers can walk back and forth along streams. For instance, incoming pedometer step updates form a stream where each event is an update sent by a device, and the ingestion service produces these events. On the other hand, various consumers can look at the events on that stream to populate databases, compute statistics, and so on. Events remain in a stream for some amount of time, or until the stream is too big and has to discard its oldest records.</p>
+
+  <p class="body"><a id="pgfId-1012510"/>Kafka supports publish/subscribe interactions between distributed services, as illustrated in figure 9.2. In a Kafka cluster, events are <i class="fm-italics">published</i> and <i class="fm-italics">consumed</i> from <i class="fm-italics">topics</i> that group <a id="marker-1012483"/>related events. Topics are <a id="marker-1012489"/>split into <i class="fm-italics">replicated partitions</i>, which are ordered sequences of events. Each event is identified by its <i class="fm-italics">offset</i> position in the event log that materializes its partition.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH09_F02_Ponge.png" width="992" height="394"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034748"/>Figure 9.2 Overview of a Kafka topic</p>
+
+  <p class="body"><a id="pgfId-1012556"/>Consumers pull events from partitions. They can keep track of the last offset that they have consumed, but it is also possible to arbitrarily seek any random position in a partition, or even to replay all events since <a id="marker-1012545"/>the beginning. Also, <i class="fm-italics">consumer groups</i> can divide work by reading from different partitions and parallelizing event processing.</p>
+
+  <p class="body"><a id="pgfId-1012587"/>It is easy to think that Kafka is a <i class="fm-italics">messaging</i> system like ActiveMQ, and in some cases Kafka is very fine messaging middleware, but it should <a id="marker-1012576"/>still be considered <i class="fm-italics">streaming</i> middleware.</p>
+
+  <p class="body"><a id="pgfId-1012596"/>In a message broker, messages disappear when they have been consumed from a queue, or when they expire. Kafka partitions eventually evict records, either using a partition size limit (such as 2 GB) or using some eviction delay (such as two weeks). Kafka records should be considered “semi-durable” as they will eventually disappear. It is possible to configure the partitions in a topic to keep events forever, but this is quite rare as events are expected to produce durable effects when consumed. For instance, the ingestion service produces incoming step update records, and the activity service turns these records into long-term facts in a database. Another interesting feature of Kakfa is that topics can be replayed at will, so new services can join and consume a stream at their own pace.</p>
+
+  <p class="fm-callout"><a id="pgfId-1012612"/><span class="fm-callout-head">Note</span> I suggest reading Dylan Scott’s <i class="fm-italics">Kafka in Action</i> (Manning, 2017) if you are new to Apache Kafka.</p>
+
+  <p class="body"><a id="pgfId-1012627"/>Let’s now dive into the ingestion service. <a id="marker-1012629"/><a id="marker-1012632"/><a id="marker-1012634"/><a id="marker-1012636"/><a id="marker-1012638"/></p>
+
+  <h2 class="fm-head" id="heading_id_8"><a id="pgfId-1012644"/>9.2 Reliably ingesting messages over HTTP and AMQP</h2>
+
+  <p class="body"><a id="pgfId-1012661"/><a id="marker-1012655"/><a id="marker-1012657"/>Everything begins with the ingestion service, as it receives step count updates from the pedometers. In our (fictitious) application, we can expect that several types of pedometers will be available, and that they have different communication capabilities. For example, some devices may directly talk to the ingestion service over the internet, while others may need to reach a gateway that forwards updates to the ingestion service.</p>
+
+  <p class="body"><a id="pgfId-1012666"/>This is why we offer two interfaces for ingesting device updates:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012672"/>A device can connect to the HTTP API provided by the ingestion service.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012686"/>A device can forward an update to a message broker, and the ingestion service receives the updates from the broker.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012696"/>Once an update has been received, it must be validated and then sent to a Kafka topic. It is interesting to explore both the AMQP and HTTP interfaces, as we can see similarities in their implementations but also differences in acknowledging device updates.</p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1012702"/>9.2.1 Ingesting from AMQP</h3>
+
+  <p class="body"><a id="pgfId-1012721"/><a id="marker-1012713"/><a id="marker-1012715"/><a id="marker-1012717"/>We’ll start with the AMQP ingestion. We first need to create an AMQP client that connects to the broker. The following listing shows the client configuration code.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012777"/>Listing 9.1 AMQP client configuration</p>
+  <pre class="programlisting">private AmqpClientOptions amqpConfig() {
+  return new AmqpClientOptions()
+    .setHost("localhost")
+    .setPort(5672)
+    .setUsername("artemis")                    <span class="fm-combinumeral">❶</span>
+    .setPassword("simetraehcapa");
+}
+// (...)
+
+AmqpClientOptions amqpOptions = amqpConfig();
+AmqpReceiverOptions receiverOptions = new AmqpReceiverOptions()
+  .setAutoAcknowledgement(false)               <span class="fm-combinumeral">❷</span>
+  .setDurable(true);                           <span class="fm-combinumeral">❸</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033755"/><span class="fm-combinumeral">❶</span> The credentials are the default ones from the Docker image.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033776"/><span class="fm-combinumeral">❷</span> We will manually acknowledge incoming messages.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033793"/><span class="fm-combinumeral">❸</span> We want durable messaging.</p>
+
+  <p class="body"><a id="pgfId-1012957"/>The <code class="fm-code-in-text">amqpConfig</code> method that we use <a id="marker-1012968"/>here provides a configuration with hardcoded values. This is great for the testing we do in this book, but for production you would, of course, resolve credentials, hostnames, and port numbers from some external source. These could be environment variables or a registry service, such as Apache ZooKeeper or Consul. We also set up the connection for durable messaging and declare manual acknowledgment, as we want to retry message processing if writing to a Kafka topic fails.</p>
+
+  <p class="body"><a id="pgfId-1012978"/>The next step is to set up the event-processing pipeline for incoming AMQP messages. We use RxJava to dispatch messages to a processing function, log errors, and recover from errors, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013035"/>Listing 9.2 AMQP event-processing pipeline</p>
+  <pre class="programlisting">AmqpClient.create(vertx, amqpOptions)                                      <span class="fm-combinumeral">❶</span>
+  .rxConnect()
+  .flatMap(conn -&gt; conn.rxCreateReceiver("step-events", receiverOptions))  <span class="fm-combinumeral">❷</span>
+  .flatMapPublisher(AmqpReceiver::toFlowable)                              <span class="fm-combinumeral">❸</span>
+  .doOnError(this::logAmqpError)                                           <span class="fm-combinumeral">❹</span>
+  .retryWhen(this::retryLater)                                             <span class="fm-combinumeral">❺</span>
+  .subscribe(this::handleAmqpMessage);                                     <span class="fm-combinumeral">❻</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033277"/><span class="fm-combinumeral">❶</span> Create an AMQP client.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033298"/><span class="fm-combinumeral">❷</span> Create a message receiver from the step-events destination.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033315"/><span class="fm-combinumeral">❸</span> Create a Flowable of AMQP messages.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033332"/><span class="fm-combinumeral">❹</span> Error logging</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033349"/><span class="fm-combinumeral">❺</span> Retry logic</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033366"/><span class="fm-combinumeral">❻</span> Subscription that dispatches incoming messages</p>
+
+  <p class="body"><a id="pgfId-1013306"/>This pipeline is interesting as it is purely declarative. It starts with the creation of a client, and then it obtains a receiver for the <code class="fm-code-in-text">step-events</code> durable queue and a flow of messages. From there <a id="marker-1013257"/>we declare what to do upon receiving a message or an error. We also keep the code short and clean <a id="marker-1013263"/>by using <a id="marker-1013269"/>Java method references <a id="marker-1013275"/>rather than lambdas. But what do the <code class="fm-code-in-text">logAmqpError</code>, <code class="fm-code-in-text">retryLater</code>, and <code class="fm-code-in-text">handleAmqpMessage</code> methods do?</p>
+
+  <p class="body"><a id="pgfId-1013315"/>Logging messages is not very complicated.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013372"/>Listing 9.3 Logging AMQP errors</p>
+  <pre class="programlisting">private void logAmqpError(Throwable err) {
+  logger.error("Woops AMQP", err);           <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033206"/><span class="fm-combinumeral">❶</span> Log the error and stack trace.</p>
+
+  <p class="body"><a id="pgfId-1013472"/>Errors happen. For instance, we can <a id="marker-1013451"/>lose the connection to the AMQP broker. In this case, an error passes along the pipeline, and <code class="fm-code-in-text">logAmqpError</code> logs it, but <code class="fm-code-in-text">doOnError</code> lets the error <a id="marker-1013477"/>propagate to subscribers.</p>
+
+  <p class="body"><a id="pgfId-1013509"/>We then need to retry connecting to the AMQP broker and resume receiving events, which translates to resubscribing to the source in RxJava. We can do that with the <code class="fm-code-in-text">retryWhen</code> operator, as it allows <a id="marker-1013498"/>us to define our own policy. If you just want to retry a number of times, or even always, then <code class="fm-code-in-text">retry</code> is simpler. The following listing shows how we introduce a 10-second delay before resubscribing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013569"/>Listing 9.4 Recovering from errors with a delayed resubscription</p>
+  <pre class="programlisting">private Flowable&lt;Throwable&gt; retryLater(Flowable&lt;Throwable&gt; errs) {
+  return errs.delay(10, TimeUnit.SECONDS, RxHelper.scheduler(vertx));   <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033140"/><span class="fm-combinumeral">❶</span> It is important to use the scheduler parameter to process events on a Vert.x event loop.</p>
+
+  <p class="body"><a id="pgfId-1013646"/>The <code class="fm-code-in-text">retryLater</code> operator works <a id="marker-1013657"/>as follows:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1013691"/>It takes a <code class="fm-code-in-text">Flowable</code> of errors as its input, since we are in a <code class="fm-code-in-text">Flowable</code> of AMQP messages.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013720"/>It returns a <code class="fm-code-in-text">Flowable</code> of <i class="fm-italics1">anything</i>, where</p>
+
+      <ul class="calibre10">
+        <li class="fm-list-bullet2"><a class="calibre9" id="pgfId-1013757"/>Emitting <code class="fm-code-in-text">onComplete</code> or <code class="fm-code-in-text">onError</code> does not trigger a resubscription.</li>
+
+        <li class="fm-list-bullet2"><a class="calibre9" id="pgfId-1013766"/>Emitting <code class="fm-code-in-text">onNext</code> (no matter what the value is) triggers a resubscription.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013808"/>To delay the resubscription by 10 seconds, we use <a id="marker-1013787"/>the <code class="fm-code-in-text">delay</code> operator. It will eventually emit a value, so <code class="fm-code-in-text">onNext</code> will be called and a resubscription will happen. You can, of course, think of more elaborate handlers, like limiting the number of retries or using an exponential back-off strategy. We will use this pattern a lot, as it greatly simplifies the error-recovery logic. <a id="marker-1013813"/><a id="marker-1013816"/><a id="marker-1013818"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1013824"/>9.2.2 Translating AMQP messages to Kafka records</h3>
+
+  <p class="body"><a id="pgfId-1013843"/><a id="marker-1013835"/><a id="marker-1013837"/><a id="marker-1013839"/>The following listing contains the method that handles incoming AMQP messages, validates them, and then pushes them as Kafka records.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013899"/>Listing 9.5 Handling AMQP messages</p>
+  <pre class="programlisting">private void handleAmqpMessage(AmqpMessage message) {
+  if (!"application/json".equals(message.contentType()) || 
+  <span class="fm-code-continuation-arrow">➥</span> invalidIngestedJson(message.bodyAsJsonObject())) {                     <span class="fm-combinumeral">❶</span>
+    logger.error("Invalid AMQP message (discarded): {}", 
+    <span class="fm-code-continuation-arrow">➥</span> message.bodyAsBinary());
+    message.accepted();
+    return;
+  }
+  JsonObject payload = message.bodyAsJsonObject();
+  KafkaProducerRecord&lt;String, JsonObject&gt; record = makeKafkaRecord(payload);<span class="fm-combinumeral">❷</span>
+  updateProducer.rxSend(record).subscribe(
+    ok -&gt; message.accepted(),                                               <span class="fm-combinumeral">❸</span>
+    err -&gt; {
+      logger.error("AMQP ingestion failed", err);
+      message.rejected();                                                   <span class="fm-combinumeral">❹</span>
+    });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032825"/><span class="fm-combinumeral">❶</span> Check for a valid JSON message.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032846"/><span class="fm-combinumeral">❷</span> Prepare a Kafka record.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032863"/><span class="fm-combinumeral">❸</span> Acknowledge the AMQP message.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032880"/><span class="fm-combinumeral">❹</span> Reject the AMQP message.</p>
+
+  <p class="body"><a id="pgfId-1014114"/>The <code class="fm-code-in-text">handleAmqpMessage</code> method first performs some <a id="marker-1014125"/>validation on the incoming AMQP message and then prepares a Kafka record. The AMQP message is acknowledged when the Kafka record is written, and it is rejected if the record could not be written.</p>
+
+  <p class="fm-callout"><a id="pgfId-1014174"/><span class="fm-callout-head">tip</span> In listing 9.5 and all subsequent services, we will directly <a id="marker-1014147"/>work with <code class="fm-code-in-text1">JsonObject</code> data representation. There is little point in converting the JSON representation <a id="marker-1014163"/>to Java domain classes (such as an <code class="fm-code-in-text1">IngestionData</code> class) given that we mostly copy and transform data. You can, of course, perform such mapping if you have to do some more complex business logic and the cost of abstraction is justified.</p>
+
+  <p class="body"><a id="pgfId-1014183"/>The <code class="fm-code-in-text">invalidIngestedJson</code> method checks that <a id="marker-1014194"/>the JSON data contains all required entries, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014255"/>Listing 9.6 Checking for valid JSON data</p>
+  <pre class="programlisting">private boolean invalidIngestedJson(JsonObject payload) {
+  return !payload.containsKey("deviceId") ||                <span class="fm-combinumeral">❶</span>
+    !payload.containsKey("deviceSync") ||
+    !payload.containsKey("stepsCount");
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032753"/><span class="fm-combinumeral">❶</span> Checking for JSON entries</p>
+
+  <p class="body"><a id="pgfId-1014372"/>The <code class="fm-code-in-text">makeKafkaRecord</code> method in the following <a id="marker-1014355"/>listing converts the AMQP message JSON to a Kafka record aimed <a id="marker-1014361"/>at the <code class="fm-code-in-text">incoming-steps</code> topic.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014432"/>Listing 9.7 Preparing a Kafka record</p>
+  <pre class="programlisting">private KafkaProducerRecord&lt;String, JsonObject&gt; makeKafkaRecord(JsonObject 
+<span class="fm-code-continuation-arrow">➥</span> payload) {
+  String deviceId = payload.getString("deviceId");
+  JsonObject recordData = new JsonObject()                                  <span class="fm-combinumeral">❶</span>
+    .put("deviceId", deviceId)
+    .put("deviceSync", payload.getLong("deviceSync"))
+    .put("stepsCount", payload.getInteger("stepsCount"));
+  return KafkaProducerRecord.create("incoming.steps", deviceId, recordData);<span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032615"/><span class="fm-combinumeral">❶</span> We copy JSON data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032636"/><span class="fm-combinumeral">❷</span> Record with key deviceId and JSON data</p>
+
+  <p class="body"><a id="pgfId-1014561"/>We could avoid copying all JSON entries manually and just pass the JSON from the AMQP message to the Kafka record. This, however, helps ensure that no extra data ends up in the Kafka record.</p>
+
+  <p class="body"><a id="pgfId-1014615"/>The <code class="fm-code-in-text">updateProducer</code> field is of type <code class="fm-code-in-text">KafkaProducer&lt;String, JsonObject&gt;</code> because it produces <a id="marker-1014588"/>messages with string keys and JSON payloads. Instances of <code class="fm-code-in-text">KafkaProducer</code> are created <a id="marker-1014604"/>by passing configuration from a <code class="fm-code-in-text">Map</code> as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014675"/>Listing 9.8 Configuring a Kafka producer</p>
+  <pre class="programlisting">Map&lt;String, String&gt; kafkaConfig() {
+  Map&lt;String, String&gt; config = new HashMap&lt;&gt;();
+  config.put("bootstrap.servers", "localhost:9092");
+  config.put("key.serializer", 
+  <span class="fm-code-continuation-arrow">➥</span> "org.apache.kafka.common.serialization.StringSerializer");      <span class="fm-combinumeral">❶</span>
+  config.put("value.serializer", 
+  <span class="fm-code-continuation-arrow">➥</span> "io.vertx.kafka.client.serialization.JsonObjectSerializer");    <span class="fm-combinumeral">❷</span>
+  config.put("acks", "1");
+  return config;
+}
+// (...)
+
+// in rxStart()
+updateProducer = KafkaProducer.create(vertx, kafkaConfig());         <span class="fm-combinumeral">❸</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032448"/><span class="fm-combinumeral">❶</span> Class to serialize values from strings</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032469"/><span class="fm-combinumeral">❷</span> Class to serialize values from Vert.x JsonObject</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032486"/><span class="fm-combinumeral">❸</span> Create a Vert.x Kafka producer.</p>
+
+  <p class="body"><a id="pgfId-1014920"/>The configuration <a id="marker-1014851"/>especially specifies the <i class="fm-italics">serializer</i> (or <i class="fm-italics">deserializer</i>) classes, as Kafka records <a id="marker-1014877"/>need to be mapped to Java types. <code class="fm-code-in-text">StringSerializer</code> comes from <a id="marker-1014893"/>the Kafka client library, and it serializes Java strings to Kafka <a id="marker-1014899"/>data, whereas <code class="fm-code-in-text">JsonObjectSerializer</code> comes from Vert.x and serializes <code class="fm-code-in-text">JsonObject</code> data. You need to specify correct serializer classes for both your keys and values. Similarly, you will need to configure deserializers when reading from Kafka topics.</p>
+
+  <p class="fm-callout"><a id="pgfId-1014939"/><span class="fm-callout-head">tip</span> The Vert.x Kafka module wraps the Java client from the Apache Kafka project, and all configuration key/value pairs match those from the Kafka Java client documentation. <a id="marker-1014941"/><a id="marker-1014944"/><a id="marker-1014946"/></p>
+
+  <h3 class="fm-head1" id="heading_id_11"><a id="pgfId-1014952"/>9.2.3 Ingesting from HTTP</h3>
+
+  <p class="body"><a id="pgfId-1014971"/><a id="marker-1014963"/><a id="marker-1014965"/><a id="marker-1014967"/>The code to ingest from HTTP is very similar to that of ingesting with AMQP. The most notable difference is that an HTTP status code needs to be set, so that the device that sent an update knows that ingestion has failed and must be retried later.</p>
+
+  <p class="body"><a id="pgfId-1014976"/>We first need an HTTP server and router.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015033"/>Listing 9.9 HTTP server for ingestion</p>
+  <pre class="programlisting">Router router = Router.router(vertx);
+router.post().handler(BodyHandler.create());        <span class="fm-combinumeral">❶</span>
+router.post("/ingest").handler(this::httpIngest);
+
+return vertx.createHttpServer()
+  .requestHandler(router)
+  .rxListen(HTTP_PORT)
+  .ignoreElement();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032388"/><span class="fm-combinumeral">❶</span> BodyHandler decodes HTTP request bodies.</p>
+
+  <p class="body"><a id="pgfId-1015167"/>The <code class="fm-code-in-text">httpIngest</code> method is shown in the <a id="marker-1015150"/>next listing, and it’s <a id="marker-1015156"/>quite similar to <code class="fm-code-in-text">handleAmqpMessage</code>.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015227"/>Listing 9.10 Ingesting updates from HTTP</p>
+  <pre class="programlisting">private void httpIngest(RoutingContext ctx) {
+  JsonObject payload = ctx.getBodyAsJson();
+  if (invalidIngestedJson(payload)) {                                    <span class="fm-combinumeral">❶</span>
+    logger.error("Invalid HTTP JSON (discarded): {}", payload.encode());
+    ctx.fail(400);                                                       <span class="fm-combinumeral">❷</span>
+    return;
+  }
+  KafkaProducerRecord&lt;String, JsonObject&gt; record = makeKafkaRecord(payload);
+  updateProducer.rxSend(record).subscribe(
+    ok -&gt; ctx.response().end(),                                          <span class="fm-combinumeral">❸</span>
+    err -&gt; {
+      logger.error("HTTP ingestion failed", err);
+      ctx.fail(500);                                                     <span class="fm-combinumeral">❹</span>
+    });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032013"/><span class="fm-combinumeral">❶</span> Check the JSON entries.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032034"/><span class="fm-combinumeral">❷</span> Bad JSON; let the requester know that.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032051"/><span class="fm-combinumeral">❸</span> Successful ingestion</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032068"/><span class="fm-combinumeral">❹</span> The ingestion failed; let the requester know that.</p>
+
+  <p class="body"><a id="pgfId-1015442"/>HTTP status codes are important for letting the client know if the payload is incorrect (400), if the ingestion failed due to some (temporary) error (500), or if the ingestion succeeded (200).</p>
+
+  <p class="body"><a id="pgfId-1015448"/>The ingestion service is a good example of integration using different input protocols. Let’s now explore more of Apache Kafka with Vert.x through the congratulation service. <a id="marker-1015450"/><a id="marker-1015453"/><a id="marker-1015455"/><a id="marker-1015457"/><a id="marker-1015459"/></p>
+
+  <h2 class="fm-head" id="heading_id_12"><a id="pgfId-1015465"/>9.3 Sending congratulation emails</h2>
+
+  <p class="body"><a id="pgfId-1015506"/><a id="marker-1015476"/><a id="marker-1015478"/><a id="marker-1015480"/>While the ingestion <a id="marker-1015485"/>service <i class="fm-italics">produces</i> Kafka events, the congratulation service <i class="fm-italics">consumes</i> Kafka events.</p>
+
+  <p class="body"><a id="pgfId-1015515"/>The activity service generates daily step events whenever a device update has been received. Each event contains the number of steps recorded for the originating device on the current day. The congratulation service can observe these events as they are sent to the <code class="fm-code-in-text">daily.step.updates</code> Kafka topic<a id="marker-1015526"/>, and it can target the events where the number of steps is above 10,000.</p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1015536"/>9.3.1 Listening for daily step update events</h3>
+
+  <p class="body"><a id="pgfId-1015561"/><a id="marker-1015547"/><a id="marker-1015549"/><a id="marker-1015551"/>The events sent to the <code class="fm-code-in-text">daily.step.updates</code> Kafka topic are JSON data with the following content:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1015570"/><code class="fm-code-in-text">deviceId</code> is the device <a class="calibre9" id="marker-1015587"/>identifier.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015597"/><code class="fm-code-in-text">timestamp</code> is the timestamp <a class="calibre9" id="marker-1015610"/>when the event was produced in the activity service.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015620"/><code class="fm-code-in-text">stepsCount</code> is the number <a class="calibre9" id="marker-1015633"/>of steps for the current day.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1015669"/>The Kafka records also have a key, which is the concatenation of several parameters: <code class="fm-code-in-text">deviceId:year-month-day</code>. In this scheme, all records of device <code class="fm-code-in-text">1a2b</code> produced on October 6th 2019 have the key <code class="fm-code-in-text">1a2b:2019-10-06</code>. As you will shortly see, the key will be useful not just to ensure that events for a given device are consumed in order, but also to ensure that we don’t send more than one congratulation email per day.</p>
+
+  <p class="body"><a id="pgfId-1015678"/>The pipeline for processing daily steps event is shown in figure 9.3.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH09_F03_Ponge.png" width="974" height="254"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034793"/>Figure 9.3 Pipeline from daily step counts to congratulation emails</p>
+
+  <p class="body"><a id="pgfId-1015694"/>Daily step updates flow from the <code class="fm-code-in-text">daily.step.updates</code> Kafka topic<a id="marker-1015719"/>, and then</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1015729"/>We discard events where the number of steps is less than 10,000.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015743"/>We discard events for which an event with the same key has already been processed.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015753"/>We send an email.</p>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1015763"/>The following listing contains the corresponding RxJava pipeline.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015820"/>Listing 9.11 Kafka RxJava pipeline for receiving and processing daily step updates</p>
+  <pre class="programlisting">KafkaConsumer.&lt;String, JsonObject&gt;create(vertx, 
+<span class="fm-code-continuation-arrow">➥</span> KafkaConfig.consumerConfig("congrats-service"))
+  .subscribe("daily.step.updates")                            <span class="fm-combinumeral">❶</span>
+  .toFlowable()
+  .filter(this::above10k)                                     <span class="fm-combinumeral">❷</span>
+  .distinct(KafkaConsumerRecord::key)                         <span class="fm-combinumeral">❸</span>
+  .flatMapSingle(this::sendmail)                              <span class="fm-combinumeral">❹</span>
+  .doOnError(err -&gt; logger.error("Woops", err))
+  .retryWhen(this::retryLater)                                <span class="fm-combinumeral">❺</span>
+  .subscribe(mailResult -&gt; logger.info("Congratulated {}", 
+<span class="fm-code-continuation-arrow">➥</span> mailResult.getRecipients()));                              <span class="fm-combinumeral">❻</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031548"/><span class="fm-combinumeral">❶</span> Subscribe to the Kafka topic.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031569"/><span class="fm-combinumeral">❷</span> Filter out events with less than 10,000 steps.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031586"/><span class="fm-combinumeral">❸</span> Discard events for which a previous event with the same key has been processed.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031603"/><span class="fm-combinumeral">❹</span> Asynchronous operation to send an email</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031620"/><span class="fm-combinumeral">❺</span> Retry on error.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031637"/><span class="fm-combinumeral">❻</span> Log each successful congratulation.</p>
+
+  <p class="body"><a id="pgfId-1016059"/>The preceding listing uses the RxJava binding to subscribe to a Kafka topic as a <code class="fm-code-in-text">Flowable</code> for Kafka records. We then use the <code class="fm-code-in-text">filter</code> combinator to filter out <a id="marker-1016064"/>records with less than 10,000 steps, and use the predicate method in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016125"/>Listing 9.12 Predicate for events with at least 10,000 steps</p>
+  <pre class="programlisting">private boolean above10k(KafkaConsumerRecord&lt;String, JsonObject&gt; record) {
+  return record.value().getInteger("stepsCount") &gt;= 10_000;                <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031469"/><span class="fm-combinumeral">❶</span> Predicate on JSON data.</p>
+
+  <p class="body"><a id="pgfId-1016224"/>The <code class="fm-code-in-text">distinct</code> combinator in listing 9.11 ensures <a id="marker-1016213"/>that only one event for each Kafka record key is retained, right after <code class="fm-code-in-text">filter</code>. This is to avoid sending more than one congratulation email to a user on a given day, as we could easily have a first event with, say, 10,100 steps, followed later by another event with 10,600 steps, and so on. Note that this design is not 100% bulletproof, as it requires storing already-processed key values in memory, and upon a service restart we could accidentally send a second email. This is a reasonable trade-off in our example, compared to using a persistent data store just to keep track of when an email was last sent to a user.</p>
+
+  <p class="body"><a id="pgfId-1016256"/>The rest of the pipeline uses similar event processing <a id="marker-1016235"/>and <code class="fm-code-in-text">retryWhen</code> logic to resubscribe on errors. The <code class="fm-code-in-text">sendmail</code> method is an asynchronous <a id="marker-1016261"/>operation to send an email--let’s look at how it works. <a id="marker-1016267"/><a id="marker-1016270"/><a id="marker-1016272"/></p>
+
+  <h3 class="fm-head1" id="heading_id_14"><a id="pgfId-1016278"/>9.3.2 Sending emails</h3>
+
+  <p class="body"><a id="pgfId-1016303"/><a id="marker-1016289"/><a id="marker-1016291"/><a id="marker-1016293"/>The <code class="fm-code-in-text">vertx-mail-client</code> module offers <a id="marker-1016308"/>an SMTP client. The following listing shows how to create such a client.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016369"/>Listing 9.13 Creating an SMTP client</p>
+  <pre class="programlisting">MailClient mailClient = MailClient.createShared(vertx, MailerConfig.config());<span class="fm-combinumeral">❶</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031404"/><span class="fm-combinumeral">❶</span> Create a shared instance</p>
+
+  <p class="body"><a id="pgfId-1016434"/>As with many other Vert.x clients, we obtain an instance through a factory method, passing a <code class="fm-code-in-text">Vertx</code> context as well as some parameters.</p>
+
+  <p class="body"><a id="pgfId-1016449"/>The <code class="fm-code-in-text">MailerConfig</code> class provides a method <a id="marker-1016460"/>to retrieve configuration data, as shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016521"/>Listing 9.14 Mail client configuration</p>
+  <pre class="programlisting">class MailerConfig {
+  static MailConfig config() {
+    return new MailConfig()
+      .setHostname("localhost")    <span class="fm-combinumeral">❶</span>
+      .setPort(1025);              <span class="fm-combinumeral">❷</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031283"/><span class="fm-combinumeral">❶</span> Server host</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031304"/><span class="fm-combinumeral">❷</span> Server port</p>
+
+  <p class="body"><a id="pgfId-1016644"/>Again, these hardcoded values are fine for testing purposes and for keeping our code simple. The values are for connecting to MailHog, the testing SMTP server that we’re using from a Docker container. The <code class="fm-code-in-text">MailConfig</code> class supports <a id="marker-1016655"/>more configuration options like SSL, authentication method, credentials, and so on.</p>
+
+  <p class="body"><a id="pgfId-1016665"/>A daily-steps update Kafka event applies to a device; it does not contain the name of the owner or the email address. Before we can send an email, we must first fetch the missing information (name and email) from the user profile service. We thus need two requests to that service:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1016671"/>A request of the form <code class="fm-code-in-text">/owns/deviceId</code> to get the user name</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1016694"/>A request of the form <code class="fm-code-in-text">/username</code> to get the user profile and retrieve the email address</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1016713"/>The <code class="fm-code-in-text">sendmail</code> method is shown <a id="marker-1016724"/>in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016785"/>Listing 9.15 Implementation of the <code class="fm-code-in-listingcaption">sendmail</code> method</p>
+  <pre class="programlisting">private Single&lt;MailResult&gt; sendmail(KafkaConsumerRecord&lt;String, JsonObject&gt; 
+<span class="fm-code-continuation-arrow">➥</span> record) {
+  String deviceId = record.value().getString("deviceId");          <span class="fm-combinumeral">❶</span>
+  Integer stepsCount = record.value().getInteger("stepsCount");
+  return webClient
+    .get(3000, "localhost", "/owns/" + deviceId)                   <span class="fm-combinumeral">❷</span>
+    .as(BodyCodec.jsonObject())
+    .rxSend()
+    .map(HttpResponse::body)                                       <span class="fm-combinumeral">❸</span>
+    .map(json -&gt; json.getString("username"))                       <span class="fm-combinumeral">❹</span>
+    .flatMap(this::getEmail)                                       <span class="fm-combinumeral">❺</span>
+    .map(email -&gt; makeEmail(stepsCount, email))                    <span class="fm-combinumeral">❻</span>
+    .flatMap(mailClient::rxSendMail);                              <span class="fm-combinumeral">❼</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030770"/><span class="fm-combinumeral">❶</span> Extract the device identifier.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030791"/><span class="fm-combinumeral">❷</span> Prepare a request to find who owns the device.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030808"/><span class="fm-combinumeral">❸</span> Extract the body, which is a JsonObject.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030825"/><span class="fm-combinumeral">❹</span> Extract the username value.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030842"/><span class="fm-combinumeral">❺</span> Asynchronous operation to fetch the email for the user</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030859"/><span class="fm-combinumeral">❻</span> Prepare an email message.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030876"/><span class="fm-combinumeral">❼</span> Asynchronously send the email.</p>
+
+  <p class="body"><a id="pgfId-1017067"/>The <code class="fm-code-in-text">sendmail</code> method is another <a id="marker-1017078"/>RxJava pipeline that composes asynchronous operations and data processing, illustrated in figure 9.4.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH09_F04_Ponge.png" width="651" height="404"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034835"/>Figure 9.4 Asynchronous operations to prepare and then send a congratulation email</p>
+
+  <p class="body"><a id="pgfId-1017125"/>It starts by issuing an HTTP request to the user profile service and finding the user name of the device owner. It then prepares another request to fetch the user profile data to get the email address. The following listing provides <a id="marker-1017114"/>the implementation of the <code class="fm-code-in-text">getEmail</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017185"/>Listing 9.16 Request to retrieve the email address</p>
+  <pre class="programlisting">private Single&lt;String&gt; getEmail(String username) {
+  return webClient
+    .get(3000, "localhost", "/" + username)
+    .as(BodyCodec.jsonObject())
+    .rxSend()                                <span class="fm-combinumeral">❶</span>
+    .map(HttpResponse::body)
+    .map(json -&gt; json.getString("email"));   <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030635"/><span class="fm-combinumeral">❶</span> Send the request.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030652"/><span class="fm-combinumeral">❷</span> Keep only the email address.</p>
+
+  <p class="body"><a id="pgfId-1017343"/>The next step is to prepare an email, enclosed <a id="marker-1017316"/>in a <code class="fm-code-in-text">MailMessage</code> instance, as shown in the following implementation <a id="marker-1017332"/>of the <code class="fm-code-in-text">makeEmail</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017403"/>Listing 9.17 Preparing an email message</p>
+  <pre class="programlisting">private MailMessage makeEmail(Integer stepsCount, String email) {
+  return new MailMessage()
+    .setFrom("noreply@tenksteps.tld")                           <span class="fm-combinumeral">❶</span>
+    .setTo(email)                                               <span class="fm-combinumeral">❷</span>
+    .setSubject("You made it!")                                 <span class="fm-combinumeral">❸</span>
+    .setText("Congratulations on reaching " + stepsCount + " 
+    <span class="fm-code-continuation-arrow">➥</span> steps today!\n\n- The 10k Steps Team\n");                <span class="fm-combinumeral">❹</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030325"/><span class="fm-combinumeral">❶</span> Address of the sender</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030346"/><span class="fm-combinumeral">❷</span> Recipient address</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030363"/><span class="fm-combinumeral">❸</span> Subject</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030380"/><span class="fm-combinumeral">❹</span> Body</p>
+
+  <p class="body"><a id="pgfId-1017570"/>Note that for more advanced email formatting, you could use a template engine rather than text.</p>
+
+  <p class="body"><a id="pgfId-1017576"/>Now that you know how to do messaging and event streaming with Vert.x, let’s not forget integration testing, to ensure that both the ingestion and congratulation services work correctly. <a id="marker-1017578"/><a id="marker-1017581"/><a id="marker-1017583"/><a id="marker-1017585"/><a id="marker-1017587"/><a id="marker-1017589"/></p>
+
+  <h2 class="fm-head" id="heading_id_15"><a id="pgfId-1017595"/>9.4 Integration tests</h2>
+
+  <p class="body"><a id="pgfId-1017614"/><a id="marker-1017606"/><a id="marker-1017608"/><a id="marker-1017610"/>Testing the ingestion service involves sending device updates over AMQP and HTTP, and observing the Kafka topics. Conversely, testing the congratulation service involves sending events to Kafka topics, and observing the emails.</p>
+
+  <h3 class="fm-head1" id="heading_id_16"><a id="pgfId-1017619"/>9.4.1 Ingestion testing</h3>
+
+  <p class="body"><a id="pgfId-1017638"/><a id="marker-1017630"/><a id="marker-1017632"/><a id="marker-1017634"/>Testing the ingestion service requires sending a message over AMQP or HTTP, and then checking that a Kafka record has been emitted, as shown in figure 9.5.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH09_F05_Ponge.png" width="716" height="301"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034877"/>Figure 9.5 Ingestion integration-test overview</p>
+
+  <p class="body"><a id="pgfId-1017653"/>The <code class="fm-code-in-text">IntegrationTest</code> class in the ingestion <a id="marker-1017678"/>service source code uses JUnit 5 and Docker containers to start an AMQP broker, Apache Kafka, and Apache ZooKeeper. The following listing shows the test preparation.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017739"/>Listing 9.18 Ingestion test preparation</p>
+  <pre class="programlisting">@BeforeEach
+void setup(Vertx vertx, VertxTestContext testContext) {
+  kafkaConsumer = KafkaConsumer.create(vertx, kafkaConfig());          <span class="fm-combinumeral">❶</span>
+  amqpClient = AmqpClient.create(vertx, amqClientOptions());          <span class="fm-combinumeral">❷</span>
+  KafkaAdminClient adminClient = KafkaAdminClient.create(vertx, 
+  <span class="fm-code-continuation-arrow">➥</span> kafkaConfig());                                                   <span class="fm-combinumeral">❸</span>
+  vertx
+    .rxDeployVerticle(new IngesterVerticle())                          <span class="fm-combinumeral">❹</span>
+    .delay(500, TimeUnit.MILLISECONDS, RxHelper.scheduler(vertx))
+    .flatMapCompletable(id -&gt; 
+    <span class="fm-code-continuation-arrow">➥</span> adminClient.rxDeleteTopics(singletonList("incoming.steps")))    <span class="fm-combinumeral">❺</span>
+    .onErrorComplete()
+    .subscribe(testContext::completeNow, testContext::failNow);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029976"/><span class="fm-combinumeral">❶</span> Kafka consumer</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029997"/><span class="fm-combinumeral">❷</span> AMQP client</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030014"/><span class="fm-combinumeral">❸</span> Client to administer Kafka</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030031"/><span class="fm-combinumeral">❹</span> Deploy the ingestion verticle.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030048"/><span class="fm-combinumeral">❺</span> Delete all incoming.steps topics if they exist.</p>
+
+  <p class="body"><a id="pgfId-1018033"/>The preparation consists of deploying <a id="marker-1017960"/>the <code class="fm-code-in-text">IngesterVerticle</code> verticle, and then deleting any existing <code class="fm-code-in-text">incoming.steps</code> topic. This ensures that <a id="marker-1017986"/>tests do not pollute each other with remaining Kafka events. Note the <code class="fm-code-in-text">onErrorComplete</code> combinator: it ensures progress, because deleting <a id="marker-1018002"/>topics raises an error when they don’t exist. We want to run the tests when <code class="fm-code-in-text">incoming.steps</code> does not exist, which is typically the case of the first test being run. Of course, <code class="fm-code-in-text">onErrorComplete</code> can mask a deployment failure of <code class="fm-code-in-text">IngesterVerticle</code>, but we will find that out in test executions.</p>
+
+  <p class="body"><a id="pgfId-1018042"/>The following listing shows the preamble of the test case where a well-formed AMQP message is being ingested.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018099"/>Listing 9.19 AMQP ingestion test preamble</p>
+  <pre class="programlisting">@Test
+@DisplayName("Ingest a well-formed AMQP message")
+void amqIngest(VertxTestContext testContext) {
+  JsonObject body = new JsonObject().put("deviceId", "123")
+    .put("deviceSync", 1L).put("stepsCount", 500);
+  amqpClient.rxConnect()                                              <span class="fm-combinumeral">❶</span>
+    .flatMap(connection -&gt; connection.rxCreateSender("step-events"))  <span class="fm-combinumeral">❷</span>
+    .subscribe(sender -&gt; {
+        AmqpMessage msg = AmqpMessage.create()                        <span class="fm-combinumeral">❸</span>
+          .durable(true)
+          .ttl(5000)
+          .withJsonObjectAsBody(body).build();
+        sender.send(msg);                                             <span class="fm-combinumeral">❹</span>
+      },
+      testContext::failNow);
+  // (...)
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029659"/><span class="fm-combinumeral">❶</span> Open an AMQP client connection.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029680"/><span class="fm-combinumeral">❷</span> Create a sender to the step-events destination.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029697"/><span class="fm-combinumeral">❸</span> Create an AMQP message.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029714"/><span class="fm-combinumeral">❹</span> Send the message.</p>
+
+  <p class="body"><a id="pgfId-1018326"/>The AMQP client sends a message that we know is well-formed, as its body contains all the required JSON entries.</p>
+
+  <p class="body"><a id="pgfId-1018332"/>Once this is done, we need to check that a Kafka record has been sent, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018389"/>Listing 9.20 AMQP ingestion test: checking for a Kafka record</p>
+  <pre class="programlisting">kafkaConsumer.subscribe("incoming.steps")                      <span class="fm-combinumeral">❶</span>
+  .toFlowable()
+  .subscribe(
+    record -&gt; testContext.verify(() -&gt; {                       <span class="fm-combinumeral">❷</span>
+      assertThat(record.key()).isEqualTo("123");
+      JsonObject json = record.value();
+      assertThat(json.getString("deviceId")).isEqualTo("123");
+      assertThat(json.getLong("deviceSync")).isEqualTo(1L);
+      assertThat(json.getInteger("stepsCount")).isEqualTo(500);
+      testContext.completeNow();                               <span class="fm-combinumeral">❸</span>
+    }),
+    testContext::failNow);                                     <span class="fm-combinumeral">❹</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029349"/><span class="fm-combinumeral">❶</span> Subscribe to the Kafka topic.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029370"/><span class="fm-combinumeral">❷</span> Perform assertions on the Kafka record.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029387"/><span class="fm-combinumeral">❸</span> The test passes.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029404"/><span class="fm-combinumeral">❹</span> Fail the test on any error.</p>
+
+  <p class="body"><a id="pgfId-1018586"/>Of course, we also need to test what happens when an incorrect message is sent, like an empty JSON document. We must check that no Kafka record is being emitted, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018643"/>Listing 9.21 Ingesting a bad JSON document</p>
+  <pre class="programlisting">@Test
+@DisplayName("Ingest a badly-formed AMQP message and observe no Kafka record")
+void amqIngestWrong(Vertx vertx, VertxTestContext testContext) {
+  JsonObject body = new JsonObject();                             <span class="fm-combinumeral">❶</span>
+  // (...)                                                        <span class="fm-combinumeral">❷</span>
+
+  kafkaConsumer.subscribe("incoming.steps")
+    .toFlowable()
+    .timeout(3, TimeUnit.SECONDS, RxHelper.scheduler(vertx))      <span class="fm-combinumeral">❸</span>
+    .subscribe(
+      record -&gt; testContext.failNow(new 
+      <span class="fm-code-continuation-arrow">➥</span> IllegalStateException("We must not get a record")),
+      err -&gt; {
+        if (err instanceof TimeoutException) {                    <span class="fm-combinumeral">❹</span>
+          testContext.completeNow();
+        } else {
+          testContext.failNow(err);
+        }
+      });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029049"/><span class="fm-combinumeral">❶</span> Empty JSON</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029070"/><span class="fm-combinumeral">❷</span> Send it (same code as in listing 9.20)</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029087"/><span class="fm-combinumeral">❸</span> Wait for three seconds.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029104"/><span class="fm-combinumeral">❹</span> Check that this is the error we expected!</p>
+
+  <p class="body"><a id="pgfId-1018881"/>The timeout in the RxJava pipeline is important, as we need to let some time lapse to be sure that no Kafka record has been sent. The remainder of the <code class="fm-code-in-text">IntegrationTest</code> class is quite similar<a id="marker-1018892"/>, with two test cases for the HTTP ingestion: one that checks what happens when a correct payload is sent, and one where the payload is an empty JSON document. <a id="marker-1018898"/><a id="marker-1018901"/><a id="marker-1018903"/></p>
+
+  <h3 class="fm-head1" id="heading_id_17"><a id="pgfId-1018909"/>9.4.2 Congratulation email testing</h3>
+
+  <p class="body"><a id="pgfId-1018930"/><a id="marker-1018920"/><a id="marker-1018922"/><a id="marker-1018924"/><a id="marker-1018926"/>Testing the behavior of the congratulation service is more involved than the ingestion, as there are more moving parts in the test environment, as illustrated in figure 9.6.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH09_F06_Ponge.png" width="841" height="586"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034919"/>Figure 9.6 Congratulation service integration-test overview</p>
+
+  <p class="body"><a id="pgfId-1018945"/>The goal is to send Kafka records and then observe the emails that have been sent (or not sent). Interestingly, MailHog is not just an SMTP server; it also provides a web interface and an HTTP API to simulate an email inbox. This allows us to perform tests by sending Kafka records, and then checking what emails have been received in the inbox.</p>
+
+  <p class="body"><a id="pgfId-1019003"/>The <code class="fm-code-in-text">CongratsTest</code> class features a <code class="fm-code-in-text">prepare</code> initialization method <a id="marker-1018986"/>that creates <a id="marker-1018992"/>a Kafka producer (to send Kafka events) and a Vert.x web client (to query the inbox). The steps in the <code class="fm-code-in-text">prepare</code> method to prepare the environment are shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019063"/>Listing 9.22 Preparing the congratulation service integration test</p>
+  <pre class="programlisting">KafkaAdminClient adminClient = KafkaAdminClient.create(vertx, conf);
+adminClient
+  .rxDeleteTopics(Arrays.asList("incoming.steps", "daily.step.updates"))    <span class="fm-combinumeral">❶</span>
+  .onErrorComplete()
+  .andThen(vertx.rxDeployVerticle(new CongratsVerticle()))                  <span class="fm-combinumeral">❷</span>
+  .ignoreElement()
+  .andThen(vertx.rxDeployVerticle(new FakeUserService()))                   <span class="fm-combinumeral">❸</span>
+  .ignoreElement()
+  .andThen(webClient.delete(8025, "localhost", "/api/v1/messages").rxSend())<span class="fm-combinumeral">❹</span>
+  .ignoreElement()
+  .subscribe(testContext::completeNow, testContext::failNow);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028778"/><span class="fm-combinumeral">❶</span> Delete Kafka topics.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028799"/><span class="fm-combinumeral">❷</span> Deploy the verticle.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028816"/><span class="fm-combinumeral">❸</span> Deploy a mock user account service.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028833"/><span class="fm-combinumeral">❹</span> Delete all messages from the inbox.</p>
+
+  <p class="body"><a id="pgfId-1019254"/>We first delete existing Kafka topics, and then we deploy the verticle under test. We also deploy a verticle to mock the user profile service and delete all messages from the inbox by making an HTTP <code class="fm-code-in-text">DELETE</code> query to the MailHog instance.</p>
+
+  <p class="body"><a id="pgfId-1019333"/>The <code class="fm-code-in-text">FakeUserService</code> verticle found in the <a id="marker-1019280"/>test source exposes an HTTP service with the minimal level of functionality to replace the real user profile service in our tests. All requests to find out who owns a device point to user <code class="fm-code-in-text">Foo</code>, and retrieving the details of user <code class="fm-code-in-text">Foo</code> gives just <a id="marker-1019306"/>the username and email. The following listing shows an excerpt with the code for answering a user details request with information for user <code class="fm-code-in-text">Foo</code> and just the JSON entries needed <a id="marker-1019322"/>for <code class="fm-code-in-text">CongratsVerticle</code> to operate.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019393"/>Listing 9.23 Excerpt from the <code class="fm-code-in-listingcaption">FakeUserService</code> class</p>
+  <pre class="programlisting">router.get("/:username").handler(this::username);             <span class="fm-combinumeral">❶</span>
+//(...)
+
+private void username(RoutingContext ctx) {
+  logger.info("User data request {}", ctx.request().path());
+  JsonObject notAllData = new JsonObject()                    <span class="fm-combinumeral">❷</span>
+    .put("username", "Foo")
+    .put("email", "foo@mail.tld");
+  ctx.response()
+    .putHeader("Content-Type", "application/json")
+    .end(notAllData.encode());
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028644"/><span class="fm-combinumeral">❶</span> Route for a user profile info</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028665"/><span class="fm-combinumeral">❷</span> JSON with just the required data for the service and test</p>
+
+  <p class="body"><a id="pgfId-1019558"/>This way we have good isolation of the congratulation service for testing. We could also have deployed the real user profile service, but that would have involved preparing a database with some data. It is always better to replace dependent services with mock ones when you can.</p>
+
+  <p class="body"><a id="pgfId-1019564"/>The next listing shows the full test case for checking that no email is sent on a Kafka record with less than 10,000 steps.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019621"/>Listing 9.24 Checking that no mail has been sent for less than 10,000 steps</p>
+  <pre class="programlisting">@Test
+@DisplayName("No email must be sent below 10k steps")
+void checkNothingBelow10k(Vertx vertx, VertxTestContext testContext) {
+  producer
+    .rxSend(record("123", 5000))                                           <span class="fm-combinumeral">❶</span>
+    .ignoreElement()
+    .delay(3, TimeUnit.SECONDS, RxHelper.scheduler(vertx))                 <span class="fm-combinumeral">❷</span>
+    .andThen(webClient
+      .get(8025, "localhost", "/api/v2/search?kind=to&amp;query=foo@mail.tld") <span class="fm-combinumeral">❸</span>
+      .as(BodyCodec.jsonObject()).rxSend())
+    .map(HttpResponse::body)
+    .subscribe(
+      json -&gt; {
+        testContext.verify(() -&gt; 
+        <span class="fm-code-continuation-arrow">➥</span> assertThat(json.getInteger("total")).isEqualTo(0));             <span class="fm-combinumeral">❹</span>
+        testContext.completeNow();
+      },
+      testContext::failNow);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028377"/><span class="fm-combinumeral">❶</span> Kafka record for device 123 and 5000 steps</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028398"/><span class="fm-combinumeral">❷</span> Wait for three seconds after the message has been sent.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028415"/><span class="fm-combinumeral">❸</span> Query all messages for email foo@mail.tld.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028432"/><span class="fm-combinumeral">❹</span> Check that there is no message.</p>
+
+  <p class="body"><a id="pgfId-1019855"/>The MailHog API allows us to check what messages have been sent. The next listing checks whether an email was sent for more than 10,000 steps.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019912"/>Listing 9.25 Checking whether an email was sent for more than 10,000 steps</p>
+  <pre class="programlisting">producer
+  .rxSend(record("123", 11_000))                                 <span class="fm-combinumeral">❶</span>
+  .ignoreElement()
+  .delay(3, TimeUnit.SECONDS, RxHelper.scheduler(vertx))
+  .andThen(webClient
+    .get(8025, "localhost", "/api/v2/search?kind=to&amp;query=foo@mail.tld")
+    .as(BodyCodec.jsonObject()).rxSend())
+  .map(HttpResponse::body)
+  .subscribe(
+    json -&gt; {
+      testContext.verify(() -&gt; 
+      <span class="fm-code-continuation-arrow">➥</span> assertThat(json.getInteger("total")).isEqualTo(1));     <span class="fm-combinumeral">❷</span>
+      testContext.completeNow();
+    },
+    testContext::failNow);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028239"/><span class="fm-combinumeral">❶</span> A record with 11,000 steps</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028256"/><span class="fm-combinumeral">❷</span> We must have one message.</p>
+
+  <p class="body"><a id="pgfId-1020077"/>The last test case in the <code class="fm-code-in-text">checkNotTwiceToday</code> method checks that only <a id="marker-1020088"/>one email was sent for two successive records with more than 10,000 steps. I haven’t reproduced the code here due to its verbosity, but you can get it from the book’s source code repository.</p>
+
+  <p class="body"><a id="pgfId-1020098"/>This concludes the design, implementation, and testing of two services that use messaging and event streaming. The next chapter focuses on Vert.x and data sources. <a id="marker-1020100"/><a id="marker-1020103"/><a id="marker-1020105"/><a id="marker-1020107"/><a id="marker-1020109"/><a id="marker-1020111"/></p>
+
+  <h2 class="fm-head" id="heading_id_18"><a id="pgfId-1020117"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1020127"/>AMQP is a standard protocol for message brokers, and you saw how to consume and produce AQMP messages with Vert.x and Apache ActiveMQ.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1020141"/>Apache Kafka is event-streaming middleware that allows services to replay events at will. Vert.x provides efficient integration with Kafka.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1020151"/>RxJava allows you to write event-processing pipelines in a declarative fashion, and with built-in error recovery.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1020161"/>We explored strategies for writing integration tests with AMQP, Kafka, and test containers by sending messages from tests to replace external components.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1020171"/>MailHog is a test-friendly SMTP server that exposes a convenient API for inspecting what emails have been sent.</p>
+    </li>
+  </ul>
+</div></body>
+</html>

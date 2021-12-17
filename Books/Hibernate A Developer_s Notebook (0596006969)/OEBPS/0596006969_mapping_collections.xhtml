@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_mapping_collections"><a id="mapping_collections"/><h3 class="docSection1Title">4.1. Mapping Collections</h3><p class="docText">In any real application you'll be managing lists and groups of things. Java provides a healthy and useful set of library classes to help with this: the Collections utilities. Hibernate provides natural ways for mapping database relationships onto Collections, which are usually very convenient. You do need to be aware of a couple semantic mismatches, generally minor. The biggest is the fact that Collections don't provide "bag" semantics, which might frustrate some experienced database designers. This gap isn't Hibernate's fault, and it even makes some effort to work around the issue.</p><blockquote><p class="docText"><span class="docEmphasis">Bags are like sets, except that the same value can appear more than once</span>.</p></blockquote><p class="docText">Enough abstraction! The Hibernate reference manual does a good job of discussing the whole bag issue, so let's leave it and look at a working example of mapping a collection where the relational and Java models fit nicely. It might seem natural to build on the <tt>Track</tt> examples from <a class="docLink" href="0596006969_harnessing_hibernate.xhtml#harnessing_hibernate">Chapter 3</a> and group them into albums, but that's not the simplest place to start, because organizing an album involves tracking additional information, like the disc on which the track is found (for multi-disc albums), and other such finicky details. So let's add artist information to our database.</p><blockquote><p class="docText"><span class="docEmphasis">As usual, the examples assume you followed the steps in the previous chapters. If not, download the example source as a starting point</span>.</p></blockquote><p class="docText">The information we need to keep track of for artists is, at least initially, pretty simple. We'll start with just the artist's name. And each track can be assigned a set of artists, so we know who to thank or blame for the music, and you can look up all tracks by someone we like. (It really is critical to allow more than one <a id="idx-CHP-4-0145"/>artist to be assigned to  a track, yet so few music management programs get this right. The task of adding a separate link to keep track of composers is left as a useful exercise for the reader after understanding this example.)</p><a id="how_do_i_do_that_id011"/><h4 id="title-ID0EJ2AE" class="docSection2Title">4.1.1. How do I do that?</h4><p class="docText">For now, our <tt>Artist</tt><a id="a"/> class doesn't need anything other than a <tt>name</tt> property (and its key, of course). Setting up a <a id="idx-CHP-4-0146"/><a id="file"/>mapping document for it will be easy. Create the file <i>Artist.hbm.xml</i> in the same directory as the <tt>Track</tt> mapping document, with the contents shown in <a class="docLink" href="#mapping_document_for_the_artist_class">Example 4-1</a>.</p><a id="mapping_document_for_the_artist_class"/><h5 id="title-ID0EF3AE" class="docExampleTitle">Example 4-1. Mapping document for the Artist class</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1  &lt;?xml version="1.0"?&gt;
+ 2  &lt;!DOCTYPE hibernate-mapping PUBLIC"-//Hibernate/Hibernate MappingDTD 2.0//EN"
+ 3             "http://hibernate.sourceforge.net/hibernate-mapping-2.0.dtd"&gt;
+ 4
+ 5  &lt;hibernate-mapping&gt;
+ 6
+ 7    &lt;class name="com.oreilly.hh.Artist" table="ARTIST"&gt; 
+ 8      &lt;meta attribute="class-description"&gt; 
+ 9        Represents an artist who is associated with a track or album. 
+10        @author Jim Elliott (with help from Hibernate) 
+11      &lt;/meta&gt; 
+12
+13      &lt;id name="id" type="int" column="ARTIST_ID"&gt; 
+14        &lt;meta attribute="scope-set"&gt;protected&lt;/meta&gt; 
+15        &lt;generator class="native"/&gt;
+16      &lt;/id&gt; 
+17
+18      &lt;property name="name" type="string"&gt; 
+19       &lt;meta attribute="use-in-tostring"&gt;true&lt;/meta&gt; 
+20       &lt;column name="NAME" not-null="true" unique="true" index="ARTIST_NAME"/&gt;
+21      &lt;/property&gt; 
+22
+23      &lt;set name="tracks" table="TRACK_ARTISTS" inverse="true"&gt;
+24        &lt;meta attribute="field-description"&gt;Tracks by this artist&lt;/meta&gt;
+25        &lt;key column="ARTIST_ID"/&gt; 
+26        &lt;many-to-many class="com.oreilly.hh.Track" column="TRACK_ID"/&gt; 
+27      &lt;/set&gt; 
+28
+29    &lt;/class&gt; 
+30
+31  &lt;/hibernate-mapping&gt;
+</pre><br/>
+</td></tr></table><p class="docText">Our mapping for the <tt>name</tt> property on lines 18–21 introduces a couple of refinements to both the code generation and schema generation phases. The <tt>use-in-tostring meta</tt> tag causes the generated class to show the artist's name as well as the cryptic synthetic ID when it is printed, as an <a id="idx-CHP-4-0147"/>aid for debugging (you can see the result near the bottom of <a class="docLink" href="#code_generated_for_the_artist_class">Example 4-3</a>). And expanding the <tt>column</tt> attribute into a full-blown tag allows us finer-grained control over the nature of the column, which we use in this case to add an index for efficient lookup and sorting by name.<a id="idx-CHP-4-0148"/></p><p class="docText">Notice that we can represent the fact that an <a id="idx-CHP-4-0149"/>artist is associated with one or more tracks quite naturally in this file (lines 23–27). This tells Hibernate to add a property named <tt>tracks</tt> to our <tt>Artist</tt><a id="of"/> class, whose type is an implementation of <tt>java.util.Set.</tt> This will use a new table named <tt>TRACK_ARTISTS</tt> to link to the <tt>Track</tt> objects for which this <tt>Artist</tt> is responsible. The attribute <tt>inverse="true"</tt> is explained in the discussion of <a class="docLink" href="#adding_an_artist_collection_to_the_track">Example 4-2</a>, where the bidirectional nature of this association is examined.<a id="idx-CHP-4-0150"/></p><p class="docText">The <tt>TRACK_ARTISTS</tt> table we just called into existence will contain two columns: <tt>TRACK_ID</tt><a id="and"/> and <tt>ARTIST_ID</tt>. Any rows appearing in this table will mean that the specified <tt>Artist</tt> object has something to do with the specified <tt>Track</tt> object. The fact that this information lives in its own table means that there is no restriction on how many tracks can be linked to a particular artist, nor how many artists are associated with a track. That's what is meant by a "many-to-many" association.<sup class="docFootnote"><a class="docLink" href="#CHP-4-FNOTE-1">[4-1]</a></sup></p><blockquote><p class="docFootnote"><sup><a id="CHP-4-FNOTE-1">[4-1]</a></sup><a id="like"/> If concepts like <a id="idx-CHP-4-0151"/>join tables and many-to-many associations aren't familiar, spending sometime with a good data modeling introduction would be worthwhile. It will help a lot when it comes to designing, understanding, and talking about data-driven projects. George Reese's <span class="docEmphasis">Java Database Best Practices</span> (O'Reilly) has one, and you can even view this chapter online at <a class="docLink" target="_blank" href="http://www.oreilly.com/catalog/javadtabp/chapter/ch02.pdf">http://www.oreilly.com/catalog/javadtabp/chapter/ch02.pdf</a>.</p></blockquote><p class="docText">On the flip side, since these links are in a separate table you have to perform a join query in order to retrieve any meaningful information about either the artists or the tracks. This is why such tables are often called "join tables." Their whole purpose is to be used to join other tables together.</p><p class="docText">Finally, notice that unlike the other tables we've set up in our schema, <tt>TRACK_ARTISTS</tt> does not correspond to any mapped Java object. It is used only to implement the links between <tt>Artist</tt> and <tt>Track</tt> objects, as reflected by <tt>Artist</tt>'s <tt>tracks</tt> property.</p><p class="docText">As seen on line 24, the <tt>field-description meta</tt> tag can be used to provide JavaDoc descriptions for collections and associations as well as plain old value fields. This is handy in situations where the field name isn't completely self-documenting.</p><p class="docText">The tweaks and configuration choices provided by the <a id="idx-CHP-4-0152"/>mapping document, especially when aided by <tt>meta</tt> tags, give you a great deal of flexibility over how the source code and database schema are built. Nothing can quite compare to the control you can obtain by writing them yourself, but most common needs and scenarios appear to be within reach of the <a id="idx-CHP-4-0153"/>mapping-driven generation tools. This is great news, because they can save you a lot of tedious typing!</p><p class="docText">With that in place, let's add the collection of <tt>Artist</tt>s to our <tt>Track</tt> class. Edit <span class="docEmphasis">Track.hbm.xml</span> to include the new <tt>artists</tt> property as shown in <a class="docLink" href="#adding_an_artist_collection_to_the_track">Example 4-2</a> (the new content is shown in bold).<a id="idx-CHP-4-0154"/><a id="idx-CHP-4-0155"/></p><a id="adding_an_artist_collection_to_the_track"/><h5 id="title-ID0EMBAG" class="docExampleTitle">Example 4-2. Adding an artist collection to the Track mapping file</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+&lt;property name="playTime" type="time"&gt;
+  &lt;meta attribute="field-description"&gt;Playing time&lt;/meta&gt;
+&lt;/property&gt;
+
+<b>&lt;set name="artists" table="TRACK_ARTISTS"&gt;
+  &lt;key column="TRACK_ID"/&gt;
+  &lt;many-to-many class="com.oreilly.hh.Artist" column="ARTIST_ID"/&gt;
+&lt;/set&gt;</b>
+
+&lt;property name="added" type="date"&gt;
+  &lt;meta attribute="field-description"&gt;When the track was created&lt;/meta&gt;
+&lt;/property&gt;
+...
+</pre><br/>
+</td></tr></table><p class="docText">This adds a similar <tt>Set</tt> property named <tt>artists</tt> to the <tt>Track</tt><a id="same"/> class. It uses the same <tt>TRACK_ARTISTS</tt> join table introduced in <a class="docLink" href="#mapping_document_for_the_artist_class">Example 4-1</a> to link to the <tt>Artist</tt> objects we mapped there. This sort of bidirectional association is very useful. It's important to let hibernate know explicitly what's going on by marking one end of the association as "inverse." In the case of a many-to-many association like this one, the choice of which side to call the inverse mapping isn't crucial. The fact that the join table is named "track artists" makes the link from artists back to tracks the best choice for the inverse end, if only from the perspective of people trying to understand the database. Hibernate itself doesn't care, as long as we mark one of the directions as inverse. That's why we did so on line 23 of <a class="docLink" href="#mapping_document_for_the_artist_class">Example 4-1</a>.<a id="idx-CHP-4-0156"/></p><p class="docText">While we're updating the <tt>Track</tt><a id="the"/> mapping document we might as well beef up the <tt>title</tt> property along the lines of what we did for <tt>name</tt> in <tt>Artist</tt>:</p><pre>
+	&lt;property name="title" type="string"&gt;
+	  <b>&lt;meta attribute="use-in-tostring"&gt;true&lt;/meta&gt;
+	  &lt;column name="TITLE"</b> not-null="true" <b>index="TRACK_TITLE"/&gt;
+	&lt;/property&gt;</b>
+				</pre><br/>
+<p class="docText">With the new and updated <a id="idx-CHP-4-0157"/>mapping files in place, we're ready to rerun <tt><b>ant codegen</b></tt> to update the <tt>Track</tt> source code, and create the new <tt>Artist</tt> source. This time Hibernate reports that two files are processed, as expected. If you look at <span class="docEmphasis">Track.java</span><a id="new"/> you'll see the new <tt>Set</tt>-valued property <tt>artists</tt><a id="and"/> has been added, and <tt>toString()</tt> has been enhanced. <a class="docLink" href="#code_generated_for_the_artist_class">Example 4-3</a> shows the content of the new <span class="docEmphasis">Artist.java</span>.</p><a id="code_generated_for_the_artist_class"/><h5 id="title-ID0EOEAG" class="docExampleTitle">Example 4-3. Code generated for the Artist class</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+
+package com.oreilly.hh; 
+
+import java.io.Serializable;
+import java.util.Set;
+import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang.builder.ToStringBuilder;
+
+/**
+ *       Represents an artist who is associated with a track or album.
+ *       @author Jim Elliott (with help from Hibernate)
+ *
+ */
+public class Artist implements Serializable {
+
+    /** identifier field */
+    private Integer id;
+
+    /** nullable persistent field */
+    private String name;
+
+    /** persistent field */
+    private Set tracks;
+
+    /** full constructor */
+    public Artist(String name, Set tracks) {
+        this.name = name;
+        this.tracks = tracks;
+    } 
+
+    /** default constructor */
+    public Artist() {
+    }
+
+    /** minimal constructor */
+    public Artist(Set tracks) {
+        this.tracks = tracks;
+    }
+
+    public Integer getId() {
+        return this.id;
+    }
+    protected void setId(Integer id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return this.name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    /** 
+     * Tracks by this artist
+     */
+    public Set getTracks() {
+        return this.tracks;
+    }
+
+    public void setTracks(Set tracks) {
+        this.tracks = tracks;
+    }
+
+    public String toString() {
+        return new ToStringBuilder(this)
+            .append("id", getId())
+            .append("name", getName())
+            .toString();
+    }
+
+    public boolean equals(Object other) {
+        if ( !(other instanceof Artist) ) return false;
+        Artist castOther = (Artist) other;
+        return new EqualsBuilder()
+            .append(this.getId(), castOther.getId())
+            .isEquals();
+    }
+
+    public int hashCode() {
+        return new HashCodeBuilder()
+            .append(getId())
+            .toHashCode();
+    }
+}
+</pre><br/>
+</td></tr></table><p class="docText">Once the classes are created, we can use <tt><b>ant schema</b></tt> to build the new database schema that supports them.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">Of course you should watch for <a id="idx-CHP-4-0158"/>error messages when generating your source code and building your schema, in case there are any syntax or conceptual errors in the <a id="idx-CHP-4-0159"/>mapping document. Not all exceptions that show up are signs of real problems you need to address, though. In experimenting with evolving this schema, I ran into some stack traces because Hibernate tried to drop foreign key constraints that hadn't been set up by previous runs. The schema generation continued past them, scary as they looked, and worked correctly. This may be something that will improve in future versions (of Hibernateor HSQLDB), or it may just be a wart we learn to live with.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">The generated schema contains the tables we'd expect, along with indices and some clever foreign key constraints. As our object model gets more sophisticated, the amount of work (and expertise) being provided by Hibernate is growing nicely. The full output from the schema generation is rather long, but <a class="docLink" href="#excerpts_from_our_new_schema_generation">Example 4-4</a> shows highlights.</p><a id="excerpts_from_our_new_schema_generation"/><h5 id="title-ID0EPFAG" class="docExampleTitle">Example 4-4. Excerpts from our new schema generation</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+[schemaexport] create table TRACK_ARTISTS (
+[schemaexport]    ARTIST_ID INTEGER not null,
+[schemaexport]    TRACK_ID INTEGER not null,
+[schemaexport]    primary key (TRACK_ID, ARTIST_ID)
+[schemaexport] )
+...
+[schemaexport] create table ARTIST (
+[schemaexport]    ARTSIT_ID INTEGER NOT NULL IDENTITY,
+[schemaexport]    name VARCHAR(255) not null
+[schemaexport]    unique (name)
+[schemaexport] )
+...
+[schemaexport] create table TRACK (
+[schemaexport]    Track_id INTEGER NOT NULL IDENTITY,
+[schemaexport]    title VARCHAR(255) not null,
+[schemaexport]    filePath VARCHAR(255) not null,
+[schemaexport]    playTime TIME,
+[schemaexport]    added DATE,
+[schemaexport]    volume SMALLINT
+[schemaexport] )
+...
+[schemaexport] alter table TRACK_ARTISTS add constraint FK72EFDAD84C5F92B foreign
+key (TRACK_ID) references TRACK
+[schemaexport] alter table TRACK_ARTISTS add constraint FK72EFDAD87395D347
+foreign key (ARTIST_ID) references ARTIST
+[schemaexport] create index ARTIST_NAME on ARTIST (name)
+[schemaexport] create index TRACK_TITLE on TRACK (title))
+</pre><br/>
+</td></tr></table><blockquote><p class="docText"><span class="docEmphasis">Cool! I didn't even know how to do some of that stuff in HSQLDB</span>!</p></blockquote><p class="docText"><a class="docLink" href="#the_hsqldb_graphical_tree_view_of_our_up">Figure 4-1</a> shows HSQLDB's tree view representation of the schema after these additions. I'm not sure why two separate indices are used to set up the uniqueness constraint on artist names, but that seems to be an implementation quirk in HSQLDB itself, and this approach will work just fine.</p><a id="the_hsqldb_graphical_tree_view_of_our_up"/><p/><div class="center"><h5 class="docFigureTitle">Figure 4-1. The HSQLDB graphical tree view of our updated schema</h5><a id="I_mediaobject4_d1e3578"/><p class="docText"><img src="Images/0596006969_mapping_collections_image01.png" alt="" width="396" height="316"/></p></div><br/><a id="what_just_happened-id008"/><h4 id="title-ID0EIGAG" class="docSection2Title">4.1.2. What just happened?</h4><p class="docText"><a id="our"/>We've set up an object model that allows our <tt>Track</tt> and <tt>Artist</tt> objects to keep track of an arbitrary set of relationships to each other. Any track can be associated with any number of artists, and any artist can be responsible for any number of tracks. Getting this set up right can be challenging, especially for people who are new to object-oriented code or relational databases (or both!), so it's nice to have Hibernate help. But just wait until you see how easy it is to work with data in this setup.</p><p class="docText">It's worth emphasizing that the links between artists and tracks are not stored in the <tt>ARTIST</tt> or <tt>TRACK</tt><a id="a"/> tables themselves. Because they are in a <a id="idx-CHP-4-0160"/>many-to-many association, meaning that an artist can be associated with many tracks, and many artists can be associated with a track, these links are stored in a separate join table called <tt>TRACK_ARTISTS</tt>. Rows in this table pair an <tt>ARTIST_ID</tt> with a <tt>TRACK_ID</tt>, <a id="idx-CHP-4-0161"/>to indicate that the specified artist is associated with the specified track. By creating and deleting rows in this table, we can set up any pattern of associations we need. (This is how many-to-many relationships are always represented in relational databases; the chapter of <span class="docEmphasis">Java Database Best Practices</span> cited earlier is a good introduction to data models like this.)</p><p class="docText">Keeping this in mind, you will also notice that our generated classes don't contain any code to manage the <tt>TRACK_ARTISTS</tt> table. Nor will the up coming examples that create and link <a id="idx-CHP-4-0162"/>persistent <tt>Track</tt> and <tt>Artist</tt> objects. They don't have to, because Hibernate's special <tt>Collection</tt> classes take care of all those details for us, based on the <a id="idx-CHP-4-0163"/>mapping information we added to <a class="docLink" href="#adding_an_artist_collection_to_the_track">Example 4-2</a> and lines 23–27 of <a class="docLink" href="#mapping_document_for_the_artist_class">Example 4-1</a>.</p><p class="docText">All right, let's create some tracks and artists.…</p><blockquote><p class="docText"><span class="docEmphasis">Note to self: time to start selling coworkers on this Hibernate stuff</span>!</p></blockquote></div></div></body>
+</html>

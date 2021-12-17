@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1035763"/>5 Beyond callbacks</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>Callbacks and their limitations, as shown with a gateway/edge service example</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>Futures and promises--a simple model to chain asynchronous operations</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011861"/>Reactive extensions--a more powerful model that is especially well suited to composing streams of asynchronous events</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011871"/>Kotlin coroutines--language-level support for asynchronous code execution flows</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011881"/>You will need to write all sorts of business logic while developing a reactive application, and not all logic is easy to express in an asynchronous form. While callbacks are a simple form of asynchronous event notification, they can easily render asynchronous code complicated.</p>
+
+  <p class="body"><a id="pgfId-1011887"/>Let’s look at a real example of why callbacks are not always the best asynchronous programming model. Then we’ll explore the multiple options supported in Vert.x.</p>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011893"/>5.1 Composing asynchronous operations: The edge service example</h2>
+
+  <p class="body"><a id="pgfId-1011913"/><a id="marker-1011904"/>We’ll take the example of an <i class="fm-italics">edge service</i> to illustrate composing asynchronous operations with different asynchronous programming models.</p>
+
+  <p class="body"><a id="pgfId-1011922"/>An edge service is also frequently called an <i class="fm-italics">API gateway</i>. It is a service that <a id="marker-1011933"/>serves as a facade for other services, so that a requester just has to deal with one service interface rather than having to talk to each service. An edge service may also perform other tasks, such as data transformation and interacting with other services, so it does not just conveniently aggregate data from multiple services.</p>
+
+  <h3 class="fm-head1" id="heading_id_4"><a id="pgfId-1011943"/>5.1.1 Scenario</h3>
+
+  <p class="body"><a id="pgfId-1011969"/><a id="marker-1011954"/>Let’s go back to the heat sensor verticles we used in chapter 3. Suppose that we have several heat sensors, and we want to expose an API to fetch and aggregate all of the sensors’ heat data. This is a very simple yet effective example of an edge service, as it abstracts the need for a requester to know about and contact all the sensors. To make things even more <a id="marker-1011958"/>interesting, we’ll also have a <i class="fm-italics">snapshot</i> service that captures and logs the sensor values before they are returned to the requester. The whole scenario is illustrated in figure 5.1.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH05_F01_Ponge.png" width="998" height="702"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1055912"/>Figure 5.1 Edge service scenario</p>
+
+  <p class="body"><a id="pgfId-1011988"/>The requester issues a request to the edge service, which in turn fetches temperature data from the sensor services. Each sensor exposes an HTTP/JSON API, and the edge service aggregates all responses in a larger JSON document. This document is then sent to the snapshot service, before it’s sent back to the requester. The interactions are summarized in figure 5.2.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH05_F02_Ponge.png" width="985" height="509"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1055964"/>Figure 5.2 Interactions between the edge, sensor, and snapshot services</p>
+
+  <p class="body"><a id="pgfId-1012018"/>This example allows us to reason about parallel and sequential operations:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012038"/>Parallel asynchronous operations: fetching heat sensor data</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012052"/>Sequential asynchronous operations: aggregating heat sensor data, sending it to the snapshot service, and then returning it to the requester <a class="calibre9" id="marker-1012058"/></p>
+    </li>
+  </ul>
+
+  <h3 class="fm-head1" id="heading_id_5"><a id="pgfId-1012065"/>5.1.2 Heat sensor verticles</h3>
+
+  <p class="body"><a id="pgfId-1012082"/><a id="marker-1012076"/><a id="marker-1012078"/>We could deploy our heat sensors as multiple independent processes, each exposing an HTTP API. To simplify our example, we will deploy them within the same process, albeit with HTTP servers listening on different TCP ports.</p>
+
+  <p class="body"><a id="pgfId-1012087"/>The following <code class="fm-code-in-text">HeatSensor</code> class is a simple adaptation <a id="marker-1042778"/>of the one we used earlier. Listing 5.1 shows the preamble of the class, directly ported from the code in chapter 3.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012159"/>Listing 5.1 Heat sensor verticle</p>
+  <pre class="programlisting">public class HeatSensor extends AbstractVerticle {
+
+  private final Random random = new Random();
+  private final String sensorId = UUID.randomUUID().toString();     <span class="fm-combinumeral">❶</span>
+  private double temperature = 21.0;
+
+  private void scheduleNextUpdate() {
+    vertx.setTimer(random.nextInt(5000) + 1000, this::update);
+  }
+
+  private void update(long timerId) {
+    temperature = temperature + (delta() / 10);
+    scheduleNextUpdate();
+  }
+
+  private double delta() {
+    if (random.nextInt() &gt; 0) {
+      return random.nextGaussian();
+    } else {
+      return -random.nextGaussian();
+    }
+  }
+// (...)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054849"/><span class="fm-combinumeral">❶</span> Each sensor has a generated unique identifier.</p>
+
+  <p class="body"><a id="pgfId-1012352"/>The code keeps the same logic of updating the temperature by a random amount, with a random delay of between one and six seconds.</p>
+
+  <p class="body"><a id="pgfId-1012358"/>The following listing shows the code added to expose an HTTP API.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012415"/>Listing 5.2 Heat sensor verticle HTTP API code</p>
+  <pre class="programlisting">@Override
+public void start() {
+  vertx.createHttpServer()
+    .requestHandler(this::handleRequest)
+    .listen(config().getInteger("http.port", 3000));     <span class="fm-combinumeral">❶</span>
+  scheduleNextUpdate();
+}
+
+private void handleRequest(HttpServerRequest req) {
+  JsonObject data = new JsonObject()
+    .put("id", id)
+    .put("temp", temp);
+  req.response()
+    .putHeader("Content-Type", "application/json")
+    .end(data.encode());
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054775"/><span class="fm-combinumeral">❶</span> The server TCP port is configurable.</p>
+
+  <p class="body"><a id="pgfId-1012569"/>This is a very straightforward use of the Vert.x HTTP server, with the HTTP port being passed by configuration. The response is encoded in JSON. <a id="marker-1012571"/><a id="marker-1012574"/></p>
+
+  <h3 class="fm-head1" id="heading_id_6"><a id="pgfId-1012580"/>5.1.3 Snapshot service verticle</h3>
+
+  <p class="body"><a id="pgfId-1012597"/><a id="marker-1012591"/><a id="marker-1012593"/>The snapshot service exposes an HTTP server as well, as you can see in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012653"/>Listing 5.3 Snapshot service verticle</p>
+  <pre class="programlisting">public class SnapshotService extends AbstractVerticle {
+  private final Logger logger = LoggerFactory.getLogger(SnapshotService.class);
+
+  @Override
+  public void start() {
+    vertx.createHttpServer()
+      .requestHandler(req -&gt; {
+        if (badRequest(req)) {
+          req.response().setStatusCode(400).end();
+        }
+        req.bodyHandler(buffer -&gt; {                      <span class="fm-combinumeral">❶</span>
+          logger.info("Latest temperatures: {}", 
+          <span class="fm-code-continuation-arrow">➥</span> buffer.toJsonObject().encodePrettily());
+          req.response().end();
+        });
+      })
+      .listen(config().getInteger("http.port", 4000));
+  }
+
+  private boolean badRequest(HttpServerRequest req) {
+    return !req.method().equals(HttpMethod.POST) ||
+      !"application/json".equals(req.getHeader("Content-Type"));
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054697"/><span class="fm-combinumeral">❶</span> This waits for the whole body to be received rather than assembling intermediate buffers.</p>
+
+  <p class="body"><a id="pgfId-1012848"/>The HTTP request handler expects an HTTP <code class="fm-code-in-text">POST</code> request, extracts the body <a id="marker-1012859"/>using a body handler, and logs the received data.</p>
+
+  <p class="body"><a id="pgfId-1012869"/>With these two verticles defined, the fun can now begin, and we can look into making our edge service. <a id="marker-1012871"/><a id="marker-1012874"/><a id="marker-1012876"/></p>
+
+  <h2 class="fm-head" id="heading_id_7"><a id="pgfId-1012882"/>5.2 Callbacks</h2>
+
+  <p class="body"><a id="pgfId-1012892"/><a id="marker-1012893"/>We are first going to implement the edge service using callbacks, as we have been doing since the beginning of this book.</p>
+
+  <p class="body"><a id="pgfId-1012934"/>The dependencies we need <a id="marker-1012903"/>for our project are <i class="fm-italics">Vert.x Core</i>, <i class="fm-italics">Vert.x Web Client</i> (to simplify making HTTP requests), and <i class="fm-italics">Logback</i>. The following <a id="marker-1012939"/>listing shows <a id="marker-1012945"/>the dependencies for a Gradle build. The artifacts are exactly the same when using Maven or any other compatible build tool.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013006"/>Listing 5.4 Edge service dependencies (callbacks version)</p>
+  <pre class="programlisting">dependencies {
+  implementation("io.vertx:vertx-core:${vertxVersion}")         <span class="fm-combinumeral">❶</span>
+  implementation("io.vertx:vertx-web-client:${vertxVersion}")
+  implementation("ch.qos.logback:logback-classic:1.2.3")
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054636"/><span class="fm-combinumeral">❶</span> Replace ${vertxVersion} with the current Vert.x version of your choice.</p>
+
+  <p class="fm-callout"><a id="pgfId-1013114"/><span class="fm-callout-head">Note</span> All classes other than <code class="fm-code-in-text1">chapter5.future.CollectorService</code> compile on Vert.x 3.9. This class requires the newer Vert.x 4 future-based APIs, as mentioned in section 5.3.2 on Vert.x futures and promises.</p>
+
+  <h3 class="fm-head1" id="heading_id_8"><a id="pgfId-1013129"/>5.2.1 Implementation</h3>
+
+  <p class="body"><a id="pgfId-1013149"/><a id="marker-1013140"/>We’ll start with the preamble of the <code class="fm-code-in-text">CollectorService</code> verticle class <a id="marker-1013154"/>implementation.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013215"/>Listing 5.5 Callbacks implementation preamble</p>
+  <pre class="programlisting">public class CollectorService extends AbstractVerticle {
+
+  private final Logger logger = 
+  <span class="fm-code-continuation-arrow">➥</span> LoggerFactory.getLogger(CollectorService.class);
+  private WebClient webClient;
+
+  @Override
+  public void start() {
+    webClient = WebClient.create(vertx);     <span class="fm-combinumeral">❶</span>
+    vertx.createHttpServer()
+      .requestHandler(this::handleRequest)
+      .listen(8080);
+  }
+  // (...)
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054574"/><span class="fm-combinumeral">❶</span> A Vert.x web client needs a vertx context.</p>
+
+  <p class="body"><a id="pgfId-1013388"/>The <code class="fm-code-in-text">start</code> method first creates a <code class="fm-code-in-text">WebClient</code> instance and then <a id="marker-1013377"/>starts an HTTP server on port 8080. The web client class comes from the <code class="fm-code-in-text">vertx-web-client</code> module and greatly <a id="marker-1013393"/>simplifies making HTTP requests compared to the HTTP client in the Vert.x core APIs. It especially simplifies HTTP body handling and conversions: you can convert a body to plain text, to JSON, or to general-purpose Vert.x buffers.</p>
+
+  <p class="body"><a id="pgfId-1013403"/>The HTTP request handler is the <code class="fm-code-in-text">handleRequest</code> method shown in <a id="marker-1013414"/>the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013475"/>Listing 5.6 Request-handling with callbacks</p>
+  <pre class="programlisting">private void handleRequest(HttpServerRequest request) {
+  List&lt;JsonObject&gt; responses = new ArrayList&lt;&gt;();        <span class="fm-combinumeral">❶</span>
+  AtomicInteger counter = new AtomicInteger(0);          <span class="fm-combinumeral">❷</span>
+  for (int i = 0; i &lt; 3; i++) {
+    webClient
+      .get(3000 + i, "localhost", "/")                   <span class="fm-combinumeral">❸</span>
+      .expect(ResponsePredicate.SC_SUCCESS)              <span class="fm-combinumeral">❹</span>
+      .as(BodyCodec.jsonObject())                        <span class="fm-combinumeral">❺</span>
+      .send(ar -&gt; {
+        if (ar.succeeded()) {
+          responses.add(ar.result().body());
+        } else {
+          logger.error("Sensor down?", ar.cause());
+        }
+        if (counter.incrementAndGet() == 3) {            <span class="fm-combinumeral">❻</span>
+          JsonObject data = new JsonObject()
+            .put("data", new JsonArray(responses));
+          sendToSnapshot(request, data);
+        }
+      });
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054196"/><span class="fm-combinumeral">❶</span> We need a list to collect the JSON responses.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054217"/><span class="fm-combinumeral">❷</span> We also need a counter for tracking responses, since the number of responses may be less than the number of requests when there are errors.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054234"/><span class="fm-combinumeral">❸</span> This issues an HTTP GET request on resource / on localhost and port 3000 + i.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054251"/><span class="fm-combinumeral">❹</span> This predicate triggers an error when the HTTP status code is not in the 2xx range.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054268"/><span class="fm-combinumeral">❺</span> This treats the body as a JSON object and performs automatic conversion.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054285"/><span class="fm-combinumeral">❻</span> When all requests (or errors) have been received, we can move to the next operation.</p>
+
+  <p class="body"><a id="pgfId-1013776"/>This method shows how easy it is to use the web client API to perform HTTP requests. The main difficulty lies in coordinating the parallel HTTP requests. We need a loop to issue the requests, and since they are asynchronous, we also need to keep track of the number of received responses and the response values. This is done by having a list of responses, and using a counter for responses. Note that we use an <code class="fm-code-in-text">AtomicInteger</code> here not because <a id="marker-1013787"/>of concurrency, but rather because we need an object to increment an integer from the callbacks.</p>
+
+  <p class="body"><a id="pgfId-1013797"/>Once all responses have been received, we can move to the next operation, which is sending the data to the snapshot service.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013854"/>Listing 5.7 Sending data to the snapshot service</p>
+  <pre class="programlisting">private void sendToSnapshot(HttpServerRequest request, JsonObject data) {
+  webClient
+    .post(4000, "localhost", "/")
+    .expect(ResponsePredicate.SC_SUCCESS)
+    .sendJsonObject(data, ar -&gt; {
+      if (ar.succeeded()) {
+        sendResponse(request, data);
+      } else {
+        logger.error("Snapshot down?", ar.cause());
+        request.response().setStatusCode(500).end();      <span class="fm-combinumeral">❶</span>
+      }
+    });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054134"/><span class="fm-combinumeral">❶</span> In case of error, we end the HTTP request here with a 500 status code.</p>
+
+  <p class="body"><a id="pgfId-1013991"/>This method implementation simply uses the web client to issue an HTTP <code class="fm-code-in-text">POST</code> request.</p>
+
+  <p class="body"><a id="pgfId-1014019"/>Upon success, the code moves <a id="marker-1014008"/>to the <code class="fm-code-in-text">sendResponse</code> method to end the HTTP request, shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014079"/>Listing 5.8 Sending the response</p>
+  <pre class="programlisting">private void sendResponse(HttpServerRequest request, JsonObject data) {
+  request.response()
+    .putHeader("Content-Type", "application/json")
+    .end(data.encode());                            <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1054054"/><span class="fm-combinumeral">❶</span> Gives a compact JSON text representation<a id="marker-1054059"/></p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1014171"/>5.2.2 Running</h3>
+
+  <p class="body"><a id="pgfId-1014181"/><a id="marker-1014182"/>To run the edge service, we first need to deploy verticles, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014241"/>Listing 5.9 Main method</p>
+  <pre class="programlisting">Vertx vertx = Vertx.vertx();
+
+vertx.deployVerticle("chapter5.sensor.HeatSensor",
+  new DeploymentOptions().setConfig(new JsonObject()
+    .put("http.port", 3000)));                         <span class="fm-combinumeral">❶</span>
+
+vertx.deployVerticle("chapter5.sensor.HeatSensor",
+  new DeploymentOptions().setConfig(new JsonObject()
+    .put("http.port", 3001)));
+
+vertx.deployVerticle("chapter5.sensor.HeatSensor",
+  new DeploymentOptions().setConfig(new JsonObject()
+    .put("http.port", 3002)));
+
+vertx.deployVerticle("chapter5.snapshot.SnapshotService");
+vertx.deployVerticle("chapter5.callbacks.CollectorService");</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053975"/><span class="fm-combinumeral">❶</span> Each instance can use a different port number.</p>
+
+  <p class="body"><a id="pgfId-1014392"/>We can issue HTTP requests to test the service with HTTPie, as shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014449"/>Listing 5.10 Calling the edge service</p>
+  <pre class="programlisting">$ http :8080                   <span class="fm-combinumeral">❶</span>
+HTTP/1.1 200 OK
+Content-Type: application/json
+content-length: 224
+
+{
+    "data": [
+        {
+            "id": "66e310a6-9068-4552-b4aa-6130b3e17cb6",
+            "temp": 21.118902894421108
+        },
+        {
+            "id": "3709b24b-cef2-4341-b64a-af68b11e2c0d",
+            "temp": 20.96576368750857
+        },
+        {
+            "id": "79f9fa27-b341-4ce5-a335-03caef6e8935",
+            "temp": 21.01792006568459
+        }
+    ]
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053898"/><span class="fm-combinumeral">❶</span> Using HTTPie, :8080 is a shortcut for http://localhost:8080.</p>
+
+  <p class="body"><a id="pgfId-1014634"/>On the server side, we can check that the snapshot service outputs some logs, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014691"/>Listing 5.11 Logs of the edge service</p>
+  <pre class="programlisting">15:10:25.576 SnapshotService - Lastest temperatures: {    <span class="fm-combinumeral">❶</span>
+  "data" : [ {
+    "id" : "66e310a6-9068-4552-b4aa-6130b3e17cb6",
+    "temp" : 21.118902894421108
+  }, {
+    "id" : "3709b24b-cef2-4341-b64a-af68b11e2c0d",
+    "temp" : 20.96576368750857
+  }, {
+    "id" : "79f9fa27-b341-4ce5-a335-03caef6e8935",
+    "temp" : 21.01792006568459
+  } ]
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053841"/><span class="fm-combinumeral">❶</span> Each entry has the aggregated JSON data. <a id="marker-1053846"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1014825"/>5.2.3 The “callback hell” is not the problem</h3>
+
+  <p class="body"><a id="pgfId-1014835"/><a id="marker-1014836"/>Many people will scream “Callback hell!” when discussing callbacks. Callback hell is when nested callbacks are being used to chain asynchronous operations, resulting in code that is harder to understand, due to the deep nesting. Error handling is especially more difficult with nested callbacks.</p>
+
+  <p class="body"><a id="pgfId-1014877"/>While this is true, callback hell can easily be mitigated using one method <a id="marker-1014846"/>for each asynchronous operation callback, as we did with the <code class="fm-code-in-text">handleRequest</code>, <code class="fm-code-in-text">sendToSnapshot</code>, and <code class="fm-code-in-text">sendResponse</code> methods. Each method <a id="marker-1014882"/>does exactly one thing, and we avoid <a id="marker-1014888"/>nesting the callbacks.</p>
+
+  <p class="body"><a id="pgfId-1014898"/>The following listing shows equivalent code to the preceding, but compacted as a single piece with nested callbacks.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014955"/>Listing 5.12 Variant with nested callbacks</p>
+  <pre class="programlisting">List&lt;JsonObject&gt; responses = new ArrayList&lt;&gt;();
+AtomicInteger counter = new AtomicInteger(0);
+for (int i = 0; i &lt; 3; i++) {
+  webClient
+    .get(3000 + i, "localhost", "/")
+    .expect(ResponsePredicate.SC_SUCCESS)
+    .as(BodyCodec.jsonObject())
+    .send(ar -&gt; {                                 <span class="fm-combinumeral">❶</span>
+      if (ar.succeeded()) {
+        responses.add(ar.result().body());
+      } else {
+        logger.error("Sensor down?", ar.cause());
+      }
+      if (counter.incrementAndGet() == 3) {       <span class="fm-combinumeral">❷</span>
+        JsonObject data = new JsonObject()
+          .put("data", new JsonArray(responses));
+        webClient
+          .post(4000, "localhost", "/")
+          .expect(ResponsePredicate.SC_SUCCESS)
+          .sendJsonObject(data, ar1 -&gt; {          <span class="fm-combinumeral">❸</span>
+            if (ar1.succeeded()) {                <span class="fm-combinumeral">❹</span>
+              request.response()
+                .putHeader("Content-Type", "application/json")
+                .end(data.encode());
+            } else {
+              logger.error("Snapshot down?", ar1.cause());
+              request.response().setStatusCode(500).end();
+            }
+          });
+      }
+    });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053582"/><span class="fm-combinumeral">❶</span> Send a sensor request in parallel with the others.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053603"/><span class="fm-combinumeral">❷</span> All HTTP responses have been received.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053620"/><span class="fm-combinumeral">❸</span> Post to the snapshot service.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053637"/><span class="fm-combinumeral">❹</span> Respond to the requester.</p>
+
+  <p class="body"><a id="pgfId-1015272"/>Nested callbacks certainly do not render the code more readable, but I argue that the real issue lies in the fact that the functional code is entangled with asynchronous coordination code. You need to decipher from the loop, callbacks, and branching that three HTTP requests are being made in parallel and that their results are being assembled, sent to a third-party service, and then given back as a response.</p>
+
+  <p class="body"><a id="pgfId-1015307"/>Callbacks aren’t perfect, but a bit of discipline keeps the code readable, especially when <a id="marker-1015280"/>all you have is sequential composition of asynchronous operations, like <code class="fm-code-in-text">sendToSnapshot</code> passing the <a id="marker-1015296"/>work to <code class="fm-code-in-text">sendResponse</code>.</p>
+
+  <p class="body"><a id="pgfId-1015316"/>Let’s now look at other asynchronous programming models that can be more interesting than callbacks. <a id="marker-1015318"/><a id="marker-1015321"/></p>
+
+  <h2 class="fm-head" id="heading_id_11"><a id="pgfId-1015327"/>5.3 Futures and promises</h2>
+
+  <p class="body"><a id="pgfId-1015373"/><a id="marker-1015338"/>You have already been exposed to Vert.x <i class="fm-italics">futures</i> and <i class="fm-italics">promises</i> due to the signature of the <a id="marker-1015362"/>verticle <code class="fm-code-in-text">start</code> methods. You may also have been exposed to them in other languages, like JavaScript. We’ll explore this model further and see how they are interesting primitives for composing asynchronous operations with Vert.x.</p>
+
+  <p class="body"><a id="pgfId-1015382"/>Vert.x implements a model of futures and promises that is in line with the original research results from Barbara Liskov and Liuba Shrira.<a href="#pgfId-1015385">1</a> They introduced promises as a language abstraction for composing asynchronous remote procedure calls.</p>
+
+  <p class="body"><a id="pgfId-1015456"/>A promise holds the value of some computation for which there is no value right now. A promise is eventually completed with a result value or an error. In the context of asynchronous I/O, a promise is a natural fit for holding the result of an asynchronous operation. In turn, a future allows you to read a value that will eventually be available from a promise.</p>
+
+  <p class="body"><a id="pgfId-1015465"/>To summarize: a promise is used to write an eventual value, and a future is used to read it when it is available. Let’s now see how it works in Vert.x.</p>
+
+  <h3 class="fm-head1" id="heading_id_12"><a id="pgfId-1015471"/>5.3.1 Futures and promises in Vert.x</h3>
+
+  <p class="body"><a id="pgfId-1015481"/><a id="marker-1015482"/>A promise is created by a piece of code that is about to perform an asynchronous operation. As an example, imagine that you want to report that an asynchronous operation has completed, not now but in five seconds. In Vert.x you would use a timer for that, and a promise would be used to hold the result, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015541"/>Listing 5.13 Creating a promise</p>
+  <pre class="programlisting">Promise&lt;String&gt; promise = Promise.promise();              <span class="fm-combinumeral">❶</span>
+vertx.setTimer(5000, id -&gt; {                              <span class="fm-combinumeral">❷</span>
+  if (System.currentTimeMillis() % 2L == 0L) {
+    promise.complete("Ok!");                              <span class="fm-combinumeral">❸</span>
+  } else {
+    promise.fail(new RuntimeException("Bad luck..."));    <span class="fm-combinumeral">❹</span>
+  }
+});
+// (...)                                                  <span class="fm-combinumeral">❺</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053195"/><span class="fm-combinumeral">❶</span> Create a promise.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053216"/><span class="fm-combinumeral">❷</span> Asynchronous operation</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053233"/><span class="fm-combinumeral">❸</span> Complete the promise with a value.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053250"/><span class="fm-combinumeral">❹</span> Fail the promise with an exception.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053267"/><span class="fm-combinumeral">❺</span> See listing 5.14.</p>
+
+  <p class="body"><a id="pgfId-1015742"/>Here the asynchronous operation is a timer of five seconds, after which the promise is completed. Depending on whether the current time is odd or even, the promise completes with a value or fails with an exception. This is great, but how do we actually <i class="fm-italics">get</i> the value from the promise?</p>
+
+  <p class="body"><a id="pgfId-1015757"/>The code that wants to react when the result is available needs a future object. A Vert.x future is created from a promise, then passed to the code that wants to read the value, as shown in the next listing, which is the rest of listing 5.13.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015814"/>Listing 5.14 Creating a future from a promise</p>
+  <pre class="programlisting">Future&lt;String&gt; future = promise.future();                   <span class="fm-combinumeral">❶</span>
+return future;
+// (...)
+
+future
+  .onSuccess(System.out::println)                           <span class="fm-combinumeral">❷</span>
+  .onFailure(err -&gt; System.out.println(err.getMessage()));  <span class="fm-combinumeral">❸</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052997"/><span class="fm-combinumeral">❶</span> Derive a future from a promise, and then return it.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053018"/><span class="fm-combinumeral">❷</span> Callback for when the promise is completed</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1053035"/><span class="fm-combinumeral">❸</span> Callback for when the future is failed</p>
+
+  <p class="body"><a id="pgfId-1015990"/>The <code class="fm-code-in-text">Future</code> interface defines two <a id="marker-1015969"/>methods, <code class="fm-code-in-text">onSuccess</code> and <code class="fm-code-in-text">onFailure</code>, for handling values <a id="marker-1015995"/>and errors. When we run the <a id="marker-1016001"/>corresponding code, we see that either “Ok!” or “Bad luck...” is printed after five seconds.</p>
+
+  <p class="body"><a id="pgfId-1016011"/>We can perform more advanced asynchronous operations with futures, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016068"/>Listing 5.15 Advanced future composition operations</p>
+  <pre class="programlisting">promise.future()
+  .recover(err -&gt; Future.succeededFuture("Let's say it's ok!"))   <span class="fm-combinumeral">❶</span>
+  .map(String::toUpperCase)                                       <span class="fm-combinumeral">❷</span>
+  .flatMap(str -&gt; {                                               <span class="fm-combinumeral">❸</span>
+    Promise&lt;String&gt; next = Promise.promise();
+    vertx.setTimer(3000, id -&gt; next.complete("&gt;&gt;&gt; " + str));
+    return next.future();
+  })
+  .onSuccess(System.out::println);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052750"/><span class="fm-combinumeral">❶</span> Recover from an error with another value.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052771"/><span class="fm-combinumeral">❷</span> Map a value to another value.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052788"/><span class="fm-combinumeral">❸</span> Compose with another asynchronous operation.</p>
+
+  <p class="body"><a id="pgfId-1016273"/>The <code class="fm-code-in-text">recover</code> operation is called when <a id="marker-1016236"/>the promise is failed, and it is used to replace the error with another value. You can see <code class="fm-code-in-text">recover</code> as the equivalent of a <code class="fm-code-in-text">catch</code> block in Java, where you <a id="marker-1016262"/>can handle an error. Here we simply provide a recovery value using a succeeded future, but you can also report a <i class="fm-italics">failed</i> future in more advanced <a id="marker-1016278"/>cases when there is nothing you can do to recover.</p>
+
+  <p class="body"><a id="pgfId-1016326"/>The <code class="fm-code-in-text">map</code> operation transforms a value <a id="marker-1016299"/>using a function, whereas <code class="fm-code-in-text">flatMap</code> composes with <a id="marker-1016315"/>another asynchronous operation. You can think of <code class="fm-code-in-text">flatMap</code> as “and then.” Here the operation takes the string value and prepends it with “&gt;&gt;&gt;” after three seconds. We also see the typical promise/future pattern where we first create a promise, then perform an asynchronous operation that eventually completes the promise, and finally return a future so the value can be consumed by another piece of code. <a id="marker-1016331"/></p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1016338"/>5.3.2 Future-based APIs in Vert.x 4</h3>
+
+  <p class="body"><a id="pgfId-1016361"/><a id="marker-1016349"/><a id="marker-1016351"/>Vert.x 4 brings Vert.x futures to the core APIs alongside callbacks. While callbacks remain the canonical model, most APIs are available with variants that return a <code class="fm-code-in-text">Future</code>.</p>
+
+  <p class="body"><a id="pgfId-1016386"/>This means that given a method, <code class="fm-code-in-text">void doThis(Handler&lt;AsyncResult&lt;T&gt;&gt;)</code>, there is a variant of the form <code class="fm-code-in-text">Future&lt;T&gt; doThis()</code>. A good example is shown in the following listing where we start an HTTP server.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016446"/>Listing 5.16 Starting an HTTP server with future methods</p>
+  <pre class="programlisting">@Override
+public void start(Promise&lt;Void&gt; promise) {
+  vertx.createHttpServer()
+    .requestHandler(this::handleRequest)
+    .listen(8080)                           <span class="fm-combinumeral">❶</span>
+    .onFailure(promise::fail)               <span class="fm-combinumeral">❷</span>
+    .onSuccess(ok -&gt; {                      <span class="fm-combinumeral">❸</span>
+      System.out.println("http://localhost:8080/");
+      promise.complete();
+    });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052442"/><span class="fm-combinumeral">❶</span> Returns a Future&lt;HttpServer&gt;</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052463"/><span class="fm-combinumeral">❷</span> Called when the server could not be started</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052480"/><span class="fm-combinumeral">❸</span> Called on success</p>
+
+  <p class="body"><a id="pgfId-1016663"/>The <code class="fm-code-in-text">listen</code> method that we saw <a id="marker-1016626"/>in earlier examples took a callback, and here it returns a <code class="fm-code-in-text">Future&lt;HttpServer&gt;</code>. We can then chain <a id="marker-1016642"/>calls to <code class="fm-code-in-text">onFailure</code> and <code class="fm-code-in-text">onSuccess</code> to define what <a id="marker-1016668"/>to do when the server starts, or when an error occurs.</p>
+
+  <p class="fm-callout"><a id="pgfId-1016688"/><span class="fm-callout-head">Note</span> You can use the new promise/future interfaces starting from Vert.x 3.8, but the future-based APIs are only available in Vert.x 4. <a id="marker-1016690"/><a id="marker-1016693"/></p>
+
+  <h3 class="fm-head1" id="heading_id_14"><a id="pgfId-1016699"/>5.3.3 Interoperability with CompletionStage APIs</h3>
+
+  <p class="body"><a id="pgfId-1016788"/><a id="marker-1016710"/><a id="marker-1016712"/>Vert.x futures are also interoperable with the <code class="fm-code-in-text">CompletionStage</code> interface of the <code class="fm-code-in-text">java.util.concurrent</code> package in the JDK. The <code class="fm-code-in-text">CompletionStage</code> interface represents a step in an asynchronous <a id="marker-1016747"/>operation, so you can think of it as being a future, especially as there is a class called <code class="fm-code-in-text">CompletableFuture</code> that implements <code class="fm-code-in-text">CompletionStage</code>. For instance, the HTTP client API in Java 11 offers <code class="fm-code-in-text">sendAsync</code> methods that return <code class="fm-code-in-text">CompletableFuture</code> to make asynchronous <a id="marker-1016793"/>HTTP requests.</p>
+
+  <p class="body"><a id="pgfId-1016819"/>The interoperability between Vert.x futures and <code class="fm-code-in-text">CompletionStage</code> is useful when you need to interact with libraries that use <code class="fm-code-in-text">CompletionStage</code> in their APIs.</p>
+
+  <p class="fm-callout"><a id="pgfId-1016906"/><span class="fm-callout-head">Note</span> The Vert.x <code class="fm-code-in-text1">Future</code> interface is not <a id="marker-1016849"/>a subtype of <code class="fm-code-in-text1">CompletionStage</code>. The Vert.x team thought about it while preparing the roadmap for Vert.x 4, but we ultimately opted for our own interface definition, since <code class="fm-code-in-text1">CompletionStage</code> is more agnostic regarding the threading model. Indeed, the “async”-suffixed methods provide variants where you can pass an executor like <code class="fm-code-in-text1">CompletionStage&lt;Void&gt; thenRunAsync(Runnable,Executor)</code>, while the variants without an executor parameter dispatch by default to a <code class="fm-code-in-text1">ForkJoinPool</code> instance. These methods allow <a id="marker-1016895"/>stepping out of Vert.x event loops or worker thread pools too easily, so we chose to offer interoperability and not use <code class="fm-code-in-text1">CompletionStage</code> directly in the Vert.x APIs.</p>
+
+  <p class="body"><a id="pgfId-1016931"/>The following listing shows how we can move from a Vert.x <code class="fm-code-in-text">Future</code> to a <code class="fm-code-in-text">CompletionStage</code>.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017030"/>Listing 5.17 From a Vert.x <code class="fm-code-in-listingcaption">Future</code> to a <code class="fm-code-in-listingcaption">CompletionStage</code></p>
+  <pre class="programlisting">CompletionStage&lt;String&gt; cs = promise.future().toCompletionStage();   <span class="fm-combinumeral">❶</span>
+cs
+  .thenApply(String::toUpperCase)                                    <span class="fm-combinumeral">❷</span>
+  .thenApply(str -&gt; "~~~ " + str)
+  .whenComplete((str, err) -&gt; {                                      <span class="fm-combinumeral">❸</span>
+    if (err == null) {
+      System.out.println(str);
+    } else {
+      System.out.println("Oh... " + err.getMessage());
+    }
+  });</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052217"/><span class="fm-combinumeral">❶</span> Converts a Future to a CompletionStage</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052238"/><span class="fm-combinumeral">❷</span> thenApply is similar to map in Vert.x Future.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052255"/><span class="fm-combinumeral">❸</span> Takes a value or an error</p>
+
+  <p class="body"><a id="pgfId-1017229"/>Here we convert the string result to uppercase, prefix it with a string, and eventually <a id="marker-1017182"/>call <code class="fm-code-in-text">whenComplete</code>. Note that this is a <code class="fm-code-in-text">BiConsumer</code>, and you need <a id="marker-1017208"/>to test which of the values or exception parameters is <code class="fm-code-in-text">null</code> to know whether the promise completed successfully. It is also important to note that unless you call an asynchronous <code class="fm-code-in-text">CompletionStage</code> method, the calls are performed on a Vert.x thread.</p>
+
+  <p class="body"><a id="pgfId-1017254"/>Last but not least, you can convert a <code class="fm-code-in-text">CompletionStage</code> to a Vert.x <code class="fm-code-in-text">Future</code>, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017353"/>Listing 5.18 From a <code class="fm-code-in-listingcaption">CompletionStage</code> to a Vert.x <code class="fm-code-in-listingcaption">Future</code></p>
+  <pre class="programlisting">CompletableFuture&lt;String&gt; cf = CompletableFuture.supplyAsync(() -&gt; {   <span class="fm-combinumeral">❶</span>
+  try {
+    Thread.sleep(5000);
+  } catch (InterruptedException e) {
+    e.printStackTrace();
+  }
+  return "5 seconds have elapsed";
+});
+
+Future
+  .fromCompletionStage(cf, vertx.getOrCreateContext())                 <span class="fm-combinumeral">❷</span>
+  .onSuccess(System.out::println)
+  .onFailure(Throwable::printStackTrace);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052092"/><span class="fm-combinumeral">❶</span> Create a CompletableFuture from an asynchronous operation.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1052113"/><span class="fm-combinumeral">❷</span> Convert to a Vert.x future, and dispatch on a Vert.x context.</p>
+
+  <p class="body"><a id="pgfId-1017598"/><code class="fm-code-in-text">CompletableFuture</code> implements <code class="fm-code-in-text">CompletionStage</code>, and <code class="fm-code-in-text">supplyAsync</code> dispatches a call <a id="marker-1017521"/>to the default <code class="fm-code-in-text">ForkJoinPool</code>. A thread from that pool will be used, sleeping for five seconds before returning a string, which will be the <code class="fm-code-in-text">CompletableFuture</code> result. The <code class="fm-code-in-text">fromCompletionStage</code> method converts to a Vert.x <code class="fm-code-in-text">Future</code>. The method has two <a id="marker-1017567"/>variants: one with a Vert.x context to call <code class="fm-code-in-text">Future</code> methods like <code class="fm-code-in-text">onSuccess</code> on the context, and one where the calls will happen on whatever thread completed the provided <code class="fm-code-in-text">CompletionStage</code> instance. <a id="marker-1017603"/><a id="marker-1017606"/></p>
+
+  <h3 class="fm-head1" id="heading_id_15"><a id="pgfId-1017612"/>5.3.4 Collector service with Vert.x futures</h3>
+
+  <p class="body"><a id="pgfId-1017645"/><a id="marker-1017623"/><a id="marker-1017625"/>Going back to the edge service example, we can make use of the Vert.x APIs that use <code class="fm-code-in-text">Future</code>. We’ll use the earlier verticle <code class="fm-code-in-text">start</code> method from listing 5.16.</p>
+
+  <p class="body"><a id="pgfId-1017654"/>First of all, we can define the <code class="fm-code-in-text">fetchTemperature</code> method in the following <a id="marker-1017665"/>listing to get the temperature from a service.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017726"/>Listing 5.19 Fetching temperature with future-based APIs</p>
+  <pre class="programlisting">private Future&lt;JsonObject&gt; fetchTemperature(int port) {
+  return webClient
+    .get(port, "localhost", "/")
+    .expect(ResponsePredicate.SC_SUCCESS)
+    .as(BodyCodec.jsonObject())
+    .send()                      <span class="fm-combinumeral">❶</span>
+    .map(HttpResponse::body);    <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051965"/><span class="fm-combinumeral">❶</span> A Future&lt;HttpResponse&gt;</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051986"/><span class="fm-combinumeral">❷</span> Extract and return just the body.</p>
+
+  <p class="body"><a id="pgfId-1017877"/>This method returns a future of a <code class="fm-code-in-text">JsonObject</code>, and to achieve that <a id="marker-1017866"/>we use the future-returning variant of the <code class="fm-code-in-text">WebClientsend</code> method, and then map <a id="marker-1017888"/>the result to extract just the JSON data.</p>
+
+  <p class="body"><a id="pgfId-1017911"/>Temperatures are collected <a id="marker-1017900"/>in the <code class="fm-code-in-text">handleRequest</code> method shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017971"/>Listing 5.20 Collecting temperatures with future-based APIs</p>
+  <pre class="programlisting">private void handleRequest(HttpServerRequest request) {
+  CompositeFuture.all(                                   <span class="fm-combinumeral">❶</span>
+    fetchTemperature(3000),                              <span class="fm-combinumeral">❷</span>
+    fetchTemperature(3001),
+    fetchTemperature(3002))
+    .flatMap(this::sendToSnapshot)                       <span class="fm-combinumeral">❸</span>
+    .onSuccess(data -&gt; request.response()                <span class="fm-combinumeral">❹</span>
+      .putHeader("Content-Type", "application/json")
+      .end(data.encode()))
+    .onFailure(err -&gt; {                                  <span class="fm-combinumeral">❺</span>
+      logger.error("Something went wrong", err);
+      request.response().setStatusCode(500).end();
+    });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051579"/><span class="fm-combinumeral">❶</span> Compose several futures.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051600"/><span class="fm-combinumeral">❷</span> Fetch temperatures.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051617"/><span class="fm-combinumeral">❸</span> Chain with another asynchronous operation.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051634"/><span class="fm-combinumeral">❹</span> Handle success.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051651"/><span class="fm-combinumeral">❺</span> Handle failure.</p>
+
+  <p class="body"><a id="pgfId-1018250"/>You can use <code class="fm-code-in-text">CompositeFuture</code> to make <a id="marker-1018213"/>one future out of several. The <code class="fm-code-in-text">all</code> static method <a id="marker-1018229"/>results in a future that is completed when all futures are completed, and that fails when any future has failed. There are also <code class="fm-code-in-text">any</code> and <code class="fm-code-in-text">join</code> methods that <a id="marker-1018255"/>have different <a id="marker-1018261"/>semantics.</p>
+
+  <p class="body"><a id="pgfId-1018287"/>Once all temperatures have been successfully received, the call to <code class="fm-code-in-text">flatMap</code> sends data to the snapshot service, which is an asynchronous operation. The code for the <code class="fm-code-in-text">sendToSnapshot</code> method is shown in <a id="marker-1018292"/>the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018353"/>Listing 5.21 Sending data to the snapshot service with future-based APIs</p>
+  <pre class="programlisting">private Future&lt;JsonObject&gt; sendToSnapshot(CompositeFuture temps) {
+  List&lt;JsonObject&gt; tempData = temps.list();
+  JsonObject data = new JsonObject()
+    .put("data", new JsonArray()
+      .add(tempData.get(0))
+      .add(tempData.get(1))
+      .add(tempData.get(2)));
+  return webClient
+    .post(4000, "localhost", "/")
+    .expect(ResponsePredicate.SC_SUCCESS)
+    .sendJson(data)                        <span class="fm-combinumeral">❶</span>
+    .map(response -&gt; data);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051491"/><span class="fm-combinumeral">❶</span> Future-based variant</p>
+
+  <p class="body"><a id="pgfId-1018538"/>This code is similar to that of <code class="fm-code-in-text">fetchTemperature</code> because we <a id="marker-1018501"/>use a method of <code class="fm-code-in-text">WebClient</code> that returns a <code class="fm-code-in-text">Future</code>. The code of the main method that deploys verticles is the same as in the callbacks variant, except that <a id="marker-1018527"/>we deploy a different <code class="fm-code-in-text">CollectorService</code> verticle:</p>
+  <pre class="programlisting">// (...)
+vertx.deployVerticle("chapter5.future.CollectorService");</pre>
+
+  <p class="body"><a id="pgfId-1018567"/>Let’s now move on to reactive extension, another asynchronous programming model. <a id="marker-1018569"/><a id="marker-1018572"/><a id="marker-1018574"/></p>
+
+  <h2 class="fm-head" id="heading_id_16"><a id="pgfId-1018580"/>5.4 Reactive extensions</h2>
+
+  <p class="body"><a id="pgfId-1018635"/>Reactive extensions are an elaborated form <a id="marker-1018592"/>of the <i class="fm-italics">observable</i> design pattern.<a href="#pgfId-1018609">2</a> They were first popularized by Erik Meijer in the <i class="fm-italics">Microsoft .NET</i> ecosystem. Modern applications are increasingly composed of asynchronous event streams, not just on the server, but also in web, desktop, and mobile clients.<a href="#pgfId-1018641">3</a> Indeed, we can think of graphical user interface events as a stream of events that an application has to respond to.</p>
+
+  <p class="body"><a id="pgfId-1018667"/>Reactive extensions are defined by three things:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1018673"/>Observing event or data streams (e.g., an incoming HTTP request can be observed)</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1018687"/>Composing operators to transform streams (e.g., merge multiple HTTP request streams as one)</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1018697"/>Subscribing to streams and reacting to events and errors</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1018707"/>The <i class="fm-italics">ReactiveX</i> initiative offers <a id="marker-1018718"/>a common API and implementations in many languages, both for backend and frontend projects (<span class="fm-hyperlink"><a href="http://reactivex.io/">http://reactivex.io/</a></span>). The RxJS project offers reactive extensions for JavaScript applications in the browser, whereas a project like RxJava offers a general-purpose reactive extensions implementation for the Java ecosystem.</p>
+
+  <p class="body"><a id="pgfId-1018729"/>Vert.x offers bindings for RxJava versions 1 and 2. Using version 2 is recommended because it supports back-pressure, while version 1 does not.</p>
+
+  <h3 class="fm-head1" id="heading_id_17"><a id="pgfId-1018735"/>5.4.1 RxJava in a nutshell</h3>
+
+  <p class="body"><a id="pgfId-1018745"/><a id="marker-1018746"/>Let’s explore the basics of what RxJava is and see what it does and how it nicely it integrates with Vert.x</p>
+
+  <p class="fm-callout"><a id="pgfId-1018764"/><span class="fm-callout-head">tip</span> Timo Tuominen’s <i class="fm-italics">RxJava for Android Developers</i> (Manning, 2019) is a solid resource for learning RxJava.</p>
+
+  <p class="fm-head2"><a id="pgfId-1018779"/>Observable types</p>
+
+  <p class="body"><a id="pgfId-1018789"/><a id="marker-1018790"/>First of all, RxJava 2 offers five different types of observable sources, listed in table 5.1.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1043198"/>Table 5.1 Observable types in RxJava</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="20%"/>
+      <col class="calibre4" span="1" width="40%"/>
+      <col class="calibre4" span="1" width="40%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1043204"/>Type</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1043206"/>Description</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1043208"/>Example</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043210"/><code class="fm-code-in-figurecaption">Observable&lt;T&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043212"/>A stream of events of type <code class="fm-code-in-figurecaption">T</code>. Does not support back-pressure.</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043214"/>Timer events, observable source where we cannot apply back-pressure like GUI events</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043216"/><code class="fm-code-in-figurecaption">Flowable&lt;T&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043218"/>A stream of events of type <code class="fm-code-in-figurecaption">T</code> where back-pressure can be applied</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043220"/>Network data, filesystem inputs</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043222"/><code class="fm-code-in-figurecaption">Single&lt;T&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043224"/>A source that emits exactly one event of type <code class="fm-code-in-figurecaption">T</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043226"/>Fetching an entry from a data store by key</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043228"/><code class="fm-code-in-figurecaption">Maybe&lt;T&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043230"/>A source that may emit one event of type <code class="fm-code-in-figurecaption">T</code>, or none</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043232"/>Fetching an entry from a data store by key, but the key may not exist</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043234"/><code class="fm-code-in-figurecaption">Completable</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043236"/>A source that notifies of some action having completed, but no value is being given</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1043238"/>Deleting files</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1019109"/>You may sometimes read about <i class="fm-italics">hot</i> and <i class="fm-italics">cold</i> sources. A hot source <a id="marker-1019114"/>is a source where events are being emitted whether there are subscribers or not. A cold source is a source where events only start being emitted after the first subscription. A periodic timer is a hot source, whereas a file to read is a cold source<a id="marker-1019120"/>. With a cold source, you can get all events, but with a hot source, you will only get those emitted after you have subscribed. <a id="marker-1019126"/></p>
+
+  <p class="fm-head2"><a id="pgfId-1019133"/>Basic examples</p>
+
+  <p class="body"><a id="pgfId-1019143"/><a id="marker-1019144"/>We’ll start with the simple example in listing 5.22, illustrated in figure 5.3.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH05_F03_Ponge.png" width="998" height="287"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1056011"/>Figure 5.3 RxJava pipeline of listing 5.22</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019227"/>Listing 5.22 A first RxJava example</p>
+  <pre class="programlisting">Observable.just(1, 2, 3)              <span class="fm-combinumeral">❶</span>
+  .map(Object::toString)              <span class="fm-combinumeral">❷</span>
+  .map(s -&gt; "@" + s)                  <span class="fm-combinumeral">❸</span>
+  .subscribe(System.out::println);    <span class="fm-combinumeral">❹</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051240"/><span class="fm-combinumeral">❶</span> This is an observable of a predefined sequence.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051261"/><span class="fm-combinumeral">❷</span> We map to a string.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051278"/><span class="fm-combinumeral">❸</span> We transform the string.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051295"/><span class="fm-combinumeral">❹</span> For each item, we print to the standard output.</p>
+
+  <p class="body"><a id="pgfId-1019376"/>Running the code in listing 5.22 yields the following console output:</p>
+  <pre class="programlisting">@1
+@2
+@3</pre>
+
+  <p class="body"><a id="pgfId-1019496"/>This example creates an observable of three integers. The <code class="fm-code-in-text">just</code> factory method <a id="marker-1019419"/>creates an <code class="fm-code-in-text">Observable&lt;Integer&gt;</code> source. We then use two <code class="fm-code-in-text">map</code> operators to transform the stream. The first one converts from an <code class="fm-code-in-text">Observable&lt;Integer&gt;</code> to an <code class="fm-code-in-text">Observable&lt;String&gt;</code>. The second one prepends the <code class="fm-code-in-text">@</code> character to each item. Finally, <code class="fm-code-in-text">subscribe</code> performs a subscription whe<a id="marker-1047869"/>re <code class="fm-code-in-text">System.out.println</code> is called for each item.</p>
+
+  <p class="body"><a id="pgfId-1019505"/>Sources may emit errors, in which case the subscriber can be notified. Consider the observable in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019562"/>Listing 5.23 Error handling with RxJava</p>
+  <pre class="programlisting">Observable.&lt;String&gt;error(() -&gt; new RuntimeException("Woops"))   <span class="fm-combinumeral">❶</span>
+  .map(String::toUpperCase)                                     <span class="fm-combinumeral">❷</span>
+  .subscribe(System.out::println, Throwable::printStackTrace);  <span class="fm-combinumeral">❸</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051046"/><span class="fm-combinumeral">❶</span> The observable emits one error.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051067"/><span class="fm-combinumeral">❷</span> This is never called.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1051084"/><span class="fm-combinumeral">❸</span> The stacktrace will be printed.</p>
+
+  <p class="body"><a id="pgfId-1019705"/>The observable of string values will emit one error. The <code class="fm-code-in-text">map</code> operator will never <a id="marker-1019694"/>be called, since it operates only on values, not errors. We can see that <code class="fm-code-in-text">subscribe</code> now has <a id="marker-1019710"/>two parameters; the second one is the callback to process errors. In this example, we just print the stack trace, but in networked applications, for example, we would do error recovery.</p>
+
+  <p class="fm-callout"><a id="pgfId-1019778"/><span class="fm-callout-head">Note</span> Using the <code class="fm-code-in-text1">just</code> factory method is great in examples and tests, but in real-world scenarios you’ll want to adapt a more complex source to produce events to an RxJava observable type. To do that, there is a general-purpose <code class="fm-code-in-text1">Publisher</code> interface that <a id="marker-1019751"/>you can implement to emit items to subscribers <a id="marker-1019757"/>using the <code class="fm-code-in-text1">fromPublisher</code> method (instead of <code class="fm-code-in-text1">just</code>). There are also adapter methods for JDK futures, for iterable objects, and for generating items from a JDK callable object. <a id="marker-1019783"/></p>
+
+  <p class="fm-head2"><a id="pgfId-1019790"/>Life cycle</p>
+
+  <p class="body"><a id="pgfId-1019800"/><a id="marker-1019801"/>The previous example didn’t show the full life cycle of an observable. Once a subscription has been made, zero or many items are emitted. Then the stream terminates with either an error or a notification that it has completed.</p>
+
+  <p class="body"><a id="pgfId-1019809"/>Let’s look at a more elaborated example.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019866"/>Listing 5.24 Dealing with all life-cycle events in RxJava</p>
+  <pre class="programlisting">Observable
+  .just("--", "this", "is", "--", "a", "sequence", "of", "items", "!")
+  .doOnSubscribe(d -&gt; System.out.println("Subscribed!"))               <span class="fm-combinumeral">❶</span>
+  .delay(5, TimeUnit.SECONDS)                                          <span class="fm-combinumeral">❷</span>
+  .filter(s -&gt; !s.startsWith("--"))
+  .doOnNext(System.out::println)                                       <span class="fm-combinumeral">❸</span>
+  .map(String::toUpperCase)
+  .buffer(2)                                                           <span class="fm-combinumeral">❹</span>
+  .subscribe(
+    System.out::println,
+    Throwable::printStackTrace,
+    () -&gt; System.out.println("&gt;&gt;&gt; Done"));                             <span class="fm-combinumeral">❺</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050619"/><span class="fm-combinumeral">❶</span> Actions can be inserted, such as when a subscription happens.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050640"/><span class="fm-combinumeral">❷</span> This delays emitting events by five seconds.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050657"/><span class="fm-combinumeral">❸</span> Another action, here called for each item flowing in the stream</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050674"/><span class="fm-combinumeral">❹</span> This groups events 2 by 2.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050691"/><span class="fm-combinumeral">❺</span> Called when the stream has completed</p>
+
+  <p class="body"><a id="pgfId-1020085"/>Running the preceding code gives the following output.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020142"/>Listing 5.25 Output of running listing 5.24</p>
+  <pre class="programlisting">Subscribed!           <span class="fm-combinumeral">❶</span>
+doOnNext: this
+doOnNext: is
+next: [THIS, IS]
+doOnNext: a
+doOnNext: sequence
+next: [A, SEQUENCE]
+doOnNext: of
+doOnNext: items
+next: [OF, ITEMS]
+doOnNext: !
+next: [!]
+~Done~</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050553"/><span class="fm-combinumeral">❶</span> This is the sole output for five seconds. Then the next lines appear.</p>
+
+  <p class="body"><a id="pgfId-1020279"/>This example shows us the form of <code class="fm-code-in-text">subscribe</code> where all events <a id="marker-1050547"/>can be handled: an event, an error, and the completion of the stream. The example also shows further operators:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1020322"/><code class="fm-code-in-text">doOnSubscribe</code> and <code class="fm-code-in-text">doOnNext</code> are actions (with potential side effects) that can <a class="calibre9" id="marker-1020327"/>be triggered as <a class="calibre9" id="marker-1020333"/>items pass along the stream.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1020343"/><code class="fm-code-in-text">delay</code> allows delaying when events <a class="calibre9" id="marker-1020356"/>start to be emitted further down the stream.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1020366"/><code class="fm-code-in-text">buffer</code> groups events <a class="calibre9" id="marker-1020379"/>(into lists), so here we get events in pairs.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1020389"/>There is, of course, more to RxJava than we’ve discussed in this section, but we’ve covered enough to dive into the Vert.x and RxJava integration. <a id="marker-1020391"/><a id="marker-1020394"/></p>
+
+  <h3 class="fm-head1" id="heading_id_18"><a id="pgfId-1020400"/>5.4.2 RxJava and Vert.x</h3>
+
+  <p class="body"><a id="pgfId-1020426"/><a id="marker-1020411"/>The RxJava integration in Vert.x is available <a id="marker-1020415"/>from the <code class="fm-code-in-text">vertx-rx-java2</code> module. In Gradle (and similarly in Maven), the dependency can be added as</p>
+  <pre class="programlisting">implementation("io.vertx:vertx-rx-java2:version")</pre>
+
+  <p class="body"><a id="pgfId-1020449"/>All APIs from the projects in the official Vert.x stack have RxJava support. The RxJava APIs are automatically generated from those of the core APIs. There are several idiomatic conversion rules to RxJava APIs, but as a simple example, when you have</p>
+  <pre class="programlisting">void foo(String s, Handler&lt;AsyncResult&lt;String&gt;&gt; callback)</pre>
+
+  <p class="body"><a id="pgfId-1020469"/>the translation to RxJava is</p>
+  <pre class="programlisting">Single&lt;String&gt; foo(String s)</pre>
+
+  <p class="body"><a id="pgfId-1020528"/>The RxJava APIs <a id="marker-1054936"/>are in subpackages of <code class="fm-code-in-text">io.vertx.reactivex</code>. For instance<a id="marker-1054937"/>, the RxJava version of <code class="fm-code-in-text">AbstractVerticle</code> is <code class="fm-code-in-text">io.vertx.reactivex.core.AbstractVerticle</code>.</p>
+
+  <p class="body"><a id="pgfId-1020537"/>Let’s look at an example <a id="marker-1054939"/>verticle using the RxJava APIs.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020600"/>Listing 5.26 RxJava and Vert.x APIs</p>
+  <pre class="programlisting">public class VertxIntro extends AbstractVerticle {
+  @Override
+  public Completable rxStart() {                                 <span class="fm-combinumeral">❶</span>
+
+    Observable
+      .interval(1, TimeUnit.SECONDS, RxHelper.scheduler(vertx))  <span class="fm-combinumeral">❷</span>
+      .subscribe(n -&gt; System.out.println("tick"));
+
+    return vertx.createHttpServer()
+      .requestHandler(r -&gt; r.response().end("Ok"))
+      .rxListen(8080)                                            <span class="fm-combinumeral">❸</span>
+      .ignoreElement();                                          <span class="fm-combinumeral">❹</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050234"/><span class="fm-combinumeral">❶</span> rxStart notifies of deployment success using a Completable rather than a Future.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050255"/><span class="fm-combinumeral">❷</span> The scheduler enforces the Vert.x threading model.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050272"/><span class="fm-combinumeral">❸</span> This is an RxJava variant of listen(port, callback).</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050289"/><span class="fm-combinumeral">❹</span> This returns a Completable from a Single.</p>
+
+  <p class="body"><a id="pgfId-1020875"/>This example opens a classic HTTP server that replies <code class="fm-code-in-text">Ok</code> to any request. The interesting part is that the RxJava variant of <code class="fm-code-in-text">AbstractVerticle</code> has an <code class="fm-code-in-text">rxStart</code> (and <code class="fm-code-in-text">rxStop</code>) method that notifies <a id="marker-1020848"/>of deployment success<a id="marker-1020854"/>. In our case, the verticle has been successfully deployed when the HTTP server has started, so we return a <code class="fm-code-in-text">Completable</code> object. You can check that methods prefixed with <code class="fm-code-in-text">rx</code> correspond to generated methods for supporting RxJava. If you inspect the RxJava APIs, you will note that the original methods (including callbacks) are still present.</p>
+
+  <p class="body"><a id="pgfId-1020897"/>The other interesting part of this example is the observable that emits events every second. It behaves essentially as a Vert.x timer would. There are several operator methods in the RxJava APIs <a id="marker-1020886"/>that accept a <i class="fm-italics">scheduler</i> object, because they need to defer asynchronous tasks. By default, they call back from an internal worker-thread pool that they manage, which breaks the Vert.x threading model assumptions. We can always pass a Vert.x scheduler to ensure that events are still being called back on the original context event loop. <a id="marker-1020902"/></p>
+
+  <h3 class="fm-head1" id="heading_id_19"><a id="pgfId-1020909"/>5.4.3 Collector service in RxJava</h3>
+
+  <p class="body"><a id="pgfId-1020932"/><a id="marker-1020920"/><a id="marker-1020922"/>We can now go back to our edge service example and rewrite the <code class="fm-code-in-text">CollectorService</code> verticle class <a id="marker-1020937"/>with RxJava.</p>
+
+  <p class="body"><a id="pgfId-1020976"/>To begin, we’ll update <a id="marker-1020949"/>the imports to use the <code class="fm-code-in-text">io.vertx.reactivex.*</code> packages. Since the verticle starts an HTTP server, we can take <a id="marker-1020965"/>advantage of <code class="fm-code-in-text">rxStart</code> as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021036"/>Listing 5.27 RxJava collector service preamble</p>
+  <pre class="programlisting">@Override
+public Completable rxStart() {
+  webClient = WebClient.create(vertx);
+  return vertx.createHttpServer()
+    .requestHandler(this::handleRequest)
+    .rxListen(8080)                       <span class="fm-combinumeral">❶</span>
+    .ignoreElement();                     <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050088"/><span class="fm-combinumeral">❶</span> A Single&lt;HttpServer&gt;</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050109"/><span class="fm-combinumeral">❷</span> A Completable</p>
+
+  <p class="body"><a id="pgfId-1021165"/>The next step is to write a method for fetching temperatures in parallel, and then to assemble the responses as a JSON object. Just like the callbacks version, we can have a method to fetch a single temperature. The code is shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021222"/>Listing 5.28 Fetching temperature with RxJava</p>
+  <pre class="programlisting">private Single&lt;HttpResponse&lt;JsonObject&gt;&gt; fetchTemperature(int port) {
+  return webClient
+    .get(port, "localhost", "/")
+    .expect(ResponsePredicate.SC_SUCCESS)
+    .as(BodyCodec.jsonObject())
+    .rxSend();                    <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1050014"/><span class="fm-combinumeral">❶</span> This returns a Single.</p>
+
+  <p class="body"><a id="pgfId-1021356"/>Again, the difference from the callbacks versions <a id="marker-1021325"/>is that we use <code class="fm-code-in-text">rxSend</code> (which returns a <code class="fm-code-in-text">Single</code>) instead of <code class="fm-code-in-text">send</code> (which uses a callback).</p>
+
+  <p class="body"><a id="pgfId-1021365"/>The next listing shows a method that composes parallel asynchronous HTTP requests and assembles a JSON object based on the responses.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021422"/>Listing 5.29 Collecting temperatures requests with RxJava</p>
+  <pre class="programlisting">private Single&lt;JsonObject&gt; collectTemperatures() {
+  Single&lt;HttpResponse&lt;JsonObject&gt;&gt; r1 = fetchTemperature(3000);
+  Single&lt;HttpResponse&lt;JsonObject&gt;&gt; r2 = fetchTemperature(3001);
+  Single&lt;HttpResponse&lt;JsonObject&gt;&gt; r3 = fetchTemperature(3002);
+
+  return Single.zip(r1, r2, r3, (j1, j2, j3) -&gt; {    <span class="fm-combinumeral">❶</span>
+    JsonArray array = new JsonArray()
+      .add(j1.body())
+      .add(j2.body())
+      .add(j3.body());
+    return new JsonObject().put("data", array);      <span class="fm-combinumeral">❷</span>
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049887"/><span class="fm-combinumeral">❶</span> The zip operator composes three responses.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049915"/><span class="fm-combinumeral">❷</span> The value is the zip operator response, boxed in a Single.</p>
+
+  <p class="body"><a id="pgfId-1021664"/>By using <code class="fm-code-in-text">fetchTemperature</code> to fetch individual <a id="marker-1021591"/>responses, we obtain <code class="fm-code-in-text">Single</code> objects that observe individual HTTP responses. To compose the results, we use the <code class="fm-code-in-text">zip</code> operator, which takes severable sources and composes the result as another <code class="fm-code-in-text">Single</code> object. When all HTTP responses <a id="marker-1021627"/>are available, the <code class="fm-code-in-text">zip</code> operator passes <a id="marker-1021643"/>the values to a function that must produce a value (of any type). The returned value is then the <code class="fm-code-in-text">Single</code> object that the <code class="fm-code-in-text">zip</code> operator emits. Here we build a JSON array using the HTTP response bodies that the Vert.x web client has converted to JSON for us, and we then wrap the array in a JSON object.</p>
+
+  <p class="body"><a id="pgfId-1021695"/>Note that <code class="fm-code-in-text">zip</code> has many overloaded definitions with varying numbers of parameters to cope with two sources, three sources, and so on. When the code needs to handle an undefined <a id="marker-1021684"/>number of sources, there is a variant taking a list of sources, and the function passed to <code class="fm-code-in-text">zip</code> accepts a list of values.</p>
+
+  <p class="body"><a id="pgfId-1021704"/>This leads us to the definition of the HTTP request handling method that collects the temperatures, posts to the snapshot service, and then responds to the requester. The code is in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021761"/>Listing 5.30 RxJava collector service HTTP handler</p>
+  <pre class="programlisting">private void handleRequest(HttpServerRequest request) {
+  Single&lt;JsonObject&gt; data = collectTemperatures();
+  sendToSnapshot(data).subscribe(json -&gt; {              <span class="fm-combinumeral">❶</span>
+    request.response()
+      .putHeader("Content-Type", "application/json")
+      .end(json.encode());
+  }, err -&gt; {                                           <span class="fm-combinumeral">❷</span>
+    logger.error("Something went wrong", err);
+    request.response().setStatusCode(500).end();
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049721"/><span class="fm-combinumeral">❶</span> We send data to the snapshot service.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049742"/><span class="fm-combinumeral">❷</span> We have a single point of error management.</p>
+
+  <p class="body"><a id="pgfId-1021908"/>This method also performs the subscription: upon success JSON data is returned to the requester, and on failure an HTTP 500 error is returned. It is important to note that the subscription triggers the HTTP requests to the sensor services, then to the snapshot service, and so on. Until a subscription is made, RxJava observable pipelines are just “recipes” for processing events.</p>
+
+  <p class="body"><a id="pgfId-1021914"/>The last missing part is the method that sends data to the snapshot service.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021971"/>Listing 5.31 Sending data to the snapshot service with RxJava</p>
+  <pre class="programlisting">private Single&lt;JsonObject&gt; sendToSnapshot(Single&lt;JsonObject&gt; data) {
+  return data.flatMap(json -&gt; webClient                              <span class="fm-combinumeral">❶</span>
+    .post(4000, "localhost", "")
+    .expect(ResponsePredicate.SC_SUCCESS)
+    .rxSendJsonObject(json)                                          <span class="fm-combinumeral">❷</span>
+    .flatMap(resp -&gt; Single.just(json)));                            <span class="fm-combinumeral">❸</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049467"/><span class="fm-combinumeral">❶</span> Once we have the JSON data, we issue an HTTP request.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049488"/><span class="fm-combinumeral">❷</span> This sends a JSON object, then reports on the HTTP request response.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049505"/><span class="fm-combinumeral">❸</span> This allows us to give back the JSON object rather than the HTTP request response.</p>
+
+  <p class="body"><a id="pgfId-1022138"/>This method introduces the <code class="fm-code-in-text">flatMap</code> operator, which is well <a id="marker-1022127"/>known to functional programming enthusiasts. Don’t worry if <code class="fm-code-in-text">flatMap</code> sounds cryptic to you; in the case of composing sequential asynchronous operations, you can just read “flatmap” as “and then.”</p>
+
+  <p class="body"><a id="pgfId-1022205"/>Since <code class="fm-code-in-text">data</code> emits a JSON object, the <code class="fm-code-in-text">flatMap</code> operator allows us to issue an HTTP request with the web client once that JSON object has been emitted. We need <a id="marker-1047971"/>another (nested) <code class="fm-code-in-text">flatMap</code> after the HTTP request to the snapshot service has succeeded. Indeed, <code class="fm-code-in-text">rxSendJsonObject</code> gives a single <a id="marker-1047972"/>observable that emits an HTTP response. However, we need the JSON object because it has to be returned to the requester after sending to the snapshot service has succeeded, so the second <code class="fm-code-in-text">flatMap</code> allows us to do that and re-inject it into the pipeline. This is a very common pattern with RxJava.</p>
+
+  <p class="body"><a id="pgfId-1022214"/>Running the RxJava version of the edge service is no different from running the callback version. All we need to do is change the deployment of the <code class="fm-code-in-text">CollectorService</code> to the <a id="marker-1047974"/>following:</p>
+  <pre class="programlisting">vertx.deployVerticle("chapter5.reactivex.CollectorService");</pre>
+
+  <p class="body"><a id="pgfId-1022249"/>Interacting with the service yields the same results as with the callback version.</p>
+
+  <div class="fm-sidebar-block">
+    <p class="fm-sidebar-title"><a class="calibre9" id="pgfId-1056066"/>The difference between <code class="fm-code-in-text2">map</code> and <code class="fm-code-in-text2">flatMap</code></p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1056067"/><code class="fm-code-in-text1">flatMap</code> comes from the “flatten” and “map” operators. To better understand how it works, let’s illustrate <code class="fm-code-in-text1">flatMap</code> with JavaScript arrays (you can test it using <code class="fm-code-in-text1">node</code> or directly from a web browser console).</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1056068"/>With <code class="fm-code-in-text1">let a = [1,</code> <code class="fm-code-in-text1">2,</code> <code class="fm-code-in-text1">3]</code>, <code class="fm-code-in-text1">a</code> is an array with values <code class="fm-code-in-text1">1</code>, <code class="fm-code-in-text1">2</code>, and <code class="fm-code-in-text1">3</code>. Now suppose that for each value, we want to have the value multiplied by <code class="fm-code-in-text1">10</code> and <code class="fm-code-in-text1">100</code>. With <code class="fm-code-in-text1">map</code>, we could write <code class="fm-code-in-text1">let</code> <code class="fm-code-in-text1">b</code> <code class="fm-code-in-text1">=</code> <code class="fm-code-in-text1">a.map(x</code> <code class="fm-code-in-text1">=&gt;</code> <code class="fm-code-in-text1">[x</code> <code class="fm-code-in-text1">*</code> <code class="fm-code-in-text1">10,</code> <code class="fm-code-in-text1">x</code> <code class="fm-code-in-text1">*</code> <code class="fm-code-in-text1">100])</code>, which gives us an array of arrays: <code class="fm-code-in-text1">[</code> <code class="fm-code-in-text1">[ 10,</code> <code class="fm-code-in-text1">100</code> <code class="fm-code-in-text1">],</code> <code class="fm-code-in-text1">[</code> <code class="fm-code-in-text1">20,</code> <code class="fm-code-in-text1">200</code> <code class="fm-code-in-text1">],</code> <code class="fm-code-in-text1">[</code> <code class="fm-code-in-text1">30,</code> <code class="fm-code-in-text1">300</code> <code class="fm-code-in-text1">]</code> <code class="fm-code-in-text1">]</code>.</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1056069"/>This is not very convenient if we just want the values rather than nested arrays, so we can “flatten” <code class="fm-code-in-text1">b</code>, <code class="fm-code-in-text1">b.flat()</code>, which gives us <code class="fm-code-in-text1">[</code> <code class="fm-code-in-text1">10,</code> <code class="fm-code-in-text1">100,</code> <code class="fm-code-in-text1">20,</code> <code class="fm-code-in-text1">200,</code> <code class="fm-code-in-text1">30,</code> <code class="fm-code-in-text1">300</code> <code class="fm-code-in-text1">]</code>. You can get the same result directly with <code class="fm-code-in-text1">a.flatMap(x =&gt; [x * 10, x * 100])</code>.</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1056070"/>This translates directly to other operations, like HTTP client requests or database calls, as <code class="fm-code-in-text1">flatMap</code> avoids nested observables of observables. <a id="marker-1056071"/><a id="marker-1056072"/></p>
+  </div>
+
+  <h2 class="fm-head" id="heading_id_20"><a id="pgfId-1022426"/>5.5 Kotlin coroutines</h2>
+
+  <p class="body"><a id="pgfId-1022456"/><a id="marker-1022437"/>The last asynchronous programming model to explore is that of <i class="fm-italics">coroutines</i> in the Kotlin programming language. (For more information about Kotlin, see Dmitry Jemerov and Svetlana Isakova’s <i class="fm-italics">Kotlin in Action</i> [Manning, 2017]).</p>
+
+  <p class="body"><a id="pgfId-1022465"/>Coroutines are interesting to explore, as in many cases they allow us to write asynchronous code that <i class="fm-italics">looks like</i> regular non-asynchronous code. Also, Kotlin has a solid implementation of coroutines that is very easy for Java developers to understand, and since we said that Vert.x was polyglot, this book had to show Vert.x without Java at some point!</p>
+
+  <h3 class="fm-head1" id="heading_id_21"><a id="pgfId-1022480"/>5.5.1 What is a coroutine?</h3>
+
+  <p class="body"><a id="pgfId-1022553"/><a id="marker-1022491"/>The term <i class="fm-italics">coroutines</i> first appeared in a paper from Melvin Conway in 1963 about the design of a COBOL compiler.<a href="#pgfId-1022506">4</a> Many languages have support for coroutines, or some form of coroutines: Python (generators), C# (<code class="fm-code-in-text">async</code>/<code class="fm-code-in-text">await</code> operators), Go (<i class="fm-italics">goroutines</i>), and more. Implementations <a id="marker-1022558"/>for Java using bytecode instrumentation exist, and a future version of Java will have support for coroutines thanks to Project Loom (<span class="fm-hyperlink"><a href="https://openjdk.java.net/projects/loom/">https://openjdk.java.net/projects/loom/</a></span>).</p>
+
+  <p class="body"><a id="pgfId-1022888"/>A coroutine can have its execution suspended and resumed at a later point in time. It can be seen as a function with multiple entry and exit points and whose execution stack can be resumed. Coroutines fit well with an asynchronous model, as they can be suspended when the result of an asynchronous operation is needed and resumed when it is available.</p>
+
+  <p class="body"><a id="pgfId-1022894"/>To make things more concrete, let’s look at using coroutines in Kotlin. First, consider the following code.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1022951"/>Listing 5.32 Coroutines hello world</p>
+  <pre class="programlisting">import kotlinx.coroutines.*
+
+suspend fun hello(): String {     <span class="fm-combinumeral">❶</span>
+  delay(1000)                     <span class="fm-combinumeral">❷</span>
+  return "Hello!"
+}
+
+fun main() {
+  runBlocking {                   <span class="fm-combinumeral">❸</span>
+    println(hello())
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049272"/><span class="fm-combinumeral">❶</span> This function can be suspended.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049293"/><span class="fm-combinumeral">❷</span> This function is suspending and will not block the caller thread.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049310"/><span class="fm-combinumeral">❸</span> This allows waiting for coroutines code to complete.</p>
+
+  <p class="body"><a id="pgfId-1023146"/>The call to <code class="fm-code-in-text">delay</code> does not block <a id="marker-1023135"/>the caller thread because that method can be suspended. The method is called again when the time has elapsed, and it resumes executing at the next line, which returns a string. In a callback world, the <code class="fm-code-in-text">delay</code> function would have taken a callback parameter, which would have had to pass the returned string to the caller, probably using another callback.</p>
+
+  <p class="body"><a id="pgfId-1023155"/>Here is a more elaborated example.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1023212"/>Listing 5.33 Coroutines example</p>
+  <pre class="programlisting">fun main() = runBlocking {
+  val job1 = launch { delay(500) }                 <span class="fm-combinumeral">❶</span>
+  fun fib(n: Long): Long = if (n &lt; 2) n else fib(n - 1) + fib(n - 2)
+  val job2 = async { fib(42) }                     <span class="fm-combinumeral">❷</span>
+
+  job1.join()                                      <span class="fm-combinumeral">❸</span>
+  println("job1 has completed")
+  println("job2 fib(42) = ${job2.await()}")        <span class="fm-combinumeral">❹</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048995"/><span class="fm-combinumeral">❶</span> Starts a job</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049016"/><span class="fm-combinumeral">❷</span> Starts a job that returns a value</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049033"/><span class="fm-combinumeral">❸</span> Waits for the job to complete</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1049050"/><span class="fm-combinumeral">❹</span> Gets the value when the job completes</p>
+
+  <p class="body"><a id="pgfId-1023471"/>In this example, <code class="fm-code-in-text">job1</code> is created using <code class="fm-code-in-text">launch</code>, which executes some code in parallel. It waits for 500 ms. The same applies to <code class="fm-code-in-text">job2</code>, except that <code class="fm-code-in-text">async</code> is for code blocks that return a value. It computes the Fibonacci value of 42, which takes some time. The <code class="fm-code-in-text">join</code> and <code class="fm-code-in-text">await</code> methods on the jobs allow us to wait for these jobs to complete. Last but not least, the <code class="fm-code-in-text">main</code> function is wrapped in a <code class="fm-code-in-text">runBlocking</code> call. This is because <a id="marker-1023476"/>suspended methods are being called, so the execution must wait for all coroutines to complete.</p>
+
+  <p class="body"><a id="pgfId-1023486"/>We only scratched the surface of Kotlin and coroutines, but this should be enough to look at the Vert.x integration. To dive deeper into Kotlin, you may also want to read Pierre-Yves Saumont, <i class="fm-italics">The Joy of Kotlin</i> (Manning, 2019). <a id="marker-1023497"/></p>
+
+  <h3 class="fm-head1" id="heading_id_22"><a id="pgfId-1023504"/>5.5.2 Vert.x and Kotlin coroutines</h3>
+
+  <p class="body"><a id="pgfId-1023521"/><a id="marker-1023515"/><a id="marker-1023517"/>Vert.x offers first-class support for Kotlin coroutines. To use them in a Gradle project, you’ll need the dependencies and configuration shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1023577"/>Listing 5.34 Vert.x Kotlin coroutine dependencies and configuration excerpt</p>
+  <pre class="programlisting">import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+plugins {
+  kotlin("jvm") version "kotlinVersion"                                    <span class="fm-combinumeral">❶</span>
+}
+
+dependencies {
+  // (...)
+  implementation("io.vertx:vertx-lang-kotlin:${vertxVersion}")
+  implementation("io.vertx:vertx-lang-kotlin-coroutines:${vertxVersion}")  <span class="fm-combinumeral">❷</span>
+  implementation(kotlin("stdlib-jdk8"))                                    <span class="fm-combinumeral">❸</span>
+}
+
+val compileKotlin: KotlinCompile by tasks
+compileKotlin.kotlinOptions.jvmTarget = "1.8"                              <span class="fm-combinumeral">❹</span>
+// (...)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048686"/><span class="fm-combinumeral">❶</span> Replace kotlinVersion with the current Kotlin version (they are released often).</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048714"/><span class="fm-combinumeral">❷</span> Replace vertxVersion with the current Vert.x version.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048731"/><span class="fm-combinumeral">❸</span> This brings JDK 8 Kotlin APIs.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048748"/><span class="fm-combinumeral">❹</span> By default, Kotlin compiles to JDK 6 bytecode for Android compatibility purposes. The JDK 8 bytecode is better.</p>
+
+  <p class="body"><a id="pgfId-1023795"/>Again, the coroutine bindings are generated from the callback APIs. The convention is that for any method having a callback, a Kotlin suspending method is generated with the suffix <code class="fm-code-in-text">Await</code>. Given</p>
+  <pre class="programlisting">void foo(String s, Handler&lt;AsyncResult&lt;String&gt;&gt; callback)</pre>
+
+  <p class="body"><a id="pgfId-1023824"/>the following method will exist in the Kotlin coroutines binding:</p>
+  <pre class="programlisting">suspend fun String fooAwait(String s)</pre>
+
+  <p class="body"><a id="pgfId-1023899"/>There is a verticle base class <a id="marker-1023846"/>called <code class="fm-code-in-text">io.vertx.kotlin.coroutines.CoroutineVerticle</code> where the <code class="fm-code-in-text">start</code> and <code class="fm-code-in-text">stop</code> methods are suspending<a id="marker-1023882"/>, so you can use coroutines directly <a id="marker-1023888"/>from them. By using <code class="fm-code-in-text">CoroutineVerticle</code>, you also get <a id="marker-1023904"/>to execute coroutines on the verticle event-loop thread rather than on threads of a worker pool, like the default Kotlin coroutines do.</p>
+
+  <p class="fm-callout"><a id="pgfId-1023924"/><span class="fm-callout-head">tip</span> If you write Vert.x code in Kotlin, you can also directly use RxJava from Kotlin. There is also a helper RxKotlin library that makes some RxJava APIs even more idiomatic from Kotlin. <a id="marker-1023926"/><a id="marker-1023929"/></p>
+
+  <h3 class="fm-head1" id="heading_id_23"><a id="pgfId-1023935"/>5.5.3 Edge service with coroutines</h3>
+
+  <p class="body"><a id="pgfId-1023952"/><a id="marker-1043754"/><a id="marker-1043755"/>Let’s look at an implementation of the edge service using Kotlin coroutines. The preamble is given in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024014"/>Listing 5.35 Coroutine collector service preamble</p>
+  <pre class="programlisting">class CollectorService : CoroutineVerticle() {
+  private val logger = LoggerFactory.getLogger(CollectorService::class.java)
+  private lateinit var webClient: WebClient       <span class="fm-combinumeral">❶</span>
+
+  override suspend fun start() {
+    webClient = WebClient.create(vertx)
+    vertx.createHttpServer()
+      .requestHandler(this::handleRequest)
+      .listenAwait(8080)                          <span class="fm-combinumeral">❷</span>
+  }
+  // (...)
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048550"/><span class="fm-combinumeral">❶</span> lateinit indicates that the field will not be initialized in a constructor.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048571"/><span class="fm-combinumeral">❷</span> This awaits for the HTTP server to be started; otherwise it throws an exception with the error.</p>
+
+  <p class="body"><a id="pgfId-1024182"/>Compared to the other implementations, there is not much difference except that the <code class="fm-code-in-text">start</code> method is suspending, and the HTTP server is started using <code class="fm-code-in-text">listenAwait</code>. Since that method <a id="marker-1024187"/>call is suspending, the execution resumes when the HTTP server is running, and the method returns the HTTP server instance, which we simply ignore here.</p>
+
+  <p class="body"><a id="pgfId-1024220"/>The next listing shows <a id="marker-1024199"/>the code for the <code class="fm-code-in-text">fetchTemperature</code> and <code class="fm-code-in-text">sendToSnapshot</code> methods adapted <a id="marker-1024225"/>to coroutines.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024286"/>Listing 5.36 HTTP requests and coroutines</p>
+  <pre class="programlisting">private suspend fun fetchTemperature(port: Int): JsonObject {
+  return webClient
+    .get(port, "localhost", "/")
+    .expect(ResponsePredicate.SC_SUCCESS)
+    .`as`(BodyCodec.jsonObject())              <span class="fm-combinumeral">❶</span>
+    .sendAwait()
+    .body()
+}
+
+private suspend fun sendToSnapshot(json: JsonObject) {
+  webClient
+    .post(4000, "localhost", "/")
+    .expect(ResponsePredicate.SC_SUCCESS)
+    .sendJsonAwait(json)
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048468"/><span class="fm-combinumeral">❶</span> “as” is a keyword in Kotlin, so it has to be escaped when used as a method name.</p>
+
+  <p class="body"><a id="pgfId-1024456"/>Both methods now look like more classical imperative code. <code class="fm-code-in-text">fetchTemperature</code> returns a value (a JSON object), albeit asynchronously because the execution in the method is suspended <a id="marker-1024445"/>when calling <code class="fm-code-in-text">sendAwait</code>.</p>
+
+  <p class="body"><a id="pgfId-1024465"/>The illusion of “asynchronous operations that do not look like asynchronous operations” is even more apparent in the following listing, which contains the core logic of the edge service.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024522"/>Listing 5.37 Coroutines collector HTTP handler</p>
+  <pre class="programlisting">private fun handleRequest(request: HttpServerRequest) {
+  launch {
+    try {
+      val t1 = async { fetchTemperature(3000) }                    <span class="fm-combinumeral">❶</span>
+      val t2 = async { fetchTemperature(3001) }
+      val t3 = async { fetchTemperature(3002) }
+
+      val array = Json.array(t1.await(), t2.await(), t3.await())   <span class="fm-combinumeral">❷</span>
+      val json = json { obj("data" to array) }                     <span class="fm-combinumeral">❸</span>
+
+      sendToSnapshot(json)
+      request.response()
+        .putHeader("Content-Type", "application/json")
+        .end(json.encode())
+
+    } catch (err: Throwable) {                                     <span class="fm-combinumeral">❹</span>
+      logger.error("Something went wrong", err)
+      request.response().setStatusCode(500).end()
+    }
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048195"/><span class="fm-combinumeral">❶</span> Fetching each temperature is asynchronous.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048212"/><span class="fm-combinumeral">❷</span> Waiting for all values</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048229"/><span class="fm-combinumeral">❸</span> Vert.x has a small Kotlin DSL to ease JSON object creation.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1048246"/><span class="fm-combinumeral">❹</span> Error management with a classic try/catch structure</p>
+
+  <p class="body"><a id="pgfId-1024783"/>This code expresses very naturally that temperatures are fetched asynchronously, their values are collected in a JSON object, the snapshot service is called, and the result is eventually sent to the requester. Still, there are many suspension points with asynchronous operations. Also, the error management <a id="marker-1024772"/>is a familiar <code class="fm-code-in-text">try/catch</code> structure.</p>
+
+  <p class="body"><a id="pgfId-1024840"/>You may have noticed the <code class="fm-code-in-text">launch</code> function call that <a id="marker-1024803"/>wraps the whole method code. This is because while the <code class="fm-code-in-text">start</code> method is suspending<a id="marker-1024819"/>, the HTTP request handler is not a suspending function type, and it will be called outside of a Kotlin coroutine context. Calling <code class="fm-code-in-text">launch</code> ensures a coroutine context is created, so suspending methods can be called. Also, the coroutine is automatically attached to a context that ensures events run on the verticle event-loop thread (thanks to the internals of <code class="fm-code-in-text">CoroutineVerticle</code>).</p>
+
+  <p class="fm-callout"><a id="pgfId-1024859"/><span class="fm-callout-head">Note</span> Coroutines are not magic, and their implementation requires special compiler and runtime library support. A suspending function is split into many functions by the Kotlin compiler. The split points are the suspending function calls where the rest of the function ends up in another function (called a “continuation”). There is then a finite state machine that determines what split function to call when the suspended function resumes. The design proposal for Kotlin coroutines is on GitHub at <span class="fm-hyperlink"><a href="http://mng.bz/Qxvj">http://mng.bz/Qxvj</a></span>. <a id="marker-1024862"/><a id="marker-1024865"/><a id="marker-1024867"/></p>
+
+  <h2 class="fm-head" id="heading_id_24"><a id="pgfId-1024873"/>5.6 Which model should I use?</h2>
+
+  <p class="body"><a id="pgfId-1024883"/>We just covered three different asynchronous programming models that are generally better than callbacks. There is no definite answer to which model you should be using to write Vert.x applications. Opting for one model or the other depends essentially on what you are trying to achieve.</p>
+
+  <p class="body"><a id="pgfId-1024889"/>This is the great thing about Vert.x: you can write a verticle with RxJava because it makes the code straightforward for the functional requirements of that verticle, and you can use Kotlin coroutines for another verticle. You can mix and match models within the same application.</p>
+
+  <p class="body"><a id="pgfId-1024969"/>Futures and promises are a simple and effective model for composing asynchronous operations. They are built into the Vert.x core APIs starting from version 4, and they offer the essential tools for dealing with asynchronous results: transforming values (<code class="fm-code-in-text">map</code>), recovering from <a id="marker-1024906"/>errors (<code class="fm-code-in-text">recover</code>/<code class="fm-code-in-text">otherwise</code>), chaining (<code class="fm-code-in-text">flatMap</code>), and composition (<code class="fm-code-in-text">CompositeFuture</code>). They also provide <a id="marker-1024952"/>interoperability <a id="marker-1024958"/>with <code class="fm-code-in-text">CompletionStage</code> from the JDK.</p>
+
+  <p class="body"><a id="pgfId-1025034"/>RxJava allows you to reason about <i class="fm-italics">streams</i> of events in a <i class="fm-italics">functional</i> and <i class="fm-italics">declarative</i> fashion. It is especially very powerful in terms of error management and recovery. There are operators for retrying failed operations, handling timeouts, and switching the processing to another value or pipeline in case of errors. There is, however, an inherent risk of “monad hell” when building a long chain of (sometimes nested) operators, and the code becomes harder to read. Splitting processing into multiple methods is a good strategy. Operators like <code class="fm-code-in-text">zip</code>, <code class="fm-code-in-text">flatMap</code>, and <code class="fm-code-in-text">concatMap</code> are not <a id="marker-1025039"/>necessarily meaningful <a id="marker-1025045"/>if you are not very familiar with functional programming idioms. Also, not all processing is easy to express as pipelines, especially when conditional branching is involved.</p>
+
+  <p class="body"><a id="pgfId-1025055"/>Kotlin coroutines have the advantage of producing code that doesn’t look like asynchronous code. Simple error management cases can be expressed with familiar <code class="fm-code-in-text">try/catch</code> blocks. Although it wasn’t mentioned here, Kotlin coroutines support channels and selectors in the style of the Go programming language, which allows message-passing between coroutines. That being said, more sophisticated error management, such as retries, needs to be expressed manually. Last but not least, it remains important to be aware of how coroutines and asynchronous programming work.</p>
+
+  <p class="body"><a id="pgfId-1025070"/>Again, there is no definite answer, as all models have their pros and cons, but with your own experience and preferences you will likely recognize which model you should use for a given situation. In the remainder of this book, we will use different models depending on the examples that we write, but this does not mean that you cannot rewrite them with a model that you prefer.</p>
+
+  <h2 class="fm-head" id="heading_id_25"><a id="pgfId-1025076"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1025086"/>Callbacks have expressiveness limitations when it comes to composing asynchronous operations, and they can render code harder to comprehend without proper care.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1025100"/>Parallel and sequential asynchronous operations can be composed with other asynchronous programming models: futures and promises, reactive extensions, and coroutines.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1025110"/>Reactive extensions have a rich set of composable operators, and they are especially well suited for event streams.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1025120"/>Futures and promises are great for simple chaining of asynchronous operations.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1025130"/>Kotlin coroutines provide language-level support for asynchronous operations, which is another interesting option.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1025140"/>There is no universally good asynchronous programming model as they all have their preferred use cases. The good thing about Vert.x is that you can mix and match these models according to your problem domains.</p>
+    </li>
+  </ul>
+  <hr class="calibre12"/>
+
+  <p class="fm-footnote"><span class="footnotenumber">1.</span><a id="pgfId-1015385"/>B. Liskov and L. Shrira, “Promises: linguistic support for efficient asynchronous procedure calls in distributed systems,” in R.L. Wexelblat, ed., Proceedings of the ACM SIGPLAN 1988 conference on Programming language design and implementation (PLDI’88), p. 260-267 (ACM, 1988).</p>
+
+  <p class="fm-footnote"><span class="footnotenumber">2.</span><a id="pgfId-1018609"/>Erich Gamma, Richard Helm, Ralph Johnson, and John Vlissides, Design Patterns: Elements of Reusable Object-Oriented Software (Addison-Wesley Professional, 1995).</p>
+
+  <p class="fm-footnote"><span class="footnotenumber">3.</span><a id="pgfId-1018641"/>Erik Meijer, “Your Mouse is a Database,” Queue 10, 3 (March 2012), <span class="fm-hyperlink"><a href="http://mng.bz/v96M">http://mng.bz/v96M</a></span>.</p>
+
+  <p class="fm-footnote"><span class="footnotenumber">4.</span><a id="pgfId-1022506"/>Melvin E. Conway, “Design of a separable transition-diagram compiler,” Communications of the ACM 6, 7 (July 1963), 396-408, <span class="fm-hyperlink"><a href="http://mng.bz/4B4V">http://mng.bz/4B4V</a></span>.</p>
+</div></body>
+</html>

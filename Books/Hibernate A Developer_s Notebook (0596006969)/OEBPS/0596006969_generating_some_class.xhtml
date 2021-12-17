@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_generating_some_class"><a id="generating_some_class"/><h3 class="docSection1Title">2.2. Generating Some Class</h3><p class="docText">Our mapping contains information about both the database and the Java class between which it maps. We can use it to help us create both. Let's look at the class first.</p><a id="how_do_i_do_that-id005"/><h4 id="title-ID0EZHAE" class="docSection2Title">2.2.1. How do I do that?</h4><p class="docText">The Hibernate Extensions you installed in <a class="docLink" href="0596006969_installation_and_setup.xhtml#installation_and_setup">Chapter 1</a> included a tool that can write Java source matching the specifications in a mapping document, and an Ant task that makes it easy to invoke from within an <a id="idx-CHP-2-0044"/><a id="Edit"/>Ant build file. Edit <i>build.xml</i> to add the portions shown in bold in <a class="docLink" href="#the_ant_build_file_updated_for_code_gene">Example 2-2</a>.</p><a id="the_ant_build_file_updated_for_code_gene"/><h5 id="title-ID0ESIAE" class="docExampleTitle">Example 2-2. The Ant build file updated for code generation</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1  &lt;project name="Harnessing Hibernate: The Developer's Notebook"	
+ 2           default="db" basedir="."&gt;
+ 3    &lt;!-- Set up properties containing important project directories --&gt;
+ 4    &lt;property name="source.root" value="src"/&gt;
+ 5    &lt;property name="class.root" value="classes"/&gt;
+ 6    &lt;property name="lib.dir" value="lib"/&gt;
+ 7    &lt;property name="data.dir" value="data"/&gt;
+ 8
+ 9    &lt;!-- Set up the class path for compilation and execution --&gt;
+10    &lt;path id="project.class.path"&gt;
+11        &lt;!-- Include our own classes, of course --&gt;
+12        &lt;pathelement location="${class.root}" /&gt;
+13        &lt;!-- Include jars in the project library directory --&gt;
+14        &lt;fileset dir="${lib.dir}"&gt;
+15          &lt;include name="*.jar"/&gt;
+16        &lt;/fileset&gt;
+17    &lt;/path&gt;
+18
+19    &lt;target name="db" description="Runs HSQLDB database management UI
+20  against the database file--use when application is not running"&gt;
+21        &lt;<a id="idx-CHP-2-0045"/>java classname="org.hsqldb.util.DatabaseManager"
+22              fork="yes"&gt;
+23           &lt;classpath refid="project.class.path"/&gt;
+24           &lt;arg value="-driver"/&gt;
+25           &lt;arg value="org.hsqldb.jdbcDriver"/&gt;
+26           &lt;arg value="-url"/&gt;
+27           &lt;arg value="jdbc:hsqldb:${data.dir}/music"/&gt;
+28           &lt;arg value="-user"/&gt;
+29           &lt;arg value="sa"/&gt;
+30        &lt;/java&gt;
+31    &lt;/target&gt;
+32
+33    <b>&lt;!-- Teach Ant how to use Hibernate's code generation tool --&gt;
+34    &lt;taskdef name="hbm2java"
+35             classname="net.sf.hibernate.tool.hbm2java.Hbm2JavaTask"
+36             classpathref="project.class.path"/&gt;
+37
+38    &lt;!-- Generate the java code for all mapping files in our source tree --&gt;
+39    &lt;target name="codegen"
+40            description="Generate Java source from the O/R mapping files"&gt;
+41      &lt;hbm2java output="${source.root}"&gt;
+42        &lt;fileset dir="${source.root}"&gt;
+43            &lt;include name="**/*.hbm.xml"/&gt;
+44        &lt;/fileset&gt;
+45      &lt;/hbm2<a id="idx-CHP-2-0046"/>java&gt;
+46    &lt;/target&gt;</b>
+47
+48  &lt;/project&gt;
+</pre><br/>
+</td></tr></table><p class="docText"><a id="a"/>We added a <tt>taskdef</tt> (task definition) and a new target to the build file. The task definition at line 33 teaches Ant a new trick: it tells Ant how touse the <span class="docEmphasis">hbm2java</span> tool that is part of the Hibernate Extensions, with the help of a class provided for this purpose. Note that it also specifies the class path to be used when invoking this tool, using the <tt>project.class.path</tt> definition found earlier in the file.<a id="idx-CHP-2-0047"/></p><p class="docText">The <tt>codege</tt> target at line 38 uses the new <tt>hbm2java</tt> task to run Hibernate's code generator on any mapping documents found in the <span class="docEmphasis">src</span> tree, writing the corresponding Java source. The pattern "<tt>**/*.hbm.xml</tt>" means "any file ending in <span class="docEmphasis">.hbm.xml</span>, within the specified directory, or any subdirectory, however deeply nested."</p><p class="docText">Let's try it! From within your top-level project directory (the folder containing <span class="docEmphasis">build.xml</span>), type the following command:</p><pre>
+					<b>ant <a id="idx-CHP-2-0048"/>codegen</b>
+				</pre><br/>
+<p class="docText">You should see output like this:</p><pre>
+	Buildfile: build.xml
+	
+	codegen:
+	 [hbm2java] Processing 1 files.
+	 [hbm2java] Building hibernate objects
+	 [hbm2java] log4j:WARN No appenders could be found for logger (net.sf.
+	hibernate.util.DTDEntityResolver).
+	 [hbm2java] log4j:WARN Please initialize the log4j system properly.
+</pre><br/>
+<p class="docText">The warnings are griping about the fact that we haven't taken the trouble to set up the logging environment that Hibernate expects. We'll see how to do that in the next example. For now, if you look in the directory <span class="docEmphasis">src/com/oreilly/hh</span>, you'll see that a new file named <i>Track.java</i> has appeared, with the content shown in <a class="docLink" href="#code_generated_from_the_track_mapping_do">Example 2-3</a>.</p><a id="code_generated_from_the_track_mapping_do"/><h5 id="title-ID0EHLAE" class="docExampleTitle">Example 2-3. Code generated from the Track mapping document</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+  1  package com.oreilly.hh;
+  2
+  3  import java.io.Serializable;
+  4  import java.util.Date;
+  5  import org.apache.commons.lang.builder.EqualsBuilder;
+  6  import org.apache.commons.lang.builder.HashCodeBuilder;
+  7  import org.apache.commons.lang.builder.ToStringBuilder;
+  8
+  9  /**
+ 10   *       Represents a single playable track in the music database.
+ 11   *       @author Jim Elliott (with help from Hibernate)
+ 12   *
+ 13  */
+ 14  public <a id="idx-CHP-2-0049"/>class Track implements Serializable {
+ 15
+ 16      /** identifier field */
+ 17      private Integer id;
+ 18
+ 19      /** persistent field */
+ 20      private String title;
+ 21
+ 22      /** persistent field */
+ 23      private String filePath;
+ 24
+ 25      /** nullable persistent field */
+ 26      private Date playTime;
+ 27
+ 28      /** nullable persistent field */
+ 29      private Date added;
+ 30
+ 31      /** nullable persistent field */
+ 32      private short volume;
+ 33
+ 34      /** full constructor */
+ 35      public Track(String title, String filePath, Date playTime,
+                     Date added, short volume) {
+ 36          this.title = title;
+ 37          this.filePath = filePath;
+ 38          this.playTime = playTime;
+ 39          this.added = added;
+ 40          this.volume = volume;
+ 41      }
+ 42
+ 43      /** default constructor */
+ 44      public Track() {
+ 45      }
+ 46
+ 47      /** minimal constructor */
+ 48      public Track(String title, String filePath) {
+ 49          this.title = title;
+ 50          this.filePath = filePath;
+ 51      }
+ 52
+ 53      public Integer getId() {
+ 54          return this.id;
+ 55      }
+ 56
+ 57      protected void setId(Integer id) {
+ 58         this.id = id;
+ 59      }
+ 60
+ 61      public String getTitle() {
+ 62          return this.title;
+ 63      }
+ 64
+ 65      public void setTitle(String title) {
+ 66          this.title = title;
+ 67      }
+ 68
+ 69      public String getFilePath() {
+ 70          return this.filePath;
+ 71      }
+ 72
+ 73      public void setFilePath(String filePath) {
+ 74          this.filePath = filePath;
+ 75      }
+ 76
+ 77      /**
+ 78       * Playing time
+ 79       */
+ 80      public Date getPlayTime() {
+ 81          return this.playTime;
+ 82      }
+ 83
+ 84      public void setPlayTime(Date playTime) {
+ 85          this.playTime = playTime;
+ 86      }
+ 87
+ 88      /**
+ 89       * When the track was created
+ 90       */
+ 91      public Date getAdded() {
+ 92          return this.added;
+ 93      }
+ 94
+ 95      public void setAdded(Date added) {
+ 96          this.added = added;
+ 97      }
+ 98
+ 99      /**
+100       * How loud to play the track
+101       */
+102      public short getVolume() {
+103          return this.volume;
+104      }
+105
+106      public void setVolume(short volume) {
+107          this.volume = volume;
+108      }
+109 
+110      public String toString() {
+111          return new ToStringBuilder(this)
+112              .append("id", getId())
+113              .toString();
+114      }
+115
+116      public boolean equals(Object other) {
+117          if ( !(other instanceof Track) ) return false;
+118          Track castOther = (Track) other;
+119          return new EqualsBuilder()
+120              .append(this.getId(), castOther.getId())
+121              .isEquals();
+122      }
+123
+124      public int hashCode() {
+125          return new HashCodeBuilder()
+126               .append(getId())
+127               .toHashCode();
+128      }
+129
+130  }
+</pre><br/>
+</td></tr></table><a id="what_just_happened-id003"/><h4 id="title-ID0EULAE" class="docSection2Title">2.1.3. What just happened?</h4><p class="docText"><a id="idx-CHP-2-0050"/>Ant found all files in our source tree ending in <span class="docEmphasis">.hbm.xml</span> (just one, so far) and fed it to the Hibernate code generator, which analyzed it, and wrote a <a id="idx-CHP-2-0051"/>Java class meeting the specifications we provided for the Track mapping.</p><blockquote><p class="docText"><span class="docEmphasis">That can save a lot of time and fairly repetitive activity. I could get used to it</span>.</p></blockquote><p class="docText">You may find it worthwhile to compare the generated Java source with the mapping specification from which it arose (<a class="docLink" href="0596006969_writing_a_mapping_document.xhtml#the_mapping_document_for_tracks_trackhbm">Example 2-1</a>). The source starts out with the proper package declaration, which is easy for <span class="docEmphasis">hbm2java</span> to figure out from the fully qualified class name required in the mapping file. There are a couple of imports to make the source more readable. The three potentially unfamiliar entries (lines 5–7) are utilities from the <a id="idx-CHP-2-0052"/>Jakarta Commons project that help in the creation of correctly implemented and useful <tt>toString()</tt>, <tt>equals()</tt>, and <tt>hashCode()</tt>
+					<a id="idx-CHP-2-0053"/>methods.</p><p class="docText">The class-level JavaDoc at line 10 should look familiar, since it comes right from the "class-description" <tt>meta</tt> tag in our mapping document. The field declarations are derived from the <tt>id</tt> (line 17) and <tt>property</tt> (lines 20–32) tags defined in the mapping. The Java types used are derived from the property types in the mapping document. We'll delve into the full set of value types supported by Hibernate later on. For now, the relationship between the types in the mapping document and the Java types used in the generated code should be fairly clear.</p><p class="docText">One curious detail is that an <tt>Integer</tt> wrapper has been used for id, while <tt>volume</tt> is declared as a simple, unwrapped <tt>short</tt>. Why the difference? It relates to the fact that the <a id="idx-CHP-2-0054"/>ID/key property has many <a id="idx-CHP-2-0055"/>important roles to play in the O/R mapping process (which is why it gets a special XML tag in the mapping document, rather than being just another <tt>property</tt>). Although we left it out in our specification, one of the choices you need to make when setting up an ID is to pick a special value to indicate that a particular instance has not yet been saved into the database. Leaving out this <tt>unsaved-value</tt> attribute, as we did, tells Hibernate to use its default interpretation, which is that unsaved values are indicated by an ID of <tt>null</tt>. Since native <tt>int</tt> values can't be <tt>null</tt>, they must be wrapped in a <tt>java.lang.Integer</tt>, and Hibernate took care of this for us.<a id="idx-CHP-2-0056"/><a id="idx-CHP-2-0057"/></p><p class="docText">When it comes to the <tt>volume</tt> property, Hibernate has no special need oruse for it, so it trusts us to know what we're doing. If we want to be able to store <tt>null</tt> values for <tt>volume</tt>, perhaps to indicate "no change," we need to explicitly use <tt>java.lang.Short</tt> rather than <tt>short</tt> in our mapping document. (Had we not been sneakily pointing out this difference, our example would be better off explicitly using <tt>java.lang.Integer</tt> in our ID mapping too, just for clarity.)</p><p class="docText">Another thing you might notice about these <a id="idx-CHP-2-0058"/>field declarations is that their JavaDoc is quite generic—you may be wondering what happened to the "field-description" <tt>meta</tt> tags we put in the mapping document for <tt>playTime</tt>, <tt>added</tt> and <tt>volume</tt>. It turns out they appear only later, in the JavaDoc for the getter methods. They are not used in the setters, the actual field declarations, nor as <tt>@param</tt> entries for the constructor. As an avid user of a code-completing Java editor, I count on pop-up JavaDoc as I fill in arguments to method calls, so I'm a little disappointed by this limitation. Of course, since this is an open source project, any of us can get involved and propose or undertake this simple fix. Indeed, you may find this already remedied by the time you read this book. Once robust field and parameter documentation is in place, I'd definitely advocate always providing a brief but accurate field-description entry for your properties.</p><blockquote><p class="docText"><span class="docEmphasis">I know, I'm a perfectionist. I only bother to pick nits because I think Hibernate is so useful</span>!</p></blockquote><p class="docText">After the field declarations come a trio of <a id="idx-CHP-2-0059"/>constructors. The first (line 35) establishes values for all properties, the second (line 44) allows instantiation without any arguments (this is required if you want the class to be usable as a bean, such as on a Java Server Page, a very common use for data classes like this), and the last (line 48) fills in just the values we've indicated must not be <tt>null</tt>. Notice that none of the constructors set the value of <tt>id;</tt> this is the responsibility of Hibernate when we get the object out of the database, or insert it for the first time.</p><p class="docText"><a id="the"/>Consistent with that, the <tt>setId()</tt> method on line 57 is <tt>protected</tt>, as requested in our <tt>id</tt> mapping. The rest of the getters and setters are not surprising; this is all pretty much boilerplate code (which we've all written too many times), which is why it's so nice to be able to have the Hibernate extensions generate it for us.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Warning:</b></i></span></p><p class="docText">If you want to use Hibernate's generated code as a starting point and then add some business logic or other features to the generated class, be aware that all your changes will be silently discarded the next time you run the code generator. In such a project you will want to be sure the hand-tweaked classes are not regenerated by any Ant build target.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">Even though we're having Hibernate generate our data classes in this example, it's important to point out that the getters and setters it creates are more than a nice touch. You <span class="docEmphasis">need</span> to put these in your persistent classes for any properties you want to persist, since Hibernate's fundamental persistence architecture is based on reflective access to <a id="idx-CHP-2-0060"/>Java-Beans™-style properties. They don't need to be <tt>public</tt> if you don't want them to; Hibernate has ways of getting at even properties declared <tt>protected</tt><a id="or"/> or <tt>private</tt>, but they do need accessor methods. Think of it as enforcing good object design; the Hibernate team wants to keep the implementation details of actual instance variables cleanly separated from the persistence mechanism.</p></div></div></body>
+</html>

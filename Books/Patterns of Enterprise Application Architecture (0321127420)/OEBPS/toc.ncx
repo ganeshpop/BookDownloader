@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+<head>
+<meta content="ID:ISBN:0321127420" name="dtb:uid"/>
+<meta content="2" name="dtb:depth"/>
+<meta content="0" name="dtb:totalPageCount"/>
+<meta content="0" name="dtb:maxPageNumber"/>
+</head>
+<docTitle><text>Patterns of Enterprise Application Architecture</text></docTitle>
+<docAuthor><text>Martin Fowler</text></docAuthor>
+<navMap><navPoint id="urn:orm:book:0321127420:chapter:title.xhtml" playOrder="1"><navLabel><text>Title Page</text></navLabel><content src="title.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:copyright.xhtml" playOrder="2"><navLabel><text>Copyright Page</text></navLabel><content src="copyright.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ded01.xhtml" playOrder="3"><navLabel><text>Dedication Page</text></navLabel><content src="ded01.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:toc.xhtml" playOrder="4"><navLabel><text>Contents</text></navLabel><content src="toc.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:pref01.xhtml" playOrder="5"><navLabel><text>Preface</text></navLabel><content src="pref01.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch00.xhtml" playOrder="6"><navLabel><text>Introduction</text></navLabel><content src="ch00.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:part01.xhtml" playOrder="7"><navLabel><text>Part 1: The Narratives</text></navLabel><content src="part01.xhtml"/><navPoint id="urn:orm:book:0321127420:chapter:ch01.xhtml" playOrder="8"><navLabel><text>Chapter 1. Layering</text></navLabel><content src="ch01.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch02.xhtml" playOrder="9"><navLabel><text>Chapter 2. Organizing Domain Logic</text></navLabel><content src="ch02.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch03.xhtml" playOrder="10"><navLabel><text>Chapter 3. Mapping to Relational Databases</text></navLabel><content src="ch03.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch04.xhtml" playOrder="11"><navLabel><text>Chapter 4. Web Presentation</text></navLabel><content src="ch04.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch05.xhtml" playOrder="12"><navLabel><text>Chapter 5. Concurrency</text></navLabel><content src="ch05.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch06.xhtml" playOrder="13"><navLabel><text>Chapter 6. Session State</text></navLabel><content src="ch06.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch07.xhtml" playOrder="14"><navLabel><text>Chapter 7. Distribution Strategies</text></navLabel><content src="ch07.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch08.xhtml" playOrder="15"><navLabel><text>Chapter 8. Putting It All Together</text></navLabel><content src="ch08.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:part02.xhtml" playOrder="16"><navLabel><text>Part 2: The Patterns</text></navLabel><content src="part02.xhtml"/><navPoint id="urn:orm:book:0321127420:chapter:ch09.xhtml" playOrder="17"><navLabel><text>Chapter 9. Domain Logic Patterns</text></navLabel><content src="ch09.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch10.xhtml" playOrder="18"><navLabel><text>Chapter 10. Data Source Architectural Patterns</text></navLabel><content src="ch10.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch11.xhtml" playOrder="19"><navLabel><text>Chapter 11. Object-Relational Behavioral Patterns</text></navLabel><content src="ch11.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch12.xhtml" playOrder="20"><navLabel><text>Chapter 12. Object-Relational Structural Patterns</text></navLabel><content src="ch12.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch13.xhtml" playOrder="21"><navLabel><text>Chapter 13. Object-Relational Metadata Mapping Patterns</text></navLabel><content src="ch13.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch14.xhtml" playOrder="22"><navLabel><text>Chapter 14. Web Presentation Patterns</text></navLabel><content src="ch14.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch15.xhtml" playOrder="23"><navLabel><text>Chapter 15. Distribution Patterns</text></navLabel><content src="ch15.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch16.xhtml" playOrder="24"><navLabel><text>Chapter 16. Offline Concurrency Patterns</text></navLabel><content src="ch16.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch17.xhtml" playOrder="25"><navLabel><text>Chapter 17. Session State Patterns</text></navLabel><content src="ch17.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:ch18.xhtml" playOrder="26"><navLabel><text>Chapter 18. Base Patterns</text></navLabel><content src="ch18.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:bib01.xhtml" playOrder="27"><navLabel><text>References</text></navLabel><content src="bib01.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0321127420:chapter:index.xhtml" playOrder="28"><navLabel><text>Index</text></navLabel><content src="index.xhtml"/></navPoint>
+</navMap>
+</ncx>

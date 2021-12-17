@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1022407"/>7 Designing a reactive application</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>What a reactive application is</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>Introducing the reactive application scenario used throughout part 2</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011861"/>The first part of this book taught you <i class="fm-italics">asynchronous programming</i> with Vert.x. This is key to writing scalable and resource-efficient applications.</p>
+
+  <p class="body"><a id="pgfId-1011915"/>It is now time to explore what makes <a id="marker-1011878"/>an application <i class="fm-italics">reactive</i>, as we strive <a id="marker-1011894"/>for both <i class="fm-italics">scalability</i> and <i class="fm-italics">dependability</i>. To do that, we will focus the following chapters on developing a fully reactive application out of several event-driven microservices. In this chapter, we’ll specify these services.</p>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011924"/>7.1 What makes an application reactive</h2>
+
+  <p class="body"><a id="pgfId-1011944"/><a id="marker-1011935"/>In previous chapters we covered some elements of <i class="fm-italics">reactive</i>:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1011953"/>Back-pressure, as a necessary ingredient in asynchronous stream processing to regulate event throughput</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1011967"/>Reactive programming as a way to compose asynchronous operations</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012033"/>It is now time to explore the last facet: <i class="fm-italics">reactive applications</i>. In chapter 1 I summarized <i class="fm-italics">The Reactive Manifesto</i>, which declares that reactive applications are <i class="fm-italics">responsive</i>, <i class="fm-italics">resilient</i>, <i class="fm-italics">elastic</i>, and <i class="fm-italics">message-driven</i>.</p>
+
+  <p class="body"><a id="pgfId-1012042"/>The key property of reactive applications is that they remain <i class="fm-italics">responsive</i> under demanding <a id="marker-1012053"/>workloads and when they face the failure of other services. By “responsive,” we mean that latency for service response remains under control. A good responsiveness example would be a service that responds within 500 ms in the 99% percentile, provided that 500 ms is a good number given the service’s functional requirements and operational constraints.</p>
+
+  <p class="body"><a id="pgfId-1012063"/>An increasing workload will almost always degrade latency, but in the case of a reactive application, the goal is to avoid latency explosion when the service is under stress. Part 1 of this book mostly taught you asynchronous programming with Vert.x, which is the key ingredient for facing growing workloads. You saw that asynchronous processing of events allowed you to multiplex thousands of open network connections on a single thread. This model (when implemented correctly!) is much more resource-friendly and scalable than the traditional “1 thread per connection” model.</p>
+
+  <p class="body"><a id="pgfId-1012069"/>So Vert.x gives us a foundation for asynchronous programming on top of the JVM in order to meet demanding workloads, but what about dealing with failure? This is the other core challenge that we have to meet, and the answer is not a magic tool we can pick off the shelf. Suppose we have a service that talks to a database that becomes irresponsive because of an internal problem, like a deadlock. Some time will elapse before our service is notified of an error, perhaps in the form of a TCP connection timeout. In such a case, the latency explodes. By contrast, if the database is down, we get an immediate TCP connection error: latency is very good, but since the service cannot talk to its database, it is unable to process a request.</p>
+
+  <p class="body"><a id="pgfId-1012075"/>You will see in the last chapter of this part how to experiment with “what happens when things go wrong,” and we’ll discuss possible solutions for keeping services responsive. You might be tempted to enforce strict timeouts on all calls to other services (including databases), or to use <i class="fm-italics">circuit-breakers</i> (more on that in the <a id="marker-1012086"/>last chapter) everywhere, but a more analytical approach will help you see which solution to use, if any, and when. It is also important to see failure in the light of a service’s functional requirements and application domain: the response to failure may not always be an error. For instance, if we can’t get the latest temperature update from a sensor, we may serve the last known value and attach a timestamp to it, so the requester has all the necessary context attached to the data.</p>
+
+  <p class="body"><a id="pgfId-1012096"/>It is now time to build a reactive application, both to explore some elements of the Vert.x stack and to learn how to concretely build <i class="fm-italics">responsive</i> applications. <a id="marker-1012107"/></p>
+
+  <h2 class="fm-head" id="heading_id_4"><a id="pgfId-1012114"/>7.2 The 10k steps challenge scenario</h2>
+
+  <p class="body"><a id="pgfId-1012124"/><a id="marker-1012125"/>The application that we will implement in the upcoming chapters supports a (not so) fictional fitness-tracker challenge. Suppose we want to build an application to track and score users’ steps, as illustrated in figure 7.1.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F01_Ponge.png" width="987" height="892"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1027937"/>Figure 7.1 10k steps challenge application and actors overview</p>
+
+  <p class="body"><a id="pgfId-1012143"/>The application described in figure 7.1 would work as follows:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012163"/>Users sport connected pedometers that track how many steps they take.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012177"/>The pedometers regularly send step-count updates to the application that manages the challenge.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012187"/>The goal is to walk at least 10,000 steps each day, and users are greeted by an email every day when they do so.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012197"/>Users may choose to be publicly listed in rankings of step counts over the last 24 hours.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012207"/>Participants can also connect to a web application to see their data and update their information, such as their city and whether they want to appear in public rankings.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012217"/>The web application allows new users to register by providing their device identifier as well as some basic information, such as their city and whether they intend to appear in public rankings (figure 7.2).</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F02_Ponge.png" width="783" height="561"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1027986"/>Figure 7.2 Screenshot of the user web application registration form</p>
+
+  <p class="body"><a id="pgfId-1012233"/>Once connected, a user can update some basic details and get reminded of their total steps, monthly steps, and daily steps (figure 7.3).</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F03_Ponge.png" width="783" height="538"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028023"/>Figure 7.3 Screenshot of the user web application user-details page</p>
+
+  <p class="body"><a id="pgfId-1012263"/>There is also a separate web application that offers a public dashboard (figure 7.4).</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F04_Ponge.png" width="786" height="697"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028063"/>Figure 7.4 Screenshot of the public dashboard web application</p>
+
+  <p class="body"><a id="pgfId-1012293"/>The dashboard offers a ranking of public profiles over the last 24 hours, the current pedometer device update throughput, and trends by city. All the information displayed in the dashboard is updated live. <a id="marker-1012309"/></p>
+
+  <h2 class="fm-head" id="heading_id_5"><a id="pgfId-1012316"/>7.3 One application, many services</h2>
+
+  <p class="body"><a id="pgfId-1012326"/><a id="marker-1012327"/>The application is decomposed as a set of (micro) services that interact with each other as in figure 7.5. Each service fulfills a single functional purpose and could well be used by another application. There are four public services: two user-facing web applications, one service for receiving pedometer device updates, and one service to expose a public HTTP API. The public API is used by the user web application, and we could similarly have mobile applications connect to it. There are four internal services: one to manage user profiles, one to manage activity data, one to congratulate users over email, and one to compute various stats over continuous events.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F05_Ponge.png" width="1000" height="882"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028128"/>Figure 7.5 Overview of the application architecture</p>
+
+  <p class="fm-callout"><a id="pgfId-1012392"/><span class="fm-callout-head">Note</span> You may have <a id="marker-1012371"/>heard of <i class="fm-italics">command query responsibility segregation</i> (CQRS) and <i class="fm-italics">event-sourcing</i>, which are patterns <a id="marker-1012397"/>found in event-driven architectures.<a href="#pgfId-1012934">1</a> CQRS structures how to read and write information, while event sourcing is about materializing the application state as a sequence of facts. Our proposed application architecture relates to both notions, but because it’s not strictly faithful to the definitions, I prefer to just call it an “event-driven microservices architecture.”</p>
+
+  <p class="body"><a id="pgfId-1014325"/>All services are powered by Vert.x, and we also need some third-party middleware, labelled “infrastructure services” in figure 7.5. We’ll use two different types of databases: a document-oriented database (MongoDB) and a relational database (PostgreSQL). We need an SMTP server to send emails, and Apache Kafka is used for event-stream processing between some services. Because the ingestion service may receive updates from HTTP and AMQP, we’ll also use an ActiveMQ Artemis server.</p>
+
+  <p class="body"><a id="pgfId-1014331"/>There are two types of arrows in figure 7.5. Event flows show important event exchanges between services. For instance, the ingestion service sends events to Kafka, whereas the event stats service both consumes and produces Kafka events. I also denoted dependencies: for example, the public API service depends on the user profile and activities services, which in turn depend on their own databases for data persistence.</p>
+
+  <p class="body"><a id="pgfId-1014337"/>We can illustrate one example of interactions between services by looking at how a device update impacts the dashboard web application’s city trends ranking, as in figure 7.6.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F06_Ponge.png" width="1100" height="370"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028182"/>Figure 7.6 From a device update to a city trend update</p>
+
+  <p class="body"><a id="pgfId-1014353"/>It all starts with a pedometer sending an update to the ingestion service, which verifies that the update contains all required data. The ingestion service then sends the update to a Kafka topic, and the pedometer device is acknowledged so it knows that the update has been received and will be processed. The update will be handled by multiple consumers listening on that particular Kafka topic, and among them is the activity service. This service will record the data to the PostgreSQL database and then publish another record to a Kafka topic with the number of steps recorded by the pedometer on that day. This record is picked up by the event stats service, which observes updates over windows of five seconds, splits them by city, and aggregates the number of steps. It then posts an update with the increment in steps observed for a given city as another Kafka record. This record is then consumed by the dashboard web application, which finally sends an update to all connected web browsers, which in turn update the display.</p>
+
+  <div class="fm-sidebar-block">
+    <p class="fm-sidebar-title"><a class="calibre9" id="pgfId-1028224"/>About the application architecture</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1028225"/>As you dig through the specifications and implementations of the services, you may find the decomposition a bit artificial at times. For instance, the user profile and activity services could well be just one, saving some requests to join data from the two services. Remember that the decomposition was made for pedagogical reasons, and to show relevant elements from the Vert.x stack.</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1028248"/>Making an application from (micro) services requires some compromises, especially as some services may be pre-existing, and you have to deal with them as they are, or you have limited ability to evolve them.</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1028249"/>You may also find that the proposed architecture is not a nicely layered one, with some services nicely decoupled and some others having stronger dependencies on others. Again, this is done intentionally for pedagogical purposes. More often than not, real-world applications have to make compromises to deliver working software rather than pursue the quest for architectural perfection. <a id="marker-1028250"/></p>
+  </div>
+
+  <h2 class="fm-head" id="heading_id_6"><a id="pgfId-1014398"/>7.4 Service specifications</h2>
+
+  <p class="body"><a id="pgfId-1014408"/><a id="marker-1014409"/>Let’s discuss the functional and technical specifications of the application services. For each service, we’ll consider the following elements:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1014417"/>Functional overview</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1014431"/>API description, if any</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1014441"/>Technical points of interest, including crash recovery</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014451"/>Scaling and deployment considerations</p>
+    </li>
+  </ul>
+
+  <h3 class="fm-head1" id="heading_id_7"><a id="pgfId-1014461"/>7.4.1 User profile service</h3>
+
+  <p class="body"><a id="pgfId-1014478"/><a id="marker-1014472"/><a id="marker-1014474"/>The user profile service manages the profile data for a unique user. A user is identified by the following information:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1014483"/>A username (must be unique)</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1014497"/>A password</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1014507"/>An email address</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1014517"/>A city</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1014527"/>A pedometer device identifier (must be unique)</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014537"/>Whether the user wants to appear in public rankings or not</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1014547"/>The service exposes an HTTP API and persists data in a MongoDB database (see figure 7.7).</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F07_Ponge.png" width="689" height="114"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028285"/>Figure 7.7 User profile service</p>
+
+  <p class="body"><a id="pgfId-1014622"/>The service falls <a id="marker-1025246"/><a id="marker-1025247"/>into the category of CRUD (for <i class="fm-italics">create</i>, <i class="fm-italics">read</i>, <i class="fm-italics">update</i>, and <i class="fm-italics">delete</i>) services that sit on top of a database. Table 7.1 identifies the different elements of the HTTP API.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1025401"/>Table 7.1 User profile HTTP API</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025413"/>Purpose</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025415"/>Path</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025417"/>Method</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025419"/>Data</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025421"/>Response</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025423"/>Status code</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025425"/>Register a new user</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025427"/><code class="fm-code-in-figurecaption">/register</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025429"/><code class="fm-code-in-figurecaption">POST</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025431"/>Registration JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025433"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025435"/>200 on success, 409 when the username or device identifier already exists, 500 for technical errors</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025437"/>Get a user’s details</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025439"/><code class="fm-code-in-figurecaption">/&lt;username&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025441"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025443"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025445"/>User data in JSON</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025447"/>200 on success, 404 if the username does not exist, 500 for technical errors</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025449"/>Update some user details</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025451"/><code class="fm-code-in-figurecaption">/&lt;username&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025453"/><code class="fm-code-in-figurecaption">PUT</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025455"/>User data in JSON</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025457"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025459"/>200 on success, 500 for technical errors</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025461"/>Credentials validation</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025463"/><code class="fm-code-in-figurecaption">/authenticate</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025465"/><code class="fm-code-in-figurecaption">POST</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025467"/>Credentials in JSON</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025469"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025471"/>200 on success, 401 when authentication fails</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025473"/>Reverse lookup of a user by their device</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025475"/><code class="fm-code-in-figurecaption">/owns/&lt;deviceId&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025477"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025479"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025481"/>JSON data with the username owning the device</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025483"/>200 on success, 404 if the device does not exist, 500 for technical errors</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1015077"/>This service is not to be publicly exposed; it is meant to be consumed by other services. There is no authentication mechanism in place. The service is here to provide a facade for operations on top of the database. Both the service and the database can be scaled independently.</p>
+
+  <p class="fm-callout"><a id="pgfId-1015158"/><span class="fm-callout-head">Note</span> The API described in table 7.1 does not follow the <a id="marker-1015095"/><a id="marker-1015098"/>architectural principles of <i class="fm-italics">representational state transfer</i> (REST) interfaces. A <i class="fm-italics">RESTful</i> interface would expose user resources as, say, <code class="fm-code-in-text1">/user/&lt;username&gt;</code>, and instead of registering new users through a <code class="fm-code-in-text1">POST</code> request at <code class="fm-code-in-text1">/register</code>, we would do so on the <code class="fm-code-in-text1">/user</code> resource. Both faithful REST structures and more liberal HTTP API structures are valid choices. <a id="marker-1015163"/><a id="marker-1015166"/></p>
+
+  <h3 class="fm-head1" id="heading_id_8"><a id="pgfId-1015172"/>7.4.2 Ingestion service</h3>
+
+  <p class="body"><a id="pgfId-1015211"/><a id="marker-1015183"/><a id="marker-1015185"/>The ingestion service collects pedometer device updates and forwards records with update data to a Kafka stream for other services to process the events. The service receives device updates from either an HTTP API or an AMQP queue, as illustrated in figure 7.8. The service <a id="marker-1015190"/>is a form of <i class="fm-italics">protocol adapter</i> or <i class="fm-italics">mediator</i>, as it converts <a id="marker-1015216"/>events from one protocol (HTTP or AMQP) to another protocol (Kafka record streams).</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F08_Ponge.png" width="811" height="302"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028327"/>Figure 7.8 Ingestion service</p>
+
+  <p class="body"><a id="pgfId-1015236"/>A device update is a JSON document with the following entries:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1015256"/>The device identifier</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015270"/>A synchronization identifier, which is a monotonically increasing long integer that the device updates for each successful synchronization</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015280"/>The number of steps since the last synchronization</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1015290"/>The HTTP API supports a single operation, as shown in table 7.2.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1025597"/>Table 7.2 Ingestion service HTTP API</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025609"/>Purpose</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025611"/>Path</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025613"/>Method</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025615"/>Data</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025617"/>Response</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025619"/>Status code</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025621"/>Ingest a pedometer update</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025623"/><code class="fm-code-in-figurecaption">/ingest</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025625"/><code class="fm-code-in-figurecaption">POST</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025627"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025629"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025631"/>200 on success, 500 for technical errors</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1015527"/>The AMQP client receives messages <a id="marker-1025566"/>from the <code class="fm-code-in-text">step-events</code> address. The JSON data is the same in both the HTTP API and AMQP client.</p>
+
+  <p class="body"><a id="pgfId-1015536"/>The service is meant to be publicly exposed so that it can receive pedometer updates. We assume that some reverse proxy will be used, offering encryption and access control. For instance, device updates over HTTPS could make use of client certificate checks to filter out unauthorized or unpatched devices.</p>
+
+  <p class="body"><a id="pgfId-1015542"/>AMQP and HTTP clients only get acknowledgements when records have been written to Kafka. In the case of HTTP, this means that a device cannot consider the synchronization to be successful until it has received an HTTP 200 response. The service does not check for duplicates, so it is safe for a device to consider the ingestion operation idempotent. As you will see, it is the role of the activity service to keep data consistent, and not that of the ingestion service.</p>
+
+  <p class="body"><a id="pgfId-1015548"/>The service can be scaled independently of the AMQP and the Kafka servers/ clusters. If the service crashes before some form of acknowledgement has been made, a client can always safely retry because of idempotency. <a id="marker-1015550"/><a id="marker-1015553"/></p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1015559"/>7.4.3 Activity service</h3>
+
+  <p class="body"><a id="pgfId-1015576"/><a id="marker-1015570"/><a id="marker-1015572"/>The activity service keeps track of step-activity updates sent by the pedometers. The service stores events to a PostgreSQL database and offers an HTTP API to gather some statistics, such as daily, monthly, and total step counts for a given device. Updates are received from a Kakfa topic, which is fed by the ingestion service (see figure 7.9).</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F09_Ponge.png" width="743" height="427"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028372"/>Figure 7.9 Activity service</p>
+
+  <p class="body"><a id="pgfId-1015591"/>The activity service also publishes events with the number of steps for a device on the current day. This way, other services can subscribe to the corresponding Kafka topic and be notified rather than having to regularly poll the activity service for updates.</p>
+
+  <p class="body"><a id="pgfId-1015611"/>The HTTP API is shown in table 7.3.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1025723"/>Table 7.3 Activity service HTTP API</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="17%"/>
+      <col class="calibre4" span="1" width="16%"/>
+      <col class="calibre4" span="1" width="16%"/>
+      <col class="calibre4" span="1" width="16%"/>
+      <col class="calibre4" span="1" width="16%"/>
+      <col class="calibre4" span="1" width="16%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025735"/>Purpose</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025737"/>Path</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025739"/>Method</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025741"/>Data</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025743"/>Response</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025745"/>Status code</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025747"/>Total step count for a device</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025749"/><code class="fm-code-in-figurecaption">/&lt;device id&gt;/total</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025751"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025753"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025755"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025757"/>200 on success, 404 if the device does not exist, 500 for technical errors</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025759"/>Step count for a device in a particular month</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025761"/><code class="fm-code-in-figurecaption">/&lt;device id&gt;/&lt;year&gt;/&lt;month&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025763"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025765"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025767"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025769"/>200 on success, 404 if the device does not exist, 500 for technical errors</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025771"/>Step count for a device on a particular day</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025773"/><code class="fm-code-in-figurecaption">/&lt;device id&gt;/&lt;year&gt;/&lt;month&gt;/&lt;day&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025775"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025777"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025779"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025781"/>200 on success, 404 if the device does not exist, 500 for technical errors</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025783"/>Ranking of the devices in decreasing number of steps over the last 24 hours</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025785"/><code class="fm-code-in-figurecaption">/ranking-last-24-hours</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025787"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025789"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025791"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025793"/>200 on success, 500 for technical errors</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1016006"/>Most of the operations are queries for a given device. As you will see in another chapter, the last operation provides an efficient query for getting a device’s ranking, which is useful when the dashboard service starts.</p>
+
+  <p class="body"><a id="pgfId-1016012"/>The events sent to the <code class="fm-code-in-text">daily.step.updates</code> Kafka topic <a id="marker-1016023"/>contain the following information in a JSON document:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1016033"/>The device identifier</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1016047"/>A timestamp</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1016057"/>The number of steps recorded on the current day</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1016067"/>For each incoming device update, there need to be three operations in this order:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1016073"/>A database insert</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1016087"/>A database query to get the number of steps for the device on the current day</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1016097"/>A Kafka record write</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1016107"/>Each of these operations may fail, and we don’t have a distributed transaction broker in place. We ensure idempotency and correctness as follows:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1016113"/>We only acknowledge the incoming device update records in Kafka after the last operation has completed.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1016127"/>The database schema enforces some uniqueness constraints on the events being stored, so the insertion operation can fail if an event is being processed again.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1016137"/>We handle a duplicate insertion error as a normal case to have idempotency, and we follow along with the next steps until they have all completed.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1016147"/>Successfully writing a daily steps update record to Kafka allows us to acknowledge the initial device update record, and the system can make progress with the other incoming records.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1016157"/>The activity service is not meant to be publicly exposed, so just like the user profile service, there is no authentication in place. It can be scaled independently of the database. <a id="marker-1016159"/><a id="marker-1016162"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1016168"/>7.4.4 Public API</h3>
+
+  <p class="body"><a id="pgfId-1016191"/><a id="marker-1016179"/><a id="marker-1016181"/>This service exposes a public HTTP API for other services to consume. It essentially acts as a <i class="fm-italics">facade</i> over the user profile and activity services, as shown in figure 7.10.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F10_Ponge.png" width="723" height="232"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028417"/>Figure 7.10 Public API</p>
+
+  <p class="body"><a id="pgfId-1016286"/>The service is <a id="marker-1016226"/>a form of <i class="fm-italics">edge service</i> or <i class="fm-italics">API gateway</i> as it forwards <a id="marker-1016252"/>and composes requests to other services. Since this is a public HTTP API, the service requires authentication for most of its operations. To do that we’ll use <i class="fm-italics">JSON web tokens</i> (<span class="fm-hyperlink"><a href="https://tools.ietf.org/html/rfc7519">https://tools .ietf.org/html/rfc7519</a></span>), which we’ll discuss <a id="marker-1016269"/>in chapter 8, along with the service implementation. Since we want the public API to be usable from any HTTP client, including JavaScript code running in a web browser, we need <a id="marker-1016275"/>to support <i class="fm-italics">cross-origin resource sharing</i>, or CORS (<span class="fm-hyperlink"><a href="https://fetch.spec.whatwg.org/#http-cors-protocol">https://fetch.spec.whatwg.org/#http-cors-protocol</a></span>). Again we will dig into the details in due time. The HTTP API operations are described in table 7.4.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1025954"/>Table 7.4 Public API HTTP interface</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="20%"/>
+      <col class="calibre4" span="1" width="10%"/>
+      <col class="calibre4" span="1" width="10%"/>
+      <col class="calibre4" span="1" width="20%"/>
+      <col class="calibre4" span="1" width="20%"/>
+      <col class="calibre4" span="1" width="20%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025966"/>Purpose</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025968"/>Path</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025970"/>Method</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025972"/>Data</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025974"/>Response</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1025976"/>Status code</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025978"/>Register a new user and device</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025980"/><code class="fm-code-in-figurecaption">/register</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025982"/><code class="fm-code-in-figurecaption">POST</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025984"/>JSON document with registration data</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025986"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025988"/>200 on success, 502 otherwise</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025990"/>Get a JWT token to use the API</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025992"/><code class="fm-code-in-figurecaption">/token</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025994"/><code class="fm-code-in-figurecaption">POST</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025996"/>JSON document with credentials</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1025998"/>JWT token (plain text)</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026000"/>200 on success, 401 otherwise</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026002"/>Get a user’s data (requires a valid JWT)</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026004"/><code class="fm-code-in-figurecaption">/&lt;username&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026006"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026008"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026010"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026012"/>200 on success, 404 if not found, 502 otherwise</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026014"/>Update a user’s data (requires a valid JWT)</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026016"/><code class="fm-code-in-figurecaption">/&lt;username&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026018"/><code class="fm-code-in-figurecaption">PUT</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026020"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026022"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026024"/>200 on success, 404 if not found, 502 otherwise</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026026"/>Total steps of a user (requires a valid JWT)</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026028"/><code class="fm-code-in-figurecaption">/&lt;username&gt;/total</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026030"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026032"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026034"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026036"/>200 on success, 404 if not found, 502 otherwise</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026038"/>Total steps of a user in a month (requires a valid JWT)</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026040"/><code class="fm-code-in-figurecaption">/&lt;username&gt;/&lt;year&gt;/&lt;month&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026042"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026044"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026046"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026048"/>200 on success, 404 if not found, 502 otherwise</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026050"/>Total steps of a user on a day (requires a valid JWT)</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026052"/><code class="fm-code-in-figurecaption">/&lt;username&gt;/&lt;year&gt;/&lt;month&gt;/&lt;day&gt;</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026054"/><code class="fm-code-in-figurecaption">GET</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026056"/>N/A</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026058"/>JSON document</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026060"/>200 on success, 404 if not found, 502 otherwise</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1016908"/>Note that the request paths will be prefixed with <code class="fm-code-in-text">/api/v1</code>, so requesting a token is a <code class="fm-code-in-text">POST</code> request to <code class="fm-code-in-text">/api/v1/token</code>. It is always a good idea to have some versioning scheme in the URLs of a public API. The JWT tokens are restricted to the username that was used to obtain it, so user <code class="fm-code-in-text">B</code> cannot perform, say, a request to <code class="fm-code-in-text">/api/v1/A/ 2019/07/14</code>.</p>
+
+  <p class="body"><a id="pgfId-1016917"/>The public API service can be scaled to multiple instances. In a production setting, a load-balancing HTTP proxy should dispatch requests to the instances. There is no state to maintain in the service, since it forwards and composes requests to the other services. <a id="marker-1016919"/><a id="marker-1016922"/></p>
+
+  <h3 class="fm-head1" id="heading_id_11"><a id="pgfId-1016928"/>7.4.5 User web application</h3>
+
+  <p class="body"><a id="pgfId-1016945"/><a id="marker-1016939"/><a id="marker-1016941"/>The user web application provides a way for a user to register, update their details, and check some basic data about their activity. As shown in figure 7.11, there is a backend to serve the web application’s static assets to web browsers over HTTP.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F11_Ponge.png" width="867" height="305"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028459"/>Figure 7.11 User web application</p>
+
+  <p class="body"><a id="pgfId-1016960"/>The frontend is a <i class="fm-italics">single-page application</i> written in <a id="marker-1016985"/>JavaScript and the Vue.JS framework. It is served by the user web application service, and all interactions with the application’s backend happen through calls to the public API service.</p>
+
+  <p class="body"><a id="pgfId-1016995"/>As such, this service is more a Vue.JS application than a Vert.x application, although it is still interesting to see how Vert.x serves static content with minimal effort. We could have chosen other popular JavaScript frameworks, or even no framework at all. I find Vue.JS to be a simple and efficient choice. Also, since Vue.JS embraces <i class="fm-italics">reactive idioms</i>, it makes <a id="marker-1017006"/>for a fully reactive application from the backend API to the frontend.</p>
+
+  <p class="body"><a id="pgfId-1017016"/>The service itself just serves static files, so it can be scaled to multiple instances and put behind a load balancer in a production setting. There is no state on the server side, either in the service or in the public API in use. It is the frontend application that stores some state in users’ web browsers. <a id="marker-1017018"/><a id="marker-1017021"/></p>
+
+  <h3 class="fm-head1" id="heading_id_12"><a id="pgfId-1017027"/>7.4.6 Event stats service</h3>
+
+  <p class="body"><a id="pgfId-1017044"/><a id="marker-1017038"/><a id="marker-1017040"/>The event stats service reacts to selected events from Kafka topics to produce statistics and publish them as Kafka records for other services to consume, as illustrated in figure 7.12.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F12_Ponge.png" width="1104" height="435"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028496"/>Figure 7.12 Event stats service</p>
+
+  <p class="body"><a id="pgfId-1017059"/>The service performs the following computations:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1017115"/>Based on time windows of five seconds, it computes the throughput of device updates based on the number of events received on the <code class="fm-code-in-text">incoming.steps</code> topic, and it then emits <a class="calibre9" id="marker-1017098"/>a record to <a class="calibre9" id="marker-1017104"/>the <code class="fm-code-in-text">event-stats.throughput</code> topic.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1017156"/>Events received on the <code class="fm-code-in-text">daily.step.updates</code> topic carry data on <a class="calibre9" id="marker-1017139"/>the number of steps from a device on the current day. This data lacks user data (name, city, etc.), so for each event the service queries the user profile service to enrich the original record with user data, and then <a class="calibre9" id="marker-1017145"/>sends it to the <code class="fm-code-in-text">event-stats.user-activity.updates</code> topic.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1017191"/>The service computes city trends by processing the events from the <code class="fm-code-in-text">event-stats.user-activity.updates</code> topic over time windows of five seconds, and for each city it publishes an update with <a class="calibre9" id="marker-1017180"/>the aggregated number of steps for that city to the <code class="fm-code-in-text">event-stats.city-trends.updates</code> topic.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1017200"/>Kafka records can be acknowledged in an automatic fashion by batches, as there is little harm in processing a record again, especially for the throughput and city trends computations. To ensure that exactly one record is produced for an activity update, a manual acknowledgement is possible, although an occasional duplicate record should not impact a consuming service.</p>
+
+  <p class="body"><a id="pgfId-1017206"/>The event stats service is not meant to be public, and it does not offer any interface for other services. Finally, the service should be deployed as a single instance due to the nature of the computations. <a id="marker-1017208"/><a id="marker-1017211"/></p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1017217"/>7.4.7 Congrats service</h3>
+
+  <p class="body"><a id="pgfId-1017234"/><a id="marker-1017228"/><a id="marker-1017230"/>The role of the congrats service is to monitor when a device reaches at least 10,000 steps on a day, and then to send a congratulation email to the owner, as shown in figure 7.13.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F13_Ponge.png" width="763" height="189"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028540"/>Figure 7.13 Congrats service</p>
+
+  <p class="body"><a id="pgfId-1017249"/>The service makes calls to the user profile service to get the email of the user associated with a device, and then it contacts an SMTP server to send an email.</p>
+
+  <p class="body"><a id="pgfId-1017307"/>Note that we could have reused the <code class="fm-code-in-text">event-stats.user-activity.updates</code> Kafka topic <a id="marker-1017280"/>fed by the event stats service, as it enriches the messages received from <code class="fm-code-in-text">daily.step.updates</code> with user data, including an email address. An implementation detail in how Kafka record keys are being produced for both topics makes it simpler to enforce that at most one message is sent to a user each day by using the records <a id="marker-1017296"/>from <code class="fm-code-in-text">daily.step.updates</code> and then getting the email from the user profile service. This does not add much network and processing overhead either, since a user must receive an email only for the first activity update with at least 10,000 steps on a given day.</p>
+
+  <p class="body"><a id="pgfId-1017316"/>This service is not to be publicly exposed, and it does not expose any API. A single instance should suffice in a production setting, but the service can be scaled to multiple instances sharing the same Kafka consumer group so that they can split the workload among them. <a id="marker-1017318"/><a id="marker-1017321"/></p>
+
+  <h3 class="fm-head1" id="heading_id_14"><a id="pgfId-1017327"/>7.4.8 Dashboard web application</h3>
+
+  <p class="body"><a id="pgfId-1017344"/><a id="marker-1017338"/><a id="marker-1017340"/>The dashboard web application offers live updates on the incoming updates throughput, city trends, and public user ranking. As seen in figure 7.14, the service consumes Kafka records emitted by the event stats service and regularly pushes updates to the web application.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F14_Ponge.png" width="1082" height="417"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028582"/>Figure 7.14 Dashboard web application</p>
+
+  <p class="body"><a id="pgfId-1017359"/>The web application is written using the Vue.JS framework, just like the user web application described earlier. The frontend and backend are connected using the Vert.x event bus, so both the Vert.x and Vue.JS code bases can communicate with the same programming model.</p>
+
+  <p class="body"><a id="pgfId-1017379"/>Throughput and city trend updates from Kafka topics are directly forwarded over the Vert.x event bus, so the connected web application client receives the updates in real time. The backend maintains in-memory data about the number of steps over the last 24 hours for all users who have made their profile public. The ranking is updated every 5 seconds, and the result is pushed to the web application over the event bus so that the ranking is updated in the connected web browsers.</p>
+
+  <p class="body"><a id="pgfId-1017385"/>Since the backend is event-driven over Kafka topics, a good question is what happens when the service starts (or when it recovers from a crash). Indeed, on a fresh start we do not have all the step data from the last 24 hours, and we will only receive updates from the service’s start time.</p>
+
+  <p class="body"><a id="pgfId-1017391"/>We need a <i class="fm-italics">hydration</i> phase when the <a id="marker-1017402"/>service starts, where we query the activity service and get the rankings over the last 24 hours. We then need to query the user profile service for each entry of the ranking, since we need to correlate each device with a user profile. This is a potentially costly operation, but it shouldn’t happen very often.</p>
+
+  <p class="body"><a id="pgfId-1017412"/>Note that waiting for the hydration to complete does not prevent the processing of user activity updates, as eventually only the most recent value from either a Kafka record or the hydration data will prevail when updating the in-memory data.</p>
+
+  <p class="body"><a id="pgfId-1017418"/>The dashboard web application service is meant to be publicly exposed. It can be scaled to multiple instances if need be, and it can be put behind an HTTP proxy load balancer. <a id="marker-1017420"/><a id="marker-1017423"/><a id="marker-1017425"/></p>
+
+  <h2 class="fm-head" id="heading_id_15"><a id="pgfId-1017431"/>7.5 Running the application</h2>
+
+  <p class="body"><a id="pgfId-1017451"/><a id="marker-1027380"/>To run the application, you need to run all the infrastructure services and all the microservices. The complete source code of the application can be found in the part2-steps-challenge folder of the source code repository.</p>
+
+  <p class="body"><a id="pgfId-1017483"/>First of all, Docker must be installed on your machine, because building the application requires containers to be started while executing test suites. The application can be built with Gradle <a id="marker-1027383"/>using the <code class="fm-code-in-text">gradle assemble</code> command, or with <code class="fm-code-in-text">gradle build</code> if you also <a id="marker-1027384"/>want to run the tests as part of the build and have Docker running.</p>
+
+  <p class="body"><a id="pgfId-1017536"/>Once the application services have been built, you will need to run all infrastructure services like PostgreSQL, MongoDB, Apache Kafka, and so on. You can greatly simplify the task by running them from Docker containers. To do that, the <code class="fm-code-in-text">docker-compose.yml</code> file describes several containers to be run with Docker Compose, a simple and effective tool for managing several containers at once. Running <code class="fm-code-in-text">docker-compose up</code> will start <a id="marker-1017509"/>all the containers, and <code class="fm-code-in-text">docker-compose down</code> will stop and remove them <a id="marker-1017525"/>all. You can also press <code class="fm-code-in-text">Ctrl+C</code> in a terminal running Docker Compose, and it will stop the containers (but not remove them, so they can be started with the current state again).</p>
+
+  <p class="fm-callout"><a id="pgfId-1017598"/><span class="fm-callout-head">tip</span> On macOS and Windows, I recommend installing Docker Desktop. Most Linux distributions offer Docker as a package. Note that <code class="fm-code-in-text1">docker</code> needs to run as <code class="fm-code-in-text1">root</code>, so on Linux you may need to add your user to a special group to avoid using <code class="fm-code-in-text1">sudo</code>. The official Docker documentation provides troubleshooting instructions (<span class="fm-hyperlink"><a href="https://docs.docker.com/engine/install/linux-postinstall/">https://docs.docker.com/engine/install/linux-postinstall/</a></span>). In all cases, make sure that you can successfully <a id="marker-1017587"/>run the <code class="fm-code-in-text1">docker run hello-world</code> command as a user.</p>
+
+  <p class="body"><a id="pgfId-1017607"/>The container images that we will need to run are the following:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1017613"/>MongoDB with an initialization script to prepare a collection and indexes</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1017627"/>PostgreSQL with an initialization script to create the schema</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1017637"/>Apache Kafka with Apache ZooKeeper from the Strimzi project images (see <span class="fm-hyperlink1"><a class="calibre9" href="https://strimzi.io">https://strimzi.io</a></span>)</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1017648"/>ActiveMQ Artemis</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1017778"/>MailHog, an SMTP server suitable for integration testing (<span class="fm-hyperlink1"><a class="calibre9" href="https://github.com/mailhog/MailHog">https://github.com/ mailhog/MailHog</a></span>)</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1019417"/>All microservices are packaged as self-contained executable JAR files. For example, you can run the activity service as follows:</p>
+  <pre class="programlisting">$ java -jar activity-service/build/libs/activity-service-all.jar</pre>
+
+  <p class="body"><a id="pgfId-1021640"/>That being said, starting all services manually is not very convenient, so the project also contains a <code class="fm-code-in-text">Procfile</code> file to run all the services. The file contains lines with service names and associated shell commands. You can then use the Foreman tool to run the services (<span class="fm-hyperlink"><a href="https://github.com/ddollar/foreman">https://github.com/ddollar/foreman</a></span>) or a compatible tool like Hivemind (<span class="fm-hyperlink"><a href="https://github.com/DarthSim/hivemind">https://github.com/DarthSim/hivemind</a></span>):</p>
+  <pre class="programlisting">$ foreman start</pre>
+
+  <p class="body"><a id="pgfId-1021677"/>This is very convenient, as you can run all the services from two terminal panes, as illustrated in figure 7.15.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH07_F15_Ponge.png" width="1481" height="1047"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1028624"/>Figure 7.15 Running the microservices and infrastructure services with Docker Compose and Foreman</p>
+
+  <p class="body"><a id="pgfId-1021693"/>Foreman can also generate various system service descriptors from a Procfile: initab, launchd, systemd, and more. Finally, Foreman is written in Ruby, but there are also ports to other languages listed on the project page.</p>
+
+  <p class="fm-callout"><a id="pgfId-1021723"/><span class="fm-callout-head">tip</span> Foreman simplifies running all services, but you don’t have to use it. You can run each individual service on the command line. The content of Procfile will show you the exact command for each service.</p>
+
+  <p class="body"><a id="pgfId-1021729"/>The next chapters will illustrate the challenges of implementing a reactive application by building on top of a set of (imperfect!) microservices that cover the topics of web, APIs, messaging, data, and continuous stream processing. In the next chapter, we’ll explore the web stack used to implement some of the services described in this chapter. <a id="marker-1021731"/></p>
+
+  <h2 class="fm-head" id="heading_id_16"><a id="pgfId-1021738"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1021748"/>A reactive application focuses on controlling latency under various workloads and in the presence of failures from other services.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1021762"/>A reactive application can be decomposed as a set of independently scaled event-driven microservices.</p>
+    </li>
+  </ul>
+  <hr class="calibre12"/>
+
+  <p class="fm-footnote"><span class="footnotenumber">1.</span><a id="pgfId-1012934"/>For an introduction, see Martin Fowler’s articles on CQRS (<span class="fm-hyperlink"><a href="https://martinfowler.com/bliki/CQRS.html">https://martinfowler.com/bliki/CQRS.html</a></span>) and event sourcing (<span class="fm-hyperlink"><a href="https://martinfowler.com/eaaDev/EventSourcing.html">https://martinfowler.com/eaaDev/EventSourcing.html</a></span>).</p>
+</div></body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_compounding_criteria"><a id="compounding_criteria"/><h3 class="docSection1Title">8.2. Compounding Criteria</h3><p class="docText">As you might expect, you can add more than one <tt>Criterion</tt> to your query, and  all of them must be satisfied for objects to be included in the results.  This is equivalent to building a compound criterion using <tt>Expression.conjunction()</tt><a id="in"/>,  as described in <a class="docLink" href="0596006969_standard_criteria.xhtml#standard_criteria">Appendix B</a>. As in <a class="docLink" href="#a_pickier_list_of_short_tracks">Example 8-8</a>,  we can restrict our results so that the tracks also have to contain a capital "A" somewhere in their title by adding another line to our method.<a id="idx-CHP-8-0297"/></p><a id="a_pickier_list_of_short_tracks"/><h5 id="title-ID0EZDBG" class="docExampleTitle">Example 8-8. A pickier list of short tracks</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+Criteria criteria = session.createCriteria(Track.class);
+criteria.add(Expression.le("playTime", length));
+<b>criteria.add(Expression.like("title", "%A%"));</b>
+criteria.addOrder(Order.asc("title"));
+return criteria.list();
+</pre><br/>
+</td></tr></table><p class="docText">With this in place, we get fewer results (<a class="docLink" href="#tracks_of_seven_minutes_or_less_containi">Example 8-9</a>).</p><a id="tracks_of_seven_minutes_or_less_containi"/><h5 id="title-ID0EJEBG" class="docExampleTitle">Example 8-9. Tracks of seven minutes or less containing a capital A in their titles</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+qtest:
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35, from Compact Disc
+     [java] Track:  "Gravity's Angel" (Laurie Anderson) 00:06:06, from Compact Disc
+</pre><br/>
+</td></tr></table><p class="docText">If you want to find any objects matching any one of your criteria, rather than  requiring them to fit all criteria, you need to explicitly use <tt>Expression.disjunction()</tt> to group them. You can build up combinations of such groupings, and other complex hierarchies, using the built-in criteria offered by the <tt>Expression</tt> class. Check <a class="docLink" href="0596006969_standard_criteria.xhtml#standard_criteria">Appendix B</a> for the details. <a class="docLink" href="#picking_tracks_more_leniently">Example 8-10</a> shows how we'd change the sample query to give us tracks mix of power that <span class="docEmphasis">either</span> met the length restriction or contained a capital A.</p><blockquote><p class="docText"><span class="docEmphasis">Criteria queries are a surprising mix of power and convenience</span>.</p></blockquote><a id="picking_tracks_more_leniently"/><h5 id="title-ID0EGFBG" class="docExampleTitle">Example 8-10. Picking tracks more leniently</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+Criteria criteria = session.createCriteria(Track.class);
+<b>Disjunction any = Expression.disjunction();</b>
+					<b>any</b>.add(Expression.le("playTime", length));
+<b>any</b>.add(Expression.like("title", "%A%"));
+<b>criteria.add(any);</b>
+criteria.addOrder(Order.asc("title"));
+        return criteria.list();
+</pre><br/>
+</td></tr></table><p class="docText">This <a id="idx-CHP-8-0298"/>results in us picking up a new version of "Adagio for Strings" (<a class="docLink" href="#tracks_whose_title_contains_the_letter_a">Example 8-11</a>).</p><a id="tracks_whose_title_contains_the_letter_a"/><h5 id="title-ID0EGGBG" class="docExampleTitle">Example 8-11. Tracks whose title contains the letter A, or whose length is seven minutes or less</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+qtest:
+     [java] Track: "<b>A</b>dagio for Strings (ATB Remix)" (ATB, William Orbit, Samuel Barber)
+ <b>00:07:39</b>, from Compact Disc
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35, from Compact Disc
+     [java] Track: "Gravity's Angel" (Laurie Anderson) 00:06:06, from Compact Disc
+     [java] Track: "Russian Trance" (PPK) 00:03:30, from Compact Disc
+     [java] Track: "Test Tone 1" 00:00:10
+     [java]   Comment: Pink noise to test equalization
+     [java] Track: "Video Killed the Radio Star" (The Buggles) 00:03:49, from VHS
+Videocassette Tape
+</pre><br/>
+</td></tr></table><p class="docText">Finally, note that it's still possible, thanks to the clever return values of these methods, to consolidate our method into a single expression (<a class="docLink" href="#taking_code_compactness_a_bit_too_far">Example 8-12</a>).</p><a id="taking_code_compactness_a_bit_too_far"/><h5 id="title-ID0EZGBG" class="docExampleTitle">Example 8-12. Taking code compactness a bit too far</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+return session.createCriteria(Track.class).add(Expression.disjunction().
+ add(Expression.le("playTime", length)).add(Expression.like("title", "%A%"))).
+ addOrder(Order.asc("title")).list();
+</pre><br/>
+</td></tr></table><p class="docText">Although this yields the same results, I hope you agree it doesn't do good things for the readability of the method (except perhaps to LISP experts)!</p><p class="docText">You can use the facilities in <tt>Expression</tt> to build up a wide variety of multi-part criteria. Some things still require HQL, and past a certain threshold of complexity, you're probably better off in that environment. But you can do a lot with criteria queries, and they're often the right way to go.</p></div></div></body>
+</html>

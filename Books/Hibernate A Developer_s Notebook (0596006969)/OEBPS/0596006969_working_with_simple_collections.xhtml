@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_working_with_simple_collections"><a id="working_with_simple_collections"/><h3 class="docSection1Title">4.5. Working with Simple Collections</h3><p class="docText">The collections we've been looking at so far have all contained associations to other objects, which is appropriate for a chapter titled "Collections and Associations," but isn't the only kind you can use with Hibernate. You can also define mappings for collections of <a id="idx-CHP-4-0182"/>simple values, like strings, numbers, and nonpersistent value classes.<a id="idx-CHP-4-0183"/></p><a id="how_do_i_do_that-id013"/><h4 id="title-ID0EAFAG" class="docSection2Title">4.1.1. How do I do that?</h4><p class="docText">Suppose we want to be able to record some number of comments about each track in the database. We want a new property called <tt>comments</tt><a id="the"/> to contain the <tt>String</tt> values of each associated comment. The new mapping in <span class="docEmphasis">Tracks.hbm.xml</span> looks a lot like what we did for artists, only a bit simpler:</p><pre>
+	&lt;set name="comments" table="TRACK_COMMENTS"&gt;
+	  &lt;key column="TRACK_ID"/&gt;
+	  &lt;element column="COMMENT" type="string"/&gt;
+	&lt;/set&gt;
+</pre><br/>
+<p class="docText">Since we're able to store an arbitrary number of comments for each <tt>Track</tt>, we're going to need a new table to put them in. Each comment will be linked to the proper <tt>Track</tt> through the track's <tt>id</tt> property.</p><p class="docText">Rebuilding the databases with <tt><b>ant schema</b></tt> shows how this gets built in the database:</p><pre>
+	[schemaexport] create table TRACK_COMMENTS (
+	[schemaexport]    TRACK_ID INTEGER not null,
+	[schemaexport]    COMMENT VARCHAR(255) 
+	[schemaexport] )
+	[schemaexport] alter table TRACK_COMMENTS add constraint FK105B26884C5F92B
+	foreign key (TRACK_ID) references TRACK
+</pre><br/>
+<blockquote><p class="docText"><span class="docEmphasis">Data modeling junkies will recognize this as a "one-to-many" relationship</span>.</p></blockquote><p class="docText">After updating the <tt>Track</tt> class via <tt><b>ant codegen</b></tt>, we need to add another <tt>Set</tt> at the end of each constructor invocation in <span class="docEmphasis">CreateTest.java</span>, for the comments. For example:</p><pre>
+	track = new Track("Test Tone 1",
+	                  "vol2/singles/test01.mp3",
+	                  Time.valueOf("00:00:10"), new Date(),
+	                  (short)0, new HashSet()<b>, new HashSet()</b>);
+</pre><br/>
+<p class="docText">Then we can assign a comment on the following line:</p><pre>
+	track.getComments().add("Pink noise to test equalization");
+</pre><br/>
+<p class="docText">A quick <tt><b>ant ctest</b></tt> will compile and run this (making sure you've not forgotten to add the second <tt>HashSet</tt> to any tracks), and you can check <span class="docEmphasis">data/music.script</span> to see how it's stored in the database. Or add another loop after the track <tt>println()</tt> in <span class="docEmphasis">QueryTest.java</span> to print the comments for the track that was just displayed:</p><pre>
+	for (Iterator comIter = aTrack.getComments().iterator() ;
+	     comIter.hasNext() ; ) {
+	    System.out.println("  Comment: " + comIter.next());
+	}
+</pre><br/>
+<p class="docText">Then <tt><b>ant qtest</b></tt> will give you output like this:</p><pre>
+	...
+	[java] Track: "Test Tone 1" 00:00:10
+	[java]   Comment: Pink noise to test equalization
+</pre><br/>
+<p class="docText">It's nice when tools make simple things easier. In the next chapter we'll see that more complex things are possible too.</p></div></div></body>
+</html>

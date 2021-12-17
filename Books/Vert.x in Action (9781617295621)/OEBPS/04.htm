@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1022609"/>4 Asynchronous data and event streams</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>Why streams are a useful abstraction on top of eventing</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>What back-pressure is, and why it is fundamental for asynchronous producers and consumers</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011861"/>How to parse protocol data from streams</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011893"/>So far we have been processing events using <i class="fm-italics">callbacks</i>, and from various <a id="marker-1011882"/>sources such as HTTP or TCP servers. Callbacks allow us to reason about events <i class="fm-italics">one at a time</i>.</p>
+
+  <p class="body"><a id="pgfId-1011902"/>Processing an incoming data buffer from a TCP connection, from a file, or from an HTTP request is not very different: you need to declare a callback handler that <i class="fm-italics">reacts</i> to each event and allows custom processing.</p>
+
+  <p class="body"><a id="pgfId-1011939"/>That being said, most events need to be processed as a <i class="fm-italics">series</i> rather than <a id="marker-1011928"/>as <i class="fm-italics">isolated</i> events. Processing the body of an HTTP request is a good example, as several buffers of different sizes need to be assembled to reconstitute the full body payload.</p>
+
+  <p class="body"><a id="pgfId-1011948"/>Since reactive applications deal with non-blocking I/O, efficient and correct stream processing is key. In this chapter we’ll look at why streams pose challenges and how Vert.x offers a comprehensive unified stream model.</p>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011954"/>4.1 Unified stream model</h2>
+
+  <p class="body"><a id="pgfId-1012003"/><a id="marker-1011965"/><a id="marker-1011967"/>Vert.x offers a unified abstraction of <i class="fm-italics">streams</i> across several types of resources, such as files, network sockets, and more. A <i class="fm-italics">read stream</i> is a source <a id="marker-1011992"/>of events that can be read, whereas a <i class="fm-italics">write stream</i> is a destination <a id="marker-1012008"/>for events to be sent to. For example, an HTTP request is a read stream, and an HTTP response is a write stream.</p>
+
+  <p class="body"><a id="pgfId-1012018"/>Streams in Vert.x span a wide range of sources and sinks, including those listed in table 4.1.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1026062"/>Table 4.1 Vert.x common read and write streams</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="33.33%"/>
+      <col class="calibre4" span="1" width="33.33%"/>
+      <col class="calibre4" span="1" width="33.33%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026068"/>Stream resource</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026070"/>Read support</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026072"/>Write support</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026074"/>TCP sockets</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026076"/>Yes</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026078"/>Yes</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026080"/>UDP datagrams</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026082"/>Yes</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026084"/>Yes</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026086"/>HTTP requests and responses</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026088"/>Yes</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026090"/>Yes</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026092"/>WebSockets</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026094"/>Yes</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026096"/>Yes</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026098"/>Files</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026100"/>Yes</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026102"/>Yes</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026104"/>SQL results</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026106"/>Yes</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026108"/>No</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026110"/>Kafka events</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026112"/>Yes</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026114"/>Yes</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026116"/>Periodic timers</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026118"/>Yes</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026120"/>No</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1012342"/>Read and write stream are defined through the <code class="fm-code-in-text">ReadStream</code> and <code class="fm-code-in-text">WriteStream</code> interfaces of the <code class="fm-code-in-text">io.vertx.core.streams</code> package. You will mostly deal <a id="marker-1012347"/>with APIs that implement these two interfaces rather than implement them yourself, although you may have to do so if you want to connect to some third-party asynchronous event API.</p>
+
+  <p class="body"><a id="pgfId-1012357"/>These interfaces can be seen as each having two parts:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012363"/>Essential methods for reading or writing data</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012377"/><i class="fm-italics1">Back-pressure</i> management methods <a class="calibre9" id="marker-1012390"/>that we will cover in the next section</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012400"/>Table 4.2 lists the <i class="fm-italics">essential</i> methods of read streams. They define callbacks for being notified of three types of events: some data has been read, an exception has arisen, and the stream has ended.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1026169"/>Table 4.2 <code class="fm-code-in-figurecaption">ReadStream</code> essential methods</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="25%"/>
+      <col class="calibre4" span="1" width="75%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026173"/>Method</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026175"/>Description</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026177"/><code class="fm-code-in-figurecaption">handler(Handler&lt;T&gt;)</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026179"/>Handles a new <a id="marker-1026188"/>read value of type <code class="fm-code-in-figurecaption">T</code> (e.g., <code class="fm-code-in-figurecaption">Buffer</code>, <code class="fm-code-in-figurecaption">byte[]</code>, <code class="fm-code-in-figurecaption">JsonObject</code>, etc.)</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026181"/><code class="fm-code-in-figurecaption">exceptionHandler(Handler&lt;Throwable&gt;)</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026183"/>Handles a read <a id="marker-1026189"/>exception</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026185"/><code class="fm-code-in-figurecaption">endHandler(Handler&lt;Void&gt;)</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026187"/>Called when the stream <a id="marker-1026190"/>has ended, either because all data has been read or because an exception has been raised</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1012636"/>Similarly, the essential methods of write streams listed in table 4.3 allow us to write data, end a stream, and be notified when an exception arises.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1026240"/>Table 4.3 <code class="fm-code-in-figurecaption">WriteStream</code> essential methods</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="25%"/>
+      <col class="calibre4" span="1" width="75%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026244"/>Method</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026246"/>Description</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026248"/><code class="fm-code-in-figurecaption">write(T)</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026250"/>Writes some <a id="marker-1026263"/>data of type, <code class="fm-code-in-figurecaption">T</code> (e.g., <code class="fm-code-in-figurecaption">Buffer</code>, <code class="fm-code-in-figurecaption">byte[]</code>, <code class="fm-code-in-figurecaption">JsonObject</code>, etc.)</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026252"/><code class="fm-code-in-figurecaption">exceptionHandler(Handler&lt;Throwable&gt;)</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026254"/>Handles a write exception <a id="marker-1026264"/></p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026256"/><code class="fm-code-in-figurecaption">end()</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026258"/>Ends the stream <a id="marker-1026265"/></p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026260"/><code class="fm-code-in-figurecaption">end(T)</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026262"/>Writes some <a id="marker-1026266"/>data of type, <code class="fm-code-in-figurecaption">T</code>, and then ends the stream</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1012902"/>We already manipulated streams in the previous chapters without knowing it, such as with TCP and HTTP servers.</p>
+
+  <p class="body"><a id="pgfId-1012908"/>The <code class="fm-code-in-text">java.io</code> APIs form a classic stream I/O abstraction for <a id="marker-1012919"/>reading and writing data from various sources in Java, albeit using blocking APIs. It is interesting to compare the JDK streams with the Vert.x non-blocking stream APIs.</p>
+
+  <p class="body"><a id="pgfId-1012929"/>Suppose we want to read the content of a file and output its content to the standard console output.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012986"/>Listing 4.1 Reading a file using JDK I/O APIs</p>
+  <pre class="programlisting">public static void main(String[] args) {
+  File file = new File("build.gradle.kts");
+  byte[] buffer = new byte[1024];
+  try (FileInputStream in = new FileInputStream(file)) {   <span class="fm-combinumeral">❶</span>
+    int count = in.read(buffer);
+    while (count != -1) {
+      System.out.println(new String(buffer, 0, count));
+      count = in.read(buffer);
+    }
+  } catch (IOException e) {
+    e.printStackTrace();
+  } finally {
+    System.out.println("\n--- DONE");                      <span class="fm-combinumeral">❷</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033858"/><span class="fm-combinumeral">❶</span> Using try-with-resources we ensure that reader.close() is always going to be called, whether the execution completes normally or exceptionally.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033879"/><span class="fm-combinumeral">❷</span> We insert two lines to the console once reading has finished.</p>
+
+  <p class="body"><a id="pgfId-1013157"/>Listing 4.1 shows a classic example of using JDK I/O streams to read a file and then output its content to the console, while taking care of possible errors. We read data to a buffer and then immediately write the buffer content to the standard console before recycling the buffer for the next read.</p>
+
+  <p class="body"><a id="pgfId-1013163"/>The following listing shows the same code as in listing 4.1, but using the Vert.x asynchronous file APIs.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013220"/>Listing 4.2 Reading a file using Vert.x streams</p>
+  <pre class="programlisting">public static void main(String[] args) {
+  Vertx vertx = Vertx.vertx();
+  OpenOptions opts = new OpenOptions().setRead(true);          <span class="fm-combinumeral">❶</span>
+  vertx.fileSystem().open("build.gradle.kts", opts, ar -&gt; {    <span class="fm-combinumeral">❷</span>
+    if (ar.succeeded()) {
+      AsyncFile file = ar.result();                            <span class="fm-combinumeral">❸</span>
+      file.handler(System.out::println)                        <span class="fm-combinumeral">❹</span>
+        .exceptionHandler(Throwable::printStackTrace)          <span class="fm-combinumeral">❺</span>
+        .endHandler(done -&gt; {                                  <span class="fm-combinumeral">❻</span>
+          System.out.println("\n--- DONE");
+          vertx.close();
+        });
+    } else {
+      ar.cause().printStackTrace();
+    }
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033459"/><span class="fm-combinumeral">❶</span> Opening a file with Vert.x requires options, such as whether the file is in read, write, append mode, and more</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033480"/><span class="fm-combinumeral">❷</span> Opening a file is an asynchronous operation.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033497"/><span class="fm-combinumeral">❸</span> AsyncFile is the interface for Vert.x asynchronous files.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033514"/><span class="fm-combinumeral">❹</span> The callback for new buffer data</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033531"/><span class="fm-combinumeral">❺</span> The callback when an exception arises</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033548"/><span class="fm-combinumeral">❻</span> The callback when the stream ends</p>
+
+  <p class="body"><a id="pgfId-1013514"/>The approach is declarative here, as we define handlers for the different types of events when <a id="marker-1013493"/>reading the stream. We are being <i class="fm-italics">pushed</i> data, whereas in listing 4.1 we were <i class="fm-italics">pulling</i> data from the stream.</p>
+
+  <p class="body"><a id="pgfId-1013523"/>This difference may seem cosmetic at first sight, with data being pulled in one example, while being pushed in the other. However, the difference is major, and we need to understand it to master asynchronous streams, whether with Vert.x or with other solutions.</p>
+
+  <p class="body"><a id="pgfId-1013529"/>This brings us to the notion of <i class="fm-italics">back-pressure</i>. <a id="marker-1013540"/><a id="marker-1013543"/></p>
+
+  <h2 class="fm-head" id="heading_id_4"><a id="pgfId-1013549"/>4.2 What is back-pressure?</h2>
+
+  <p class="body"><a id="pgfId-1013592"/><a id="marker-1013560"/><a id="marker-1013562"/>Back-pressure is a mechanism for a <i class="fm-italics">consumer</i> of events to <i class="fm-italics">signal</i> an event’s <i class="fm-italics">producer</i> that it is emitting events at a faster rate than the consumer can handle them. In reactive systems, back-pressure is used to pause or slow down a producer so that consumers avoid accumulating unprocessed events in unbounded memory buffers, possibly exhausting resources.</p>
+
+  <p class="body"><a id="pgfId-1013601"/>To understand why back-pressure matters with asynchronous streams, let’s take the example of an HTTP server used for downloading Linux distribution images, and consider the implementation without any back-pressure management strategy in place.</p>
+
+  <p class="body"><a id="pgfId-1013607"/>Linux distribution images are often distributed as .iso files and can easily weigh several gigabytes. Implementing a server that could distribute such files would involve doing the following:</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1013613"/>Open an HTTP server.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013627"/>For each incoming HTTP request, find the corresponding file.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013637"/>For each buffer read from the file, write it to the HTTP response body.</p>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1013647"/>Figure 4.1 provides an illustration of how this would work with Vert.x, although this also applies to any non-blocking I/O API. Data buffers are read from the file stream, and then passed to a handler. The handler is unlikely to do anything but directly write each buffer to the HTTP response stream. Each buffer is eventually written to the underlying TCP buffer, either directly or as smaller chunks. Since the TCP buffer may be full (either because of the network or because the client is busy), it is necessary to maintain a buffer of pending buffers to be written (the write queue in figure 4.1). Remember, a write operation is non-blocking, so buffering is needed. This sounds like a very simple processing pipeline, so what could possibly go wrong?</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH04_F01_Ponge.png" width="998" height="378"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034790"/>Figure 4.1 Reading and then writing data between streams without any back-pressure signaling</p>
+
+  <p class="body"><a id="pgfId-1013663"/>Reading from a filesystem is generally fast and low-latency, and given several read requests, an operating system is likely to cache some pages into RAM. By contrast, writing to the network is much slower, and bandwidth depends on the weakest network link. Delays also occur.</p>
+
+  <p class="body"><a id="pgfId-1013683"/>As the reads are much faster than writes, a write buffer, as shown in figure 4.1, may quickly grow very large. If we have several thousand concurrent connections to download ISO images, we may have lots of buffers accumulated in write buffer queues. We may actually have several gigabytes worth of ISO images in a JVM process memory, waiting to be written over the network! The more buffers there are in write queues, the more memory the process consumes.</p>
+
+  <p class="body"><a id="pgfId-1013689"/>The risk here is clearly that of exhaustion, either because the process eats all available physical memory, or because it runs in a memory-capped environment such as a container. This raises the risk of consuming too much memory and even crashing.</p>
+
+  <p class="body"><a id="pgfId-1013695"/>As you can probably guess, one solution is <i class="fm-italics">back-pressure signaling</i>, which enables <a id="marker-1013706"/>the read stream to adapt to the throughput of the write stream. In the previous example, when the HTTP response write queue grows too big, it should be able to notify the file read stream that it is going too fast. In practice, pausing the source stream is a good way to manage back-pressure, because it gives time to write the items in the write buffer while not accumulating new ones.</p>
+
+  <p class="fm-callout"><a id="pgfId-1013726"/><span class="fm-callout-head">Tip</span> Blocking I/O APIs have an implicit form of back-pressure by blocking execution threads until I/O operations complete. Write operations block when buffers are full, which prevents blocked threads from pulling more data until write operations have completed.</p>
+
+  <p class="body"><a id="pgfId-1013745"/>Table 4.4 lists the back-pressure management <a id="marker-1013734"/>methods of <code class="fm-code-in-text">ReadStream</code>. By default, a read stream reads data as fast as it can, unless it is being paused. A processor can pause and then resume a read stream to control the data flow.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1026778"/>Table 4.4 <code class="fm-code-in-figurecaption">ReadStream</code> back-pressure management methods</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="25%"/>
+      <col class="calibre4" span="1" width="75%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026782"/>Method</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026784"/>Description</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026786"/><code class="fm-code-in-figurecaption">pause()</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026788"/>Pauses the stream, preventing further <a id="marker-1026797"/>data from being sent to the handler.</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026790"/><code class="fm-code-in-figurecaption">resume()</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026792"/>Starts reading data <a id="marker-1026798"/>again and sending it to the handler.</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026794"/><code class="fm-code-in-figurecaption">fetch(n)</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026796"/>Demands a number, <code class="fm-code-in-figurecaption">n</code>, of elements <a id="marker-1026799"/>to be read (at most). The stream must be paused before calling <code class="fm-code-in-figurecaption">fetch(n)</code>.</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1013944"/>When a read stream has been paused, it is possible to ask for a certain number of elements to be fetched, which is a form of asynchronous pulling. This means that a processor can ask for elements using <code class="fm-code-in-text">fetch</code>, setting its own pace. You will see concrete examples of that in the last section of this chapter.</p>
+
+  <p class="body"><a id="pgfId-1013959"/>In any case, calling <code class="fm-code-in-text">resume()</code> causes the stream to start pushing data again as fast as it can.</p>
+
+  <p class="body"><a id="pgfId-1013987"/>Table 4.5 shows the corresponding back-pressure management <a id="marker-1013976"/>methods for <code class="fm-code-in-text">WriteStream</code>.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1026844"/>Table 4.5 <code class="fm-code-in-figurecaption">WriteStream</code> back-pressure management methods</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="25%"/>
+      <col class="calibre4" span="1" width="75%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026848"/>Method</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1026850"/>Description</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026852"/><code class="fm-code-in-figurecaption">setWriteQueueMaxSize(int)</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026854"/>Defines what the maximum write <a id="marker-1026863"/>buffer queue size should be before being considered full. This is a size in terms of queued Vert.x buffers to be written, not a size in terms of actual bytes, because the queued buffers may be of different sizes.</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026856"/><code class="fm-code-in-figurecaption">boolean writeQueueFull()</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026858"/>Indicates when the <a id="marker-1026864"/>write buffer queue size is full.</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026860"/><code class="fm-code-in-figurecaption">drainHandler(Handler&lt;Void&gt;)</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1026862"/>Defines a callback indicating <a id="marker-1026865"/>when the write buffer queue has been drained (typically when it is back to half of its maximum size).</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1014176"/>The write buffer queue has a maximum size after which it is considered to be full. Write queues have default sizes that you will rarely want to tweak, but you can do so if you want to. Note that writes can still be made, and data will accumulate in the queue. A writer is supposed to check when the queue is full, but there is no enforcement on writes. When the writer knows that the write queue is full, it can be notified through a <i class="fm-italics">drain handler</i> when data can <a id="marker-1014187"/>be written again. In general this happens when half the write queue has been drained.</p>
+
+  <p class="body"><a id="pgfId-1014213"/>Now that you have seen the back-pressure operations provided in <code class="fm-code-in-text">ReadStream</code> and <code class="fm-code-in-text">WriteStream</code>, here is the recipe for controlling the flow in our example of providing ISO images via HTTP:</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1014222"/>For each read buffer, write it to the HTTP response stream.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1014236"/>Check if the write buffer queue is full.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014246"/>If it is full</p>
+
+      <ol class="calibre14">
+        <li class="fm-list-bullet1">
+          <p class="list"><a class="calibre9" id="pgfId-1014256"/>Pause the file read stream.</p>
+        </li>
+
+        <li class="fm-list-bullet1">
+          <p class="list"><a class="calibre9" id="pgfId-1014274"/>Install a drain handler that resumes the file read stream when it is called.</p>
+        </li>
+      </ol>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1014284"/>Note that this back-pressure management strategy is not always what you need:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1014290"/>There may be cases where dropping data when a write queue is full is functionally correct and even desirable.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014321"/>Sometimes the source of events does not support <a class="calibre9" id="marker-1014310"/>pausing like a Vert.x <code class="fm-code-in-text">ReadStream</code> does, and you will need to choose between dropping data or buffering even if it may cause memory exhaustion.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1014330"/>The appropriate strategy for dealing with back-pressure depends on the functional requirements of the code you are writing. In general, you will prefer flow control like Vert.x streams offer, but when that’s not possible, you will need to adopt another strategy.</p>
+
+  <p class="body"><a id="pgfId-1014336"/>Let’s now assemble all that we’ve seen into an application. <a id="marker-1014338"/><a id="marker-1014341"/></p>
+
+  <h2 class="fm-head" id="heading_id_5"><a id="pgfId-1014347"/>4.3 Making a music-streaming jukebox</h2>
+
+  <p class="body"><a id="pgfId-1014364"/><a id="marker-1014358"/><a id="marker-1014360"/>We are going to illustrate Vert.x streams and back-pressure management through the example of a music-streaming jukebox (see figure 4.2).</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH04_F02_Ponge.png" width="989" height="634"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034832"/>Figure 4.2 Jukebox application overview</p>
+
+  <p class="body"><a id="pgfId-1014379"/>The idea is that the jukebox has a few MP3 files stored locally, and clients can connect over HTTP to listen to the stream. Individual files can also be downloaded over HTTP. In turn, controlling when to play, pause, and schedule a song happens over a simple, text-based TCP protocol. All connected players will be listening to the same audio at the same time, apart from minor delays due to the buffering put in place by the players.</p>
+
+  <p class="body"><a id="pgfId-1014399"/>This example will allow us to see how we can deal with custom flow pacing and different back-pressure management strategies, and also how to parse streams.</p>
+
+  <h3 class="fm-head1" id="heading_id_6"><a id="pgfId-1014405"/>4.3.1 Features and usage</h3>
+
+  <p class="body"><a id="pgfId-1014422"/><a id="marker-1014416"/><a id="marker-1014418"/>The application that we will build can be run from the code in the book’s GitHub repository using a Gradle task, as shown in the console output of listing 4.3.</p>
+
+  <p class="fm-callout"><a id="pgfId-1014437"/><span class="fm-callout-head">note</span> You will need to copy some of your MP3 files to a folder named tracks/ in the project directory if you want the jukebox to have music to play.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014503"/>Listing 4.3 Running the jukebox application</p>
+  <pre class="programlisting">$ ./gradlew run -PmainClass=chapter4.jukebox.Main                 <span class="fm-combinumeral">❶</span>
+
+&gt; Task :run
+[vert.x-eventloop-thread-0] chapter4.jukebox.Jukebox - Start      <span class="fm-combinumeral">❷</span>
+[vert.x-eventloop-thread-1] chapter4.jukebox.NetControl - Start</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033331"/><span class="fm-combinumeral">❶</span> The main class is chapter4.jukebox.Jukebox.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033352"/><span class="fm-combinumeral">❷</span> We are deploying two verticles.</p>
+
+  <p class="body"><a id="pgfId-1014613"/>There are two verticles being deployed in this application:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1014619"/><code class="fm-code-in-text">Jukebox</code> provides the main <a class="calibre9" id="marker-1014636"/>music-streaming logic and HTTP server interface for music players to connect to.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014646"/><code class="fm-code-in-text">NetControl</code> provides a text-based TCP protocol <a class="calibre9" id="marker-1014659"/>for remotely controlling the jukebox application.</p>
+    </li>
+  </ul>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH04_F03_Ponge.png" width="886" height="566"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034881"/>Figure 4.3 VLC connected to the jukebox</p>
+
+  <p class="body"><a id="pgfId-1014669"/>To listen to music, the user can connect a player such as VLC (see figure 4.3) or even open a web browser directly at http://localhost:8080/.</p>
+
+  <p class="body"><a id="pgfId-1014722"/>On the other hand, the player can be controlled via a tool like <code class="fm-code-in-text">netcat</code>, with plain <a id="marker-1014711"/>text commands to list all files, schedule a track to be played, and pause or restart the stream. Listing 4.4 shows an interactive session using <code class="fm-code-in-text">netcat</code>.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014782"/>Listing 4.4 Controlling the jukebox with <code class="fm-code-in-listingcaption">netcat</code></p>
+  <pre class="programlisting">$ netcat localhost 3000                                     <span class="fm-combinumeral">❶</span>
+/list                                                       <span class="fm-combinumeral">❷</span>
+Daniela-La-Luz-Did-you-Ever-(Original-Mix).mp3
+The-Revenge-Let-Love-Take-The-Blame-(Original-Mix).mp3
+intro.mp3
+SQL-Surrender-(Original-Mix).mp3
+/schedule SQL-Surrender-(Original-Mix).mp3                  <span class="fm-combinumeral">❸</span>
+/pause                                                      <span class="fm-combinumeral">❹</span>
+/play                                                       <span class="fm-combinumeral">❺</span>
+/schedule Daniela-La-Luz-Did-you-Ever-(Original-Mix).mp3    <span class="fm-combinumeral">❻</span>
+^C                                                          <span class="fm-combinumeral">❼</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032713"/><span class="fm-combinumeral">❶</span> The control TCP server listens on port 3000.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032734"/><span class="fm-combinumeral">❷</span> This command lists all files.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032758"/><span class="fm-combinumeral">❸</span> Scheduling adds the file to a playlist.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032778"/><span class="fm-combinumeral">❹</span> This pauses the stream for all connected players.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032795"/><span class="fm-combinumeral">❺</span> This resumes the stream.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032812"/><span class="fm-combinumeral">❻</span> We schedule another track when the first has finished.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032829"/><span class="fm-combinumeral">❼</span> We can exit the netcat session with Ctrl+C with no harm.</p>
+
+  <p class="fm-callout"><a id="pgfId-1015077"/><span class="fm-callout-head">Tip</span> <code class="fm-code-in-text1">netcat</code> may be available <a id="marker-1015066"/>as <code class="fm-code-in-text1">nc</code> on your Unix environment. I am not aware of a friendly and equivalent tool for Windows, outside of a WSL environment.</p>
+
+  <p class="body"><a id="pgfId-1015086"/>Finally, we want to be able to download any MP3 for which we know the filename over HTTP:</p>
+  <pre class="programlisting">curl -o out.mp3 http://localhost:8080/download/intro.mp3</pre>
+
+  <p class="body"><a id="pgfId-1015106"/>Let’s now dissect the various parts of the implementation. <a id="marker-1015108"/><a id="marker-1015111"/></p>
+
+  <h3 class="fm-head1" id="heading_id_7"><a id="pgfId-1015117"/>4.3.2 HTTP processing: The big picture</h3>
+
+  <p class="body"><a id="pgfId-1015134"/><a id="marker-1015128"/><a id="marker-1015130"/>There will be many code snippets referring to HTTP server processing, so it is good to look at figure 4.4 to understand how the next pieces of code will fit together.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH04_F04_Ponge.png" width="998" height="718"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034923"/>Figure 4.4 Big picture of the HTTP server processing</p>
+
+  <p class="body"><a id="pgfId-1015149"/>There are two types of incoming HTTP requests: either a client wants to directly download a file by name, or it wants to join the audio stream. The processing strategies are very different.</p>
+
+  <p class="body"><a id="pgfId-1015169"/>In the case of downloading a file, the goal is to perform a direct copy from the file read stream to the HTTP response write stream. This will be done with back-pressure management to avoid excessive buffering.</p>
+
+  <p class="body"><a id="pgfId-1015175"/>Streaming is a bit more involved, as we need to keep track of all the streamers’ HTTP response write streams. A timer periodically reads data from the current MP3 file, and the data is duplicated and written for each streamer.</p>
+
+  <p class="body"><a id="pgfId-1015181"/>Let’s look at how these parts are implemented. <a id="marker-1015183"/><a id="marker-1015186"/></p>
+
+  <h3 class="fm-head1" id="heading_id_8"><a id="pgfId-1015192"/>4.3.3 Jukebox verticle basics</h3>
+
+  <p class="body"><a id="pgfId-1015215"/><a id="marker-1015203"/><a id="marker-1015205"/>The next listing shows that the state of the <code class="fm-code-in-text">Jukebox</code> verticle class is defined by a play status and a playlist.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015275"/>Listing 4.5 State of the <code class="fm-code-in-listingcaption">Jukebox</code> class</p>
+  <pre class="programlisting">private enum State {PLAYING, PAUSED}
+
+private State currentMode = State.PAUSED;
+
+private final Queue&lt;String&gt; playlist = new ArrayDeque&lt;&gt;();</pre>
+
+  <p class="body"><a id="pgfId-1015365"/>An enumerated type, <code class="fm-code-in-text">State</code>, defines two states, while a <code class="fm-code-in-text">Queue</code> holds all scheduled tracks to be played next. Again, the Vert.x threading model ensures single-threaded access, so there is no need for concurrent collections and critical sections.</p>
+
+  <p class="body"><a id="pgfId-1015408"/>The <code class="fm-code-in-text">start</code> method of the <a id="marker-1015385"/><code class="fm-code-in-text">Jukebox</code> verticle (listing 4.6) needs to configure <a id="marker-1015397"/>a few event-bus handlers that correspond to the commands and actions that can be used from the TCP text protocol. The <code class="fm-code-in-text">NetControl</code> verticle, which we will dissect <a id="marker-1015413"/>later, deals with the inners of the TCP server and sends messages to the event bus.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015474"/>Listing 4.6 Setting up the event-bus handlers in the <code class="fm-code-in-listingcaption">Jukebox</code> verticle</p>
+  <pre class="programlisting">@Override
+public void start() {
+  EventBus eventBus = vertx.eventBus();
+  eventBus.consumer("jukebox.list", this::list);
+  eventBus.consumer("jukebox.schedule", this::schedule);
+  eventBus.consumer("jukebox.play", this::play);
+  eventBus.consumer("jukebox.pause", this::pause);
+
+  // (...more later!)
+}</pre>
+
+  <p class="body"><a id="pgfId-1015579"/>Note that because we’ve abstracted the transfer of commands over the event-bus, we can easily plug in new ways to command the jukebox, such as using mobile applications, web applications, and so on.</p>
+
+  <p class="body"><a id="pgfId-1015585"/>The following listing provides the play/pause and schedule handlers. These methods directly manipulate the play and playlist state.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015642"/>Listing 4.7 Play/pause and schedule operations in the <code class="fm-code-in-listingcaption">Jukebox</code> verticle</p>
+  <pre class="programlisting">private void play(Message&lt;?&gt; request) {
+  currentMode = State.PLAYING;
+}
+
+private void pause(Message&lt;?&gt; request) {
+  currentMode = State.PAUSED;
+}
+
+private void schedule(Message&lt;JsonObject&gt; request) {
+  String file = request.body().getString("file");
+  if (playlist.isEmpty() &amp;&amp; currentMode == State.PAUSED) {    <span class="fm-combinumeral">❶</span>
+    currentMode = State.PLAYING;
+  }
+  playlist.offer(file);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032654"/><span class="fm-combinumeral">❶</span> This allows us to automatically resume playing when no track is playing and we schedule a new one.</p>
+
+  <p class="body"><a id="pgfId-1015802"/>Listing the available files is a bit more involved, as the next listing shows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015859"/>Listing 4.8 Listing all available files in the <code class="fm-code-in-listingcaption">Jukebox</code> verticle</p>
+  <pre class="programlisting">private void list(Message&lt;?&gt; request) {
+  vertx.fileSystem().readDir("tracks", ".*mp3$", ar -&gt; {   <span class="fm-combinumeral">❶</span>
+    if (ar.succeeded()) {
+      List&lt;String&gt; files = ar.result()
+        .stream()
+        .map(File::new)
+        .map(File::getName)
+        .collect(Collectors.toList());
+      JsonObject json = new JsonObject().put("files", new JsonArray(files));
+      request.reply(json);                                 <span class="fm-combinumeral">❷</span>
+    } else {
+      logger.error("readDir failed", ar.cause());
+      request.fail(500, ar.cause().getMessage());          <span class="fm-combinumeral">❸</span>
+    }
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032460"/><span class="fm-combinumeral">❶</span> We asynchronously get all files ending with .mp3 in the tracks/ folder.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032481"/><span class="fm-combinumeral">❷</span> We build a JSON response.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032498"/><span class="fm-combinumeral">❸</span> This is an example of sending a failure code and error message in a request/reply communication over the event bus. <a id="marker-1032503"/><a id="marker-1032504"/></p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1016076"/>4.3.4 Incoming HTTP connections</h3>
+
+  <p class="body"><a id="pgfId-1016093"/><a id="marker-1016087"/><a id="marker-1016089"/>There are two types of incoming HTTP clients: either they want the audio stream or they want to download a file.</p>
+
+  <p class="body"><a id="pgfId-1016111"/>The HTTP server is started <a id="marker-1016100"/>in the <code class="fm-code-in-text">start</code> method of the verticle (see the next listing).</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016171"/>Listing 4.9 Setting up the HTTP server in the <code class="fm-code-in-listingcaption">Jukebox</code> verticle</p>
+  <pre class="programlisting">@Override
+public void start() {
+  EventBus eventBus = vertx.eventBus();
+  eventBus.consumer("jukebox.list", this::list);
+  eventBus.consumer("jukebox.schedule", this::schedule);
+  eventBus.consumer("jukebox.play", this::play);
+  eventBus.consumer("jukebox.pause", this::pause);
+
+  vertx.createHttpServer()
+    .requestHandler(this::httpHandler)
+    .listen(8080);
+
+   // (...more later!)    <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032401"/><span class="fm-combinumeral">❶</span> We will expand on this later with MP3 streaming.</p>
+
+  <p class="body"><a id="pgfId-1016341"/>The request handler used by the Vert.x HTTP server is shown in the following listing. It forwards HTTP requests to the <code class="fm-code-in-text">openAudioStream</code> and <code class="fm-code-in-text">download</code> utility methods, which complete <a id="marker-1016346"/>the requests <a id="marker-1016352"/>and proceed.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016413"/>Listing 4.10 HTTP request handler and dispatcher</p>
+  <pre class="programlisting">private void httpHandler(HttpServerRequest request) {
+  if ("/".equals(request.path())) {
+    openAudioStream(request);
+    return;
+  }
+  if (request.path().startsWith("/download/")) {
+    String sanitizedPath = request.path().substring(10).replaceAll("/", "");<span class="fm-combinumeral">❶</span>
+    download(sanitizedPath, request);
+    return;
+  }
+  request.response().setStatusCode(404).end();                              <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032265"/><span class="fm-combinumeral">❶</span> This string substitution prevents malicious attempts to read files from other directories (think of someone willing to read /etc/passwd).</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032286"/><span class="fm-combinumeral">❷</span> When nothing matches, we give a 404 (not found) response.</p>
+
+  <p class="body"><a id="pgfId-1016588"/>The implementation of the <code class="fm-code-in-text">openAudioStream</code> method is shown <a id="marker-1016577"/>in the following listing. It prepares the stream to be in <i class="fm-italics">chunking</i> mode, sets the proper <a id="marker-1016593"/>content type, and sets the response object aside for later.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016654"/>Listing 4.11 Dealing with new stream players</p>
+  <pre class="programlisting">private final Set&lt;HttpServerResponse&gt; streamers = new HashSet&lt;&gt;();   <span class="fm-combinumeral">❶</span>
+
+private void openAudioStream(HttpServerRequest request) {
+  HttpServerResponse response = request.response()
+    .putHeader("Content-Type", "audio/mpeg")
+    .setChunked(true);                                               <span class="fm-combinumeral">❷</span>
+  streamers.add(response);
+  response.endHandler(v -&gt; {
+    streamers.remove(response);                                      <span class="fm-combinumeral">❸</span>
+    logger.info("A streamer left");
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032028"/><span class="fm-combinumeral">❶</span> We track all current streamers in a set of HTTP responses.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032049"/><span class="fm-combinumeral">❷</span> It is a stream, so the length is unknown.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032066"/><span class="fm-combinumeral">❸</span> When a stream exits, it is no longer tracked. <a id="marker-1032071"/><a id="marker-1032072"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1016833"/>4.3.5 Downloading as efficiently as possible</h3>
+
+  <p class="body"><a id="pgfId-1016850"/><a id="marker-1016844"/><a id="marker-1016846"/>Downloading a file is a perfect example where back-pressure management can be used to coordinate a source stream (the file) and a sink stream (the HTTP response).</p>
+
+  <p class="body"><a id="pgfId-1016868"/>The following listing shows how we look for the file, and when it exists, we forward the final <a id="marker-1016857"/>download duty to the <code class="fm-code-in-text">downloadFile</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016928"/>Listing 4.12 Download method</p>
+  <pre class="programlisting">private void download(String path, HttpServerRequest request) {
+  String file = "tracks/" + path;
+  if (!vertx.fileSystem().existsBlocking(file)) {      <span class="fm-combinumeral">❶</span>
+    request.response().setStatusCode(404).end();
+    return;
+  }
+  OpenOptions opts = new OpenOptions().setRead(true);
+  vertx.fileSystem().open(file, opts, ar -&gt; {
+    if (ar.succeeded()) {
+      downloadFile(ar.result(), request);
+    } else {
+      logger.error("Read failed", ar.cause());
+      request.response().setStatusCode(500).end();
+    }
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031964"/><span class="fm-combinumeral">❶</span> Unless you are on a networked filesystem, the possible blocking time is marginal, so we avoid a nested callback level.</p>
+
+  <p class="body"><a id="pgfId-1017096"/>The implementation <a id="marker-1017085"/>of the <code class="fm-code-in-text">downloadFile</code> method is shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017156"/>Listing 4.13 Downloading a file</p>
+  <pre class="programlisting">private void downloadFile(AsyncFile file, HttpServerRequest request) {
+  HttpServerResponse response = request.response();
+  response.setStatusCode(200)
+    .putHeader("Content-Type", "audio/mpeg")
+    .setChunked(true);
+
+  file.handler(buffer -&gt; {
+    response.write(buffer);
+    if (response.writeQueueFull()) {                <span class="fm-combinumeral">❶</span>
+      file.pause();                                 <span class="fm-combinumeral">❷</span>
+      response.drainHandler(v -&gt; file.resume());    <span class="fm-combinumeral">❸</span>
+    }
+  });
+
+  file.endHandler(v -&gt; response.end());
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031764"/><span class="fm-combinumeral">❶</span> Writing too fast!</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031785"/><span class="fm-combinumeral">❷</span> Back-pressure application by pausing the read stream</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031802"/><span class="fm-combinumeral">❸</span> Resuming when drained</p>
+
+  <p class="body"><a id="pgfId-1017353"/>Back-pressure is taken care of while copying data between the two streams. This is so commonly done when the strategy is to pause the source and not lose any data that the same code can be rewritten as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017410"/>Listing 4.14 Pipe helper</p>
+  <pre class="programlisting">HttpServerResponse response = request.response();
+response.setStatusCode(200)
+  .putHeader("Content-Type", "audio/mpeg")
+  .setChunked(true);
+
+file.pipeTo(response);         <span class="fm-combinumeral">❶</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031700"/><span class="fm-combinumeral">❶</span> Pipes data from file to response</p>
+
+  <p class="body"><a id="pgfId-1017543"/>A pipe deals with back-pressure when copying <a id="marker-1017506"/>between a pausable <code class="fm-code-in-text">ReadStream</code> and a <code class="fm-code-in-text">WriteStream</code>. It also manages the end of the source stream and errors <a id="marker-1017532"/>on both streams. The code of listing 4.14 does exactly what’s shown in listing 4.13, but without the boilerplate. There are other variants of <code class="fm-code-in-text">pipeTo</code> for specifying custom handlers. <a id="marker-1017548"/><a id="marker-1017551"/></p>
+
+  <h3 class="fm-head1" id="heading_id_11"><a id="pgfId-1017557"/>4.3.6 Reading MP3 files, but not too fast</h3>
+
+  <p class="body"><a id="pgfId-1017580"/><a id="marker-1017568"/><a id="marker-1017570"/>MP3 files have a header containing metadata such as the artist name, genre, bit rate, and so on. Several frames containing compressed audio data follow, which decoders can turn into <i class="fm-italics">pulse-code modulation</i> data, which can eventually <a id="marker-1017585"/>be turned into sound.</p>
+
+  <p class="body"><a id="pgfId-1017595"/>MP3 decoders are very resilient to errors, so if they start decoding in the middle of a file, they will still manage to figure out the bit rate, and they will align with the next frame to start decoding the audio. You can even concatenate multiple MP3 files and send them to a player. The audio will be decoded as long as all files are using the same bit rate and stereo mode.</p>
+
+  <p class="body"><a id="pgfId-1017601"/>This is interesting for us as we design a music-streaming jukebox: if our files have been encoded in the same way, we can simply push each file of a playlist one after the other, and the decoders will handle the audio just fine.</p>
+
+  <p class="fm-head2"><a id="pgfId-1017607"/>Why back-pressure alone is not enough</p>
+
+  <p class="body"><a id="pgfId-1017627"/><a id="marker-1017618"/>Feeding MP3 data to many connected players is not as simple as it may seem. The main issue is ensuring that all current and future players are listening to the same music at <i class="fm-italics">roughly</i> the same time. All players have different local buffering strategies to ensure smooth playback, even when the network suffers delays, but if the server simply pushes files as fast as it can, not all clients will be synchronized. Worse, when a new player connects, it may receive nothing to play while the current players have several minutes of music remaining in their buffers. To provide a sensible playback experience, we need to control the pace at which files are read, and for that we will use a timer.</p>
+
+  <p class="body"><a id="pgfId-1017652"/>This is illustrated in figure 4.5, which shows what happens <i class="fm-italics">without</i> and <i class="fm-italics">with</i> rate control on the streams. In both cases, suppose that Player A joined the stream at the beginning, while Player B joined, say, 10 seconds later. Without read-rate control, we find ourselves in a similar case to that of downloading an MP3 file. We may have back-pressure in place to ensure efficient resource usage while copying MP3 data chunks to the connected clients, but the streaming experience will be very bad.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH04_F05_Ponge.png" width="1011" height="706"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1034968"/>Figure 4.5 Streaming without and with rate control</p>
+
+  <p class="body"><a id="pgfId-1017671"/>Since we are basically streaming data as fast as we can, Player A finds its internal buffers filled with almost all the current file data. While it may be playing at position 0 minutes 15 seconds, it has already received data beyond the 3-minute mark. When Player B joins, it starts receiving MP3 data chunks from much farther on in the file, so it starts playing at position 3 minutes and 30 seconds. If we extend our reasoning to multiple files, a new player can join and receive no data at all, while the previously connected players may have multiple songs to play in their internal buffers.</p>
+
+  <p class="body"><a id="pgfId-1017691"/>By contrast, if we control the read rate of the MP3 file, and hence the rate at which MP3 chunks are being copied and written to the connected players, we can ensure that they are all, more or less, at the same position.</p>
+
+  <p class="body"><a id="pgfId-1017697"/>Rate control here is all about ensuring that all players receive data fast enough so that they can play without interruption, but not too quickly so they do not buffer too much data. <a id="marker-1017702"/></p>
+
+  <p class="fm-head2"><a id="pgfId-1017708"/>Rate-limited streaming implementation</p>
+
+  <p class="body"><a id="pgfId-1017744"/><a id="marker-1017719"/>Let’s look at the <a id="marker-1017723"/>complete <code class="fm-code-in-text">Jukebox</code> verticle <code class="fm-code-in-text">start</code> method, as it shows <a id="marker-1017749"/>that much needed timer.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017847"/>Listing 4.15 <code class="fm-code-in-listingcaption">Jukebox</code> verticle class <code class="fm-code-in-listingcaption">start</code> method</p>
+  <pre class="programlisting">@Override
+public void start() {
+  EventBus eventBus = vertx.eventBus();
+  eventBus.consumer("jukebox.list", this::list);
+  eventBus.consumer("jukebox.schedule", this::schedule);
+  eventBus.consumer("jukebox.play", this::play);
+  eventBus.consumer("jukebox.pause", this::pause);
+
+  vertx.createHttpServer()
+    .requestHandler(this::httpHandler)
+    .listen(8080);
+
+  vertx.setPeriodic(100, this::streamAudioChunk);     <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031643"/><span class="fm-combinumeral">❶</span> streamAudioChunk periodically pushes new MP3 data (100 ms is purely empirical, so feel free to adjust it).</p>
+
+  <p class="body"><a id="pgfId-1017972"/>Beyond connecting the event-bus handlers and starting an HTTP server, the <code class="fm-code-in-text">start</code> method also defines a timer so that data is streamed every 100 milliseconds.</p>
+
+  <p class="body"><a id="pgfId-1018000"/>Next, we can look at the implementation <a id="marker-1017989"/>of the <code class="fm-code-in-text">streamAudioChunk</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018060"/>Listing 4.16 Streaming file chunks</p>
+  <pre class="programlisting">private AsyncFile currentFile;
+private long positionInFile;
+
+private void streamAudioChunk(long id) {
+  if (currentMode == State.PAUSED) {
+    return;
+  }
+  if (currentFile == null &amp;&amp; playlist.isEmpty()) {
+    currentMode = State.PAUSED;
+    return;
+  }
+  if (currentFile == null) {
+    openNextFile();
+  }
+  currentFile.read(Buffer.buffer(4096), 0, positionInFile, 4096, ar -&gt; {   <span class="fm-combinumeral">❶</span>
+    if (ar.succeeded()) {
+      processReadBuffer(ar.result());                                      <span class="fm-combinumeral">❷</span>
+    } else {
+      logger.error("Read failed", ar.cause());
+      closeCurrentFile();
+    }
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031502"/><span class="fm-combinumeral">❶</span> Buffers cannot be reused across I/O operations, so we need a new one.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031523"/><span class="fm-combinumeral">❷</span> This is where data is being copied to all players.</p>
+
+  <div class="fm-sidebar-block">
+    <p class="fm-sidebar-title"><a class="calibre9" id="pgfId-1035018"/>Why these values?</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1035019"/>Why do we read data every 100 milliseconds? And why read buffers of 4096 bytes?</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1035020"/>I have empirically found these values work well for 320 KBps constant bit rate MP3 files on my laptop. They ensured no drops in tests while preventing players from buffering too much data, and thus ending several seconds apart in the audio stream.</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1035021"/>Feel free to tinker with these values as you run the examples.</p>
+  </div>
+
+  <p class="body"><a id="pgfId-1018334"/>The code of <code class="fm-code-in-text">streamAudioChunk</code> reads blocks <a id="marker-1018317"/>of, at most, 4096 bytes. Since the method will always be called 10 times per second, it also needs to check whether anything <a id="marker-1018323"/>is being played at all. The <code class="fm-code-in-text">processReadBuffer</code> method streams data, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018394"/>Listing 4.17 Streaming data chunks to players</p>
+  <pre class="programlisting">private void processReadBuffer(Buffer buffer) {
+  positionInFile += buffer.length();
+  if (buffer.length() == 0) {                       <span class="fm-combinumeral">❶</span>
+    closeCurrentFile();
+    return;
+  }
+  for (HttpServerResponse streamer : streamers) {
+    if (!streamer.writeQueueFull()) {               <span class="fm-combinumeral">❷</span>
+      streamer.write(buffer.copy());                <span class="fm-combinumeral">❸</span>
+    }
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031297"/><span class="fm-combinumeral">❶</span> This happens when the end of the file has been reached.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031318"/><span class="fm-combinumeral">❷</span> Back-pressure again</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031335"/><span class="fm-combinumeral">❸</span> Remember, buffers cannot be reused.</p>
+
+  <p class="body"><a id="pgfId-1018569"/>For every HTTP response stream to a player, the method copies the read data. Note that we have another case of back-pressure management here: when the write queue of a client is full, we simply discard data. On the player’s end, this will result in audio drops, but since the queue is full on the server, it means that the player will have delays or drops anyway. Discarding data is fine, as MP3 decoders know how to recover, and it ensures that playback will remain closely on time with the other players.</p>
+
+  <p class="fm-callout"><a id="pgfId-1018585"/><span class="fm-callout-head">warning</span> Vert.x buffers cannot be reused once they have been written, as they are placed in a write queue. Reusing buffers will always result in bugs, so don’t look for unnecessary optimizations here.</p>
+
+  <p class="body"><a id="pgfId-1018591"/>Finally, the helper methods in the following listing enable the opening and closing of files.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018648"/>Listing 4.18 Opening and closing files</p>
+  <pre class="programlisting">private void openNextFile() {
+  OpenOptions opts = new OpenOptions().setRead(true);
+  currentFile = vertx.fileSystem()
+    .openBlocking("tracks/" + playlist.poll(), opts);    <span class="fm-combinumeral">❶</span>
+  positionInFile = 0;
+}
+
+private void closeCurrentFile() {
+  positionInFile = 0;
+  currentFile.close();
+  currentFile = null;
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031236"/><span class="fm-combinumeral">❶</span> Again, we use the blocking variant, but it will rarely be an issue for opening a file. <a id="marker-1031241"/><a id="marker-1031242"/><a id="marker-1031243"/><a id="marker-1031244"/><a id="marker-1031245"/></p>
+
+  <h2 class="fm-head" id="heading_id_12"><a id="pgfId-1018793"/>4.4 Parsing simple streams</h2>
+
+  <p class="body"><a id="pgfId-1018832"/><a id="marker-1018804"/><a id="marker-1018806"/>So far our dissection of the jukebox example has focused on the <code class="fm-code-in-text">Jukebox</code> verticle used to download <a id="marker-1018821"/>and stream MP3 data. Now it’s time to dissect the <code class="fm-code-in-text">NetControl</code> verticle, which exposes a TCP server on <a id="marker-1018837"/>port 3000 for receiving text commands to control what the jukebox plays. Extracting data from asynchronous data streams is a common requirement, and Vert.x provides effective tools for doing that.</p>
+
+  <p class="body"><a id="pgfId-1018847"/>The commands in our text protocol are of the following form:</p>
+  <pre class="programlisting">/action [argument]</pre>
+
+  <p class="body"><a id="pgfId-1018867"/>These are the actions:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1018873"/><code class="fm-code-in-text">/list</code>--Lists the files available for playback</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1018894"/><code class="fm-code-in-text">/play</code>--Ensures the stream plays</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1018911"/><code class="fm-code-in-text">/pause</code>--Pauses the stream</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1018946"/><code class="fm-code-in-text">/schedule file</code>--Appends <code class="fm-code-in-text">file</code> at the end of the playlist</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1018968"/>Each text line can have exactly one command, so the protocol <a id="marker-1018957"/>is said to be <i class="fm-italics">newline</i>-separated.</p>
+
+  <p class="body"><a id="pgfId-1018977"/>We need a parser for this, as buffers arrive in chunks that rarely correspond to one line each. For example, a first read buffer could contain the following:</p>
+  <pre class="programlisting">ettes.mp3
+/play
+/pa</pre>
+
+  <p class="body"><a id="pgfId-1019009"/>The next one may look like this:</p>
+  <pre class="programlisting">use
+/schedule right-here-righ</pre>
+
+  <p class="body"><a id="pgfId-1019035"/>And it may be followed by this:</p>
+  <pre class="programlisting">t-now.mp3</pre>
+
+  <p class="body"><a id="pgfId-1019071"/>What we actually want is reasoning about <i class="fm-italics">lines</i>, so the solution is to concatenate buffers as they arrive, and split them again on newlines so we have one line per buffer. Instead of manually assembling intermediary buffers, Vert.x offers a handy parsing helper with the <code class="fm-code-in-text">RecordParser</code> class. The parser ingests <a id="marker-1019076"/>buffers and emits new buffers with parsed data, either by looking for delimiters or by working with chunks of fixed size.</p>
+
+  <p class="body"><a id="pgfId-1019102"/>In our case, we need to look for newline delimiters in the stream. The following listing shows how to use <code class="fm-code-in-text">RecordParser</code> in the <code class="fm-code-in-text">NetControl</code> verticle.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019162"/>Listing 4.19 A <code class="fm-code-in-listingcaption">recordparser</code> based on newlines over a TCP server stream</p>
+  <pre class="programlisting">@Override
+public void start() {
+  vertx.createNetServer()
+    .connectHandler(this::handleClient)
+    .listen(3000);
+}
+
+private void handleClient(NetSocket socket) {
+  RecordParser.newDelimited("\n", socket)                <span class="fm-combinumeral">❶</span>
+    .handler(buffer -&gt; handleBuffer(socket, buffer))     <span class="fm-combinumeral">❷</span>
+    .endHandler(v -&gt; logger.info("Connection ended"));
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031107"/><span class="fm-combinumeral">❶</span> Parse by looking for new lines.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031128"/><span class="fm-combinumeral">❷</span> Now buffers are lines.</p>
+
+  <p class="body"><a id="pgfId-1019314"/>The parser is both a read and a write stream, as it functions as an adapter between two streams. It ingests intermediate buffers coming from the TCP socket, and it emits parsed data as new buffers. This is fairly transparent and simplifies the rest of the verticle implementation.</p>
+
+  <p class="body"><a id="pgfId-1019320"/>In the next listing, each buffer is known to be a line, so we can go directly to processing commands.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019377"/>Listing 4.20 Handling parsed buffers</p>
+  <pre class="programlisting">private void handleBuffer(NetSocket socket, Buffer buffer) {
+  String command = buffer.toString();                         <span class="fm-combinumeral">❶</span>
+  switch (command) {
+    case "/list":
+      listCommand(socket);
+      break;
+    case "/play":
+      vertx.eventBus().send("jukebox.play", "");
+      break;
+    case "/pause":
+      vertx.eventBus().send("jukebox.pause", "");
+      break;
+    default:
+      if (command.startsWith("/schedule ")) {
+        schedule(command);
+      } else {
+        socket.write("Unknown command\n");
+      }
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031027"/><span class="fm-combinumeral">❶</span> Buffer-to-string decoding with the default charset</p>
+
+  <p class="body"><a id="pgfId-1019556"/>The simple commands are in the <code class="fm-code-in-text">case</code> clauses, and the other commands <a id="marker-1019567"/>are in separate methods shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019628"/>Listing 4.21 Other commands</p>
+  <pre class="programlisting">private void schedule(String command) {
+  String track = command.substring(10);                         <span class="fm-combinumeral">❶</span>
+  JsonObject json = new JsonObject().put("file", track);
+  vertx.eventBus().send("jukebox.schedule", json);
+}
+
+private void listCommand(NetSocket socket) {
+  vertx.eventBus().request("jukebox.list", "", reply -&gt; {
+    if (reply.succeeded()) {
+      JsonObject data = (JsonObject) reply.result().body();
+      data.getJsonArray("files")
+        .stream().forEach(name -&gt; socket.write(name + "\n"));   <span class="fm-combinumeral">❷</span>
+    } else {
+      logger.error("/list error", reply.cause());
+    }
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030901"/><span class="fm-combinumeral">❶</span> The first 10 characters are for /schedule and a space.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030922"/><span class="fm-combinumeral">❷</span> We write each filename to the standard console output.</p>
+
+  <h2 class="fm-head" id="heading_id_13"><a id="pgfId-1019815"/>4.5 Parsing complex streams</h2>
+
+  <p class="body"><a id="pgfId-1019838"/><a id="marker-1019826"/><a id="marker-1019828"/>Streams can be more complex than just lines of text, and <code class="fm-code-in-text">RecordParser</code> can also simplify <a id="marker-1019843"/>our work with these. Let’s take the example of key/value database storage, where each key and value is a string.</p>
+
+  <p class="body"><a id="pgfId-1019889"/>In such a database, we could have entries such as <code class="fm-code-in-text">1 -&gt; {foo}</code> and <code class="fm-code-in-text">2 -&gt; {bar, baz}</code>, with <code class="fm-code-in-text">1</code> and <code class="fm-code-in-text">2</code> being keys. There are countless ways to define a serialization scheme for this type of data structure, so imagine that we must use the stream format in table 4.6.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1027010"/>Table 4.6 Database stream format</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="25%"/>
+      <col class="calibre4" span="1" width="75%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1027014"/>Data</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1027016"/>Description</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027018"/>Magic header</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027020"/>A sequence of bytes <code class="fm-code-in-figurecaption">1</code>, <code class="fm-code-in-figurecaption">2</code>, <code class="fm-code-in-figurecaption">3</code>, and <code class="fm-code-in-figurecaption">4</code> to identify the file type</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027022"/>Version</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027024"/>An integer with the database stream format version</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027026"/>Name</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027028"/>Name of the database as a string, ending with a newline character</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027030"/>Key length</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027032"/>Integer with the number of characters for the next key</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027034"/>Key name</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027036"/>A sequence of characters for the key name</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027038"/>Value length</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027040"/>Integer with the number of characters for the next value</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027042"/>Value</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027044"/>A sequence of characters for the value</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027046"/>(...)</p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1027048"/>Remaining <code class="fm-code-in-figurecaption">{key, value}</code> sequences</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1020193"/>The format mixes binary and text records, as the stream starts with a magic number, a version number, a name, and then a sequence of key and value entries. While the format in itself is questionable on some points, it is a good example to illustrate more complex parsing.</p>
+
+  <p class="body"><a id="pgfId-1020199"/>First of all, let’s have a program that writes a database to a file with two key/value entries. The following listing shows how to use the Vert.x filesystem APIs to open a file, append data to a buffer, and then write it.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020256"/>Listing 4.22 Writing a sample database to a file</p>
+  <pre class="programlisting">AsyncFile file = vertx.fileSystem().openBlocking("sample.db",
+  new OpenOptions().setWrite(true).setCreate(true));
+Buffer buffer = Buffer.buffer();
+
+buffer.appendBytes(new byte[] { 1, 2, 3, 4});   <span class="fm-combinumeral">❶</span>
+buffer.appendInt(2);                            <span class="fm-combinumeral">❷</span>
+buffer.appendString("Sample database\n");       <span class="fm-combinumeral">❸</span>
+
+String key = "abc";                             <span class="fm-combinumeral">❹</span>
+String value = "123456-abcdef";
+buffer
+  .appendInt(key.length())
+  .appendString(key)
+  .appendInt(value.length())
+  .appendString(value);
+
+key = "foo@bar";                                <span class="fm-combinumeral">❺</span>
+value = "Foo Bar Baz";
+buffer
+  .appendInt(key.length())
+  .appendString(key)
+  .appendInt(value.length())
+  .appendString(value);
+
+file.end(buffer, ar -&gt; vertx.close());</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030562"/><span class="fm-combinumeral">❶</span> Magic number</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030583"/><span class="fm-combinumeral">❷</span> Version</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030600"/><span class="fm-combinumeral">❸</span> Database name</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030617"/><span class="fm-combinumeral">❹</span> First entry</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030634"/><span class="fm-combinumeral">❺</span> Second entry</p>
+
+  <p class="body"><a id="pgfId-1020549"/>In this example we had little data, so we used a single buffer that we prepared wholly before writing it to the file, but we could equally use a buffer for the header and new buffers for each key/value entry.</p>
+
+  <p class="body"><a id="pgfId-1020568"/>Writing is easy, but what about reading it back? The interesting <a id="marker-1020557"/>property of <code class="fm-code-in-text">RecordParser</code> is that its parsing mode can be switched on the fly. We can start parsing buffers of fixed size 5, then switch to parsing based on tab characters, then chunks of 12 bytes, and so on.</p>
+
+  <p class="body"><a id="pgfId-1020577"/>The parsing logic is better expressed by splitting it into methods where each method corresponds to a parsing state: a method for parsing the database name, a method for parsing a value entry, and so on.</p>
+
+  <p class="body"><a id="pgfId-1020583"/>The following listing opens the file that we previously wrote and puts the <code class="fm-code-in-text">RecordParser</code> object into fixed mode, as we are looking for a sequence of four bytes that represents the magic header. The handler that we install is called when a magic number is read.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020649"/>Listing 4.23 Reading a database stream, step 1</p>
+  <pre class="programlisting">AsyncFile file = vertx.fileSystem().openBlocking("sample.db",
+  new OpenOptions().setRead(true));
+
+RecordParser parser = RecordParser.newFixed(4, file);           <span class="fm-combinumeral">❶</span>
+parser.handler(header -&gt; readMagicNumber(header, parser));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030493"/><span class="fm-combinumeral">❶</span> We first want to read the magic number.</p>
+
+  <p class="body"><a id="pgfId-1020737"/>The next listing provides the implementation of further methods.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020794"/>Listing 4.24 Reading a database stream, step 2</p>
+  <pre class="programlisting">private static void readMagicNumber(Buffer header, RecordParser parser) {
+  logger.info("Magic number: {}:{}:{}:{}", header.getByte(0), 
+  <span class="fm-code-continuation-arrow">➥</span> header.getByte(1), header.getByte(2), header.getByte(3));
+  parser.handler(version -&gt; readVersion(version, parser));
+}
+
+private static void readVersion(Buffer header, RecordParser parser) {
+  logger.info("Version: {}", header.getInt(0));
+  parser.delimitedMode("\n");                            <span class="fm-combinumeral">❶</span>
+  parser.handler(name -&gt; readName(name, parser));
+}
+
+private static void readName(Buffer name, RecordParser parser) {
+  logger.info("Name: {}", name.toString());
+  parser.fixedSizeMode(4);
+  parser.handler(keyLength -&gt; readKey(keyLength, parser));
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030412"/><span class="fm-combinumeral">❶</span> The parser mode can be switched on the fly.</p>
+
+  <p class="body"><a id="pgfId-1020947"/>The <code class="fm-code-in-text">readMagicNumber</code> method extracts the <a id="marker-1020958"/>four bytes of the magic number from a buffer. We know that the buffer is exactly four bytes since the parser was in fixed-sized mode.</p>
+
+  <p class="body"><a id="pgfId-1020990"/>The next entry is the database version, and it is an integer, so we don’t have to change the parser mode because an integer is four bytes. Once the version has been read, the <code class="fm-code-in-text">readVersion</code> method switches <a id="marker-1020979"/>to delimited mode to extract the database name. We then start looking for a key length, so we need a fixed-sized mode in <code class="fm-code-in-text">readName</code>.</p>
+
+  <p class="body"><a id="pgfId-1021028"/>The following listing reads the key name, the value length, and the proper <a id="marker-1021001"/>value, and <code class="fm-code-in-text">finishEntry</code> sets the parser to look for an integer and <a id="marker-1021017"/>delegates to <code class="fm-code-in-text">readKey</code>.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021088"/>Listing 4.25 Reading a database stream, step 3</p>
+  <pre class="programlisting">private static void readKey(Buffer keyLength, RecordParser parser) {
+  parser.fixedSizeMode(keyLength.getInt(0));
+  parser.handler(key -&gt; readValue(key.toString(), parser));
+}
+
+private static void readValue(String key, RecordParser parser) {
+  parser.fixedSizeMode(4);
+  parser.handler(valueLength -&gt; finishEntry(key, valueLength, parser));
+}
+
+private static void finishEntry(String key, Buffer valueLength, 
+<span class="fm-code-continuation-arrow">➥</span> RecordParser parser) {
+  parser.fixedSizeMode(valueLength.getInt(0));
+  parser.handler(value -&gt; {
+    logger.info("Key: {} / Value: {}", key, value);
+    parser.fixedSizeMode(4);
+    parser.handler(keyLength -&gt; readKey(keyLength, parser));
+  });
+}</pre>
+
+  <p class="body"><a id="pgfId-1021227"/>The next listing shows some sample output when reading the database file with the parsing methods of listings 4.23 through 4.25.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021284"/>Listing 4.26 Logs of reading the database stream</p>
+  <pre class="programlisting">DatabaseReader - Magic number: 1:2:3:4
+DatabaseReader - Version: 2
+DatabaseReader - Name: Sample database
+DatabaseReader - Key: abc / Value: 123456-abcdef
+DatabaseReader - Key: foo@bar / Value: Foo Bar Baz</pre>
+
+  <p class="body"><a id="pgfId-1021347"/>These on-the-fly parser mode and handler changes form a very simple yet effective way to parse complex streams.</p>
+
+  <p class="fm-callout"><a id="pgfId-1021363"/><span class="fm-callout-head">Tip</span> You may wonder how the parsing mode can be changed on the fly, while some further data is already available to the parser from the read stream. Remember that we are on an event loop, so parser handlers are processing parser records one at a time. When we switch from, say, delimiter mode to fixed-size mode, the next record is emitted by processing the remaining stream data based on a number of bytes rather than looking for a string. The same reasoning applies when switching from fixed-sized mode to delimiter mode. <a id="marker-1021365"/><a id="marker-1021368"/></p>
+
+  <h2 class="fm-head" id="heading_id_14"><a id="pgfId-1021374"/>4.6 A quick note on the stream fetch mode</h2>
+
+  <p class="body"><a id="pgfId-1021403"/><a id="marker-1021385"/><a id="marker-1021387"/>Before we wrap up this chapter, let’s go back to a detail <a id="marker-1021392"/>of the <code class="fm-code-in-text">ReadStream</code> interface that I deliberately left aside.</p>
+
+  <p class="body"><a id="pgfId-1021412"/>Introduced in Vert.x 3.6, the <i class="fm-italics">fetch</i> mode that I mentioned earlier in this chapter allows a stream consumer to request a number of data items, rather than the stream pushing data items to the consumer. This works by pausing the stream and then asking for a varying number of items to be fetched later on, as data is needed.</p>
+
+  <p class="body"><a id="pgfId-1021427"/>We could rewrite the jukebox file-streaming code with the fetch mode, but we would still need a timer to dictate the pace. In this case, manually reading a buffer of 4096 bytes or requesting 4096 to be fetched is not that different.</p>
+
+  <p class="body"><a id="pgfId-1021433"/>Instead, let’s go back to the database reading example. The read stream pushed events in listings 4.23 through 4.25. Switching to fetch mode and pulling data does not require many changes. The following listing shows the stream initialization code.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021490"/>Listing 4.27 Putting a read stream in fetch mode</p>
+  <pre class="programlisting">RecordParser parser = RecordParser.newFixed(4, file);
+parser.pause();                                           <span class="fm-combinumeral">❶</span>
+parser.fetch(1);                                          <span class="fm-combinumeral">❷</span>
+parser.handler(header -&gt; readMagicNumber(header, parser));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030212"/><span class="fm-combinumeral">❶</span> The stream won’t push events.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030240"/><span class="fm-combinumeral">❷</span> We ask for one element (here, a buffer).</p>
+
+  <p class="body"><a id="pgfId-1021627"/>Remember that the <code class="fm-code-in-text">RecordParser</code> decorates the file <a id="marker-1021606"/>stream. It is paused, and then the <code class="fm-code-in-text">fetch</code> method asks for one element. Since the parser emits buffers of parsed data, asking for one element in this example means asking for a buffer of four bytes (the magic number). Eventually, the parser handler will be called to process the requested buffer, and nothing else will happen until another call to the <code class="fm-code-in-text">fetch</code> method is made.</p>
+
+  <p class="body"><a id="pgfId-1021636"/>The following listing shows two of the parsing handler methods and their adaptation to the fetch mode.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021693"/>Listing 4.28 Fetching stream data as needed</p>
+  <pre class="programlisting">private static void readMagicNumber(Buffer header, RecordParser parser) {
+  logger.info("Magic number: {}:{}:{}:{}", header.getByte(0), 
+  <span class="fm-code-continuation-arrow">➥</span> header.getByte(1), header.getByte(2), header.getByte(3));
+  parser.handler(version -&gt; readVersion(version, parser));
+  parser.fetch(1);                                           <span class="fm-combinumeral">❶</span>
+}
+// (...)
+
+private static void finishEntry(String key, Buffer valueLength, 
+<span class="fm-code-continuation-arrow">➥</span> RecordParser parser) {
+  parser.fixedSizeMode(valueLength.getInt(0));
+  parser.handler(value -&gt; {
+    logger.info("Key: {} / Value: {}", key, value);
+    parser.fixedSizeMode(4);
+    parser.handler(keyLength -&gt; readKey(keyLength, parser));
+    parser.fetch(1);
+  });
+  parser.fetch(1);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1030113"/><span class="fm-combinumeral">❶</span> Here one item is a parser record.</p>
+
+  <p class="body"><a id="pgfId-1021853"/>The only difference between the two modes is that we need to request elements by calling <code class="fm-code-in-text">fetch</code>. You will not likely need to play with fetch mode while writing Vert.x applications, but if you ever need to manually control a read stream, it is a useful tool to have.</p>
+
+  <p class="body"><a id="pgfId-1021891"/>In many circumstances, having data <a id="marker-1021870"/>being <i class="fm-italics">pushed</i> is all you need, and the requester can manage the back-pressure by signaling when pausing is needed. If you have a case where it is easier for the requester to let the source know how many items it can handle, then <i class="fm-italics">pulling</i> data is a better option for managing the back-pressure. Vert.x streams are quite flexible here.</p>
+
+  <p class="body"><a id="pgfId-1021900"/>The next chapter focuses on other models besides callbacks for asynchronous programming with Vert.x. <a id="marker-1021902"/><a id="marker-1021905"/></p>
+
+  <h2 class="fm-head" id="heading_id_15"><a id="pgfId-1021911"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1021945"/>Vert.x streams model asynchronous event and data flows, and they can be used in both <i class="fm-italics1">push</i> and <i class="fm-italics1">pull/fetch</i> modes.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1021954"/>Back-pressure management is essential for ensuring the coordinated exchange of events between asynchronous systems, and we illustrated this through MP3 audio streaming across multiple devices and direct downloads.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1021964"/>Streams can be parsed for simple and complex data, illustrated here by a networked control interface for an audio streaming service.</p>
+    </li>
+  </ul>
+</div></body>
+</html>

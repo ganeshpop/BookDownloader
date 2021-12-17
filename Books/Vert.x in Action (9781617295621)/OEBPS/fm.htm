@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2">front matter</h1>
+  </div>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1015055"/>foreword</h2>
+
+  <p class="body"><a id="pgfId-1015615"/>I first ran across Vert.x in 2014 when I was the CTO at jClarity, a start-up I’d co-founded with Ben Evans and Kirk Pepperdine. We were building a SaaS that needed to receive large amounts of telemetry data, run analytics over it, and then present tuning recommendations to the end-user. Our use case required non-blocking, asynchronous communication, multi-tenancy (cost savings!), the ability to talk to data stores, and decent support for secured WebSockets. It would need to be a distributed system that scaled. Enter Vert.x!</p>
+
+  <p class="body"><a id="pgfId-1015616"/>John Oliver, our Chief Scientist, discovered this flexible framework for building asynchronous applications. Vert.x could do it all. It had blazing performance, thanks to its Netty base, and it supported all other functional and non-functional requirements. Even better was that it was backed by a bunch of brilliant, humble, and friendly engineers, such as Julien Ponge, the author of this book.</p>
+
+  <p class="body"><a id="pgfId-1015617"/>Vert.x is deliberately a non-prescriptive framework, in that it doesn’t guide you down a narrow path like, say, Spring Boot does. It's more like a toolkit of high-quality tools that are designed to work together, but you have to decide how to integrate them. That's where this book becomes your indispensable guide.</p>
+
+  <p class="body"><a id="pgfId-1015618"/>Part one of the book exposes the two main building blocks, the Verticle processing unit and the event bus, along with how the asynchronous programming model works with them. But part two is where the real value lies. Julien guides you through the best practices around designing a reactive application and plugging in Vert.x capabilities such as Data Storage and the web-stack.</p>
+
+  <p class="body"><a id="pgfId-1015619"/>Strangely, for me it's the awesome testing chapter that brings the most value; testing reactive applications is just plain hard, and you'll really appreciate this chapter!</p>
+
+  <p class="body"><a id="pgfId-1015620"/>It’s an absolute privilege and pleasure to have read this book, even if it reminded me of where we’d gone wrong in a few places! Not to worry, though; we took Vert.x along with us when we got acquired by Microsoft, and this book will be the perfect companion to help us complete our story on a truly global scale.</p>
+
+  <p class="body"><a id="pgfId-1015622"/>Martijn Verburg--“The Diabolical Developer”Principal SWE Group Manager (Java)--Microsoft</p>
+
+  <h2 class="fm-head" id="heading_id_4"><a id="pgfId-1015059"/>preface</h2>
+
+  <p class="body"><a id="pgfId-1015060"/>I remember sitting in a comfortable cinema room at Devoxx Belgium 2012. Among the many conferences that I had planned to attend was one with Tim Fox introducing his new project called <i class="fm-italics">Vert.x</i>. At the time, Node.js was all the hype, returning to asynchronous programming as the magic solution to all scalability problems. Through his presentation, Tim convinced me (and many other attendees) that he had just laid down a solid foundation for asynchronous programming on the JVM, embracing the strength of the Java ecosystem and picking the good ideas from Node.js. One thing that struck me at the time was that you could write simple Java code, and forget complex annotation-based frameworks and application servers. Vert.x felt like a breath of fresh air, so I kept an eye on the project. Fast-forward a few years: I am now working in the Vert.x team at Red Hat, something I wouldn’t have imagined back in 2012!</p>
+
+  <p class="body"><a id="pgfId-1015061"/>Vert.x is increasingly relevant in an era when applications are deployed to virtualized environments and containers. We expect applications to scale up and down to accommodate fluctuating traffic. We expect applications to have low latency. We expect applications to be resilient when other systems fail. We expect to pack as many applications as possible onto a given server. In short, we need resource-efficient, scalable, and dependable applications.</p>
+
+  <p class="body"><a id="pgfId-1015062"/>This is what <i class="fm-italics">reactive applications</i> are all about: latency is under control both as the workload grows and when failures happen. Vert.x is a solid foundation for building such reactive applications, but Vert.x alone is no silver bullet. You don’t build reactive applications by taking a software stack off the shelf; you also need a methodology as you architect and develop a reactive application.</p>
+
+  <p class="body"><a id="pgfId-1015063"/>In this book we will explore how to write reactive applications with Vert.x. This is not just about learning Vert.x, but also the fundamentals of asynchronous programming and techniques to assess whether an application is truly reactive or not. Last but not least, Vert.x is fun, and you will see that this simplicity and forgetting about some supposed “best practices” can be liberating.</p>
+
+  <h2 class="fm-head" id="heading_id_5"><a id="pgfId-1015064"/>acknowledgments</h2>
+
+  <p class="body"><a id="pgfId-1015065"/>My first thanks go to my partner Marie and my son Mathieu for their incredible support. Writing a book takes some time away from your family, and I am very lucky to have them by my side.</p>
+
+  <p class="body"><a id="pgfId-1015066"/>I am grateful to be working with exceptional people at Red Hat. Thanks to Mark Little, David Ingham, Rodney Russ, and Julien Viet who gave me the opportunity to first take a sabbatical to work on Vert.x with Red Hat, and then to move to a full-time position. Many thanks to my closest colleagues Julien Viet, Thomas Segismont, Clément Escoffier, Paulo Lopes, Rodney Russ, Stéphane Épardaud, and Francesco Guardiani: working with all of you is a privilege.</p>
+
+  <p class="body"><a id="pgfId-1015067"/>I started writing this book while I was still working as an Associate Professor at INSA Lyon, and I was fortunate enough to receive warm support in my career choices. Thanks to Fabrice Valois, Frédéric Le Mouël, Nicolas Stouls, Oscar Carillo, François Lesueur, and Éric Maurincomme.</p>
+
+  <p class="body"><a id="pgfId-1015068"/>It is an honor for me that Martijn Verburg wrote the foreword for this book. Martijn is a historical figure in the Vert.x project, and he showed early on that Vert.x was production-grade for building challenging services at his jClarity startup, later bought by Microsoft. Thanks a lot, Martijn.</p>
+
+  <p class="body"><a id="pgfId-1015069"/>The Manning MEAP program gave me the opportunity to receive lots of feedback as the writing progressed; thanks to everyone who contacted me with remarks, typos, and suggestions.</p>
+
+  <p class="body"><a id="pgfId-1015070"/>In fact, having written for Manning, I now understand why their books are so good. Manning is very serious about investing in authors and books. Many thanks to my development editor Lesley Trites for her always positive and constructive guidance, and to Kristen Watterson who started the book with me. Thanks to Michael Stephens for being enthusiastic about writing a book on reactive applications in Java. Many thanks to Raphael Vilella for his accurate technical feedback as I was writing chapters, and to Evyatar Kafkafi for his excellent technical proofreading. Also, thanks to Candace Gillhoolley from marketing, who I had the chance to meet at the Reactive Summit 2018 held in Montreal.</p>
+
+  <p class="body"><a id="pgfId-1015071"/>To all the reviewers: Michał Ambroziewicz, Andrew Buttery, Salvatore Campagna, Philippe Charrière, Ahmed Chicktay, John Clingan, Earl Benjamin Bingham, Arnaud Esteve, Damian Esteban, Leonardo Jose Gomes da Silva, Evyatar Kafkafi, Alexandros Koufoudakis, Sanket Naik, Eoghan O’Donnell, Dan Sheikh, Jerry Stralko, George Thomas, Evan Wallace, James Watson, and Matthew Welke, your suggestions helped make this a better book.</p>
+
+  <h2 class="fm-head" id="heading_id_6"><a id="pgfId-1015072"/>about this book</h2>
+
+  <p class="body"><a id="pgfId-1015073"/>Asynchronous and reactive applications are an important topic in modern distributed systems, especially as the progressive shift to virtualized and containerized runtime environments emphasizes the need for resource-efficient, adaptable, and dependable application designs.</p>
+
+  <p class="body"><a id="pgfId-1015074"/>Asynchronous programming is key to maximizing hardware resource usage, as it allows us to deal with more concurrent connections than in traditional blocking I/O paradigms. Services need to cater to workloads that may drastically change from one hour to the next, so we need to design code that naturally supports horizontal scalability. Last but not least, failure is inevitable when we have services interacting with other services over the network. Embracing failure is key to designing dependable systems.</p>
+
+  <p class="body"><a id="pgfId-1015075"/>Combine asynchronous programming, horizontal scalability, and resilience, and you have what we today call <i class="fm-italics">reactive applications</i>, which can also be summarized without marketing jargon as “scalable and dependable applications.”</p>
+
+  <p class="body"><a id="pgfId-1015076"/>That being said, there is no free lunch, and the transition to writing asynchronous and reactive applications is difficult when you have a background in more traditional software stacks. Grokking asynchrony in itself is difficult, but the implications of scalability and resilience on the design of an application are anything but trivial.</p>
+
+  <p class="body"><a id="pgfId-1015077"/>This book is aimed at Java developers from all backgrounds who would like to teach themselves both the concepts and practices of building asynchronous and reactive applications. This book uses Eclipse Vert.x, a “no-magic” toolkit for writing such applications. Developers appreciate Vert.x for its simplicity, easy embedding, and field-tested performance.</p>
+
+  <h3 class="fm-head1" id="heading_id_7"><a id="pgfId-1015079"/>Who should read this book</h3>
+
+  <p class="body"><a id="pgfId-1015080"/>This book is intended for intermediate Java developers familiar with web development, networked services, and enterprise Java frameworks like Spring or Java EE. No prior experience in asynchronous or reactive programming is required.</p>
+
+  <h3 class="fm-head1" id="heading_id_8"><a id="pgfId-1015082"/>How this book is organized: A roadmap</h3>
+
+  <p class="body"><a id="pgfId-1015083"/><i class="fm-italics">Vert.x in Action</i> is split into two parts.</p>
+
+  <p class="body"><a id="pgfId-1015084"/>Part 1 covers the fundamentals of asynchronous programming and the core APIs of Vert.x:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1015085"/>Chapter 1 is an introduction to Vert.x, asynchronous programming, and Vert.x. If you have never been exposed to asynchronous programming before, this chapter will take you back to the core non-blocking APIs in Java, and it will show you why Vert.x provides a more approachable programming model. This chapter also discusses the need for reactive in modern distributed systems.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015086"/>Chapter 2 introduces <i class="fm-italics1">verticles</i>, the core building blocks for writing non-blocking code in Vert.x. Since you will sometimes need to call blocking or long-running operations, this chapter also gives you tools and techniques for mixing blocking and non-blocking code.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015087"/>Chapter 3 presents the <i class="fm-italics1">event bus</i>, an eventing system verticles use to communicate. The nice thing about the event bus is that it allows verticles to communicate not just within a single process but also across a cluster, which makes it a powerful abstraction.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015088"/>Chapter 4 discusses asynchronous streams, with a focus on the notion of <i class="fm-italics1">back-pressure</i> which is required to regulate the flow of events between consumers and producers.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015089"/>Chapter 5 shows you how to use other asynchronous programming models than callbacks. While callbacks are simple and efficient, there are many cases where they render the coordination of asynchronous operations difficult. Vert.x can mix and match different models: futures and promises, reactive extensions, and Kotlin coroutines.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015090"/>Chapter 6 revisits the event bus and introduces event-bus services, a component abstraction on top of the event bus. Since the event bus serves as a natural delimitation between event-processing units, this chapter also discusses how to write tests in Vert.x.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1015091"/>Part 2 of the book focuses on building a realistic reactive application:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1015092"/>Chapter 7 presents a realistic reactive application use case that will be used throughout the chapters of part 2. The application is composed of multiple event-driven microservices that we will specify.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015093"/>Chapter 8 exposes some key elements of the Vert.x web stack: designing HTTP APIs, JSON web tokens, cross-origin resource sharing, and integrating with a modern web application frontend.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015094"/>Chapter 9 is all about messaging and event streaming. We’ll cover the AMQP protocol used in message brokers, Apache Kafka, and sending emails over SMTP.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015095"/>Chapter 10 covers databases and persistent state management with Vert.x. It shows how to use MongoDB (a so-called NoSQL database) and the PostgreSQL relational database for which Vert.x offers a native reactive client.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015096"/>Chapter 11 tackles end-to-end real-time reactive event processing with RxJava and Apache Kafka. This chapter also discusses how to connect JavaScript web applications to the Vert.x event bus for a unified programming model.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015097"/>Chapter 12 is highly experimental and provides techniques to assess whether a service is actually reactive. By using load and chaos testing tools, we’ll observe a service’s behavior and discuss failure mitigation techniques such as circuit breakers, and their impact on the service’s overall behavior.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015098"/>Chapter 13 is the final chapter, and it discusses Vert.x applications running in container environments. We’ll discuss clustering, application configuration, and service discovery using simple mechanisms. You’ll see how to package Vert.x services as container images, deploy them to a Kubernetes cluster, and expose health checks and metrics.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1015099"/>Chapters 1 to 6 are intended for all readers. Some parts can be skipped if you already have some experience with asynchronous programming.</p>
+
+  <p class="body"><a id="pgfId-1015100"/>Chapter 7 shows the decomposition of an application based on event-driven reactive services.</p>
+
+  <p class="body"><a id="pgfId-1015101"/>Chapters 8 to 11 cover the most popular pieces of the Vert.x stack and should be useful for all readers interested in becoming proficient with Vert.x.</p>
+
+  <p class="body"><a id="pgfId-1015102"/>Chapter 12 is where we consolidate everything and touch on the topic of resiliency, which is fundamental to making reactive applications. This chapter can nearly be read on its own by anyone interested in load and chaos testing. Indeed, there is less code and more hands-on content in this chapter, and you could apply the same methodology to a service written in a stack other than Vert.x.</p>
+
+  <p class="body"><a id="pgfId-1015103"/>Finally, chapter 13 can be skipped if you are not interested in containers and Kubernetes.</p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1015104"/>About the code</h3>
+
+  <p class="body"><a id="pgfId-1015105"/>The source code of the book’s examples can be downloaded free of charge from the GitHub repository at <span class="fm-hyperlink"><a href="https://github.com/jponge/vertx-in-action">https://github.com/jponge/vertx-in-action</a></span> or from the Manning website at <span class="fm-hyperlink"><a href="https://www.manning.com/books/vertx-in-action">www.manning.com/books/vertx-in-action</a></span>.</p>
+
+  <p class="body"><a id="pgfId-1015107"/>The samples require Java 8 or 11 to compile. Maven and Gradle builds are provided. An installation of Docker is required to run the tests and examples for the chapters in part 2. The book’s workflow is better in a Unix environment: Linux, macOS, or the Microsoft Windows Subsystem for Linux (WSL). I use a few command-line tools that you may have to install; details are given in the corresponding chapters.</p>
+
+  <p class="body"><a id="pgfId-1015108"/>This book contains many examples of source code, both in numbered listings and in line with normal text. In both cases, source code is formatted in a <code class="fm-code-in-text">fixed-width font like this</code> to separate it from ordinary text. In many cases, the original source code has been reformatted; we’ve added line breaks and reworked indentation to accommodate the available page space in the book. Additionally, comments in the source code have often been removed from the listings when the code is described in the text. Code annotations accompany many of the listings, highlighting important concepts.</p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1015110"/>liveBook discussion forum</h3>
+
+  <p class="body"><a id="pgfId-1015112"/>Purchase of Vert.x in Action includes free access to a private web forum run by Manning Publications where you can make comments about the book, ask technical questions, and receive help from the author and from other users. To access the forum, go to <span class="fm-hyperlink"><a href="https://livebook.manning.com/#!/book/vertx-in-action/discussion">https://livebook.manning.com/#!/book/vertx-in-action/discussion</a></span>. You can also learn more about Manning’s forums and the rules of conduct at <span class="fm-hyperlink"><a href="https://livebook.manning.com/#!/discussion">https://livebook .manning.com/#!/discussion</a></span>.</p>
+
+  <p class="body"><a id="pgfId-1015114"/>Manning’s commitment to our readers is to provide a venue where a meaningful dialogue between individual readers and between readers and the author can take place. It is not a commitment to any specific amount of participation on the part of the author, whose contribution to the forum remains voluntary (and unpaid). We suggest you try asking the author some challenging questions lest his interest stray! The forum and the archives of previous discussions will be accessible from the publisher’s website as long as the book is in print.</p>
+
+  <h2 class="fm-head" id="heading_id_11"><a id="pgfId-1015115"/>about the author</h2>
+
+  <p class="body"><a id="pgfId-1015116"/>Dr. Julien Ponge is a Principal Software Engineer at Red Hat, working on reactive and the Eclipse Vert.x project. He is on leave from INSA Lyon and the CITI Laboratory where he was an Associate Professor in computer science and engineering. He held various teaching, research, management, and executive positions there. He has 20 years of experience in open source ecosystems, having participated in many projects and created the likes of IzPack and the Eclipse Golo programming language. He is also a regular speaker at user groups and conferences. He is an alumni from Université Clermont Auvergne (France) and the University of New South Wales (Australia) where he obtained his PhD degrees.</p>
+
+  <h2 class="fm-head" id="heading_id_12"><a id="pgfId-1015118"/>about the cover illustration</h2>
+
+  <p class="body"><a id="pgfId-1015119"/>The figure on the cover of Vert.x in Action is captioned “Femme Kourilienne,” or a woman from the Kurile Islands. The illustration is taken from a collection of dress costumes from various countries by Jacques Grasset de Saint-Sauveur (1757-1810), titled Costumes de Différents Pays, published in France in 1797. Each illustration is finely drawn and colored by hand. The rich variety of Grasset de Saint-Sauveur’s collection reminds us vividly of how culturally apart the world’s towns and regions were just 200 years ago. Isolated from each other, people spoke different dialects and languages. In the streets or in the countryside, it was easy to identify where they lived and what their trade or station in life was just by their dress.</p>
+
+  <p class="body"><a id="pgfId-1015120"/>The way we dress has changed since then and the diversity by region, so rich at the time, has faded away. It is now hard to tell apart the inhabitants of different continents, let alone different towns, regions, or countries. Perhaps we have traded cultural diversity for a more varied personal life--certainly for a more varied and fast-paced technological life.</p>
+
+  <p class="body"><a id="pgfId-1015121"/>At a time when it is hard to tell one computer book from another, Manning celebrates the inventiveness and initiative of the computer business with book covers based on the rich diversity of regional life of two centuries ago, brought back to life by Grasset de Saint-Sauveur’s pictures.</p>
+
+  <p class="fm-copyright"><a class="calibre9" id="pgfId-1002241"/></p>
+</div></body>
+</html>

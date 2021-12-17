@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+<head>
+<meta content="ID:ISBN:9780596006969" name="dtb:uid"/>
+<meta content="2" name="dtb:depth"/>
+<meta content="0" name="dtb:totalPageCount"/>
+<meta content="0" name="dtb:maxPageNumber"/>
+</head>
+<docTitle><text>Hibernate: A Developer's Notebook</text></docTitle>
+<docAuthor><text>James Elliott</text></docAuthor>
+<navMap><navPoint id="urn:orm:book:0596006969:chapter:0596006969_hibernate_a_developers_notebook.html" playOrder="1"><navLabel><text>Hibernate: A Developer&#x27;s Notebook™</text></navLabel><content src="0596006969_hibernate_a_developers_notebook.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_preface.html" playOrder="2"><navLabel><text>Preface</text></navLabel><content src="0596006969_preface.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_how_to_use_this_book.html" playOrder="3"><navLabel><text>How to Use This Book</text></navLabel><content src="0596006969_how_to_use_this_book.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_font_conventions.html" playOrder="4"><navLabel><text>Font Conventions</text></navLabel><content src="0596006969_font_conventions.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_on_the_web_site.html" playOrder="5"><navLabel><text>On the Web Site</text></navLabel><content src="0596006969_on_the_web_site.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_xhow_to_contact_us.html" playOrder="6"><navLabel><text>How to Contact Us</text></navLabel><content src="0596006969_xhow_to_contact_us.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_acknowledgments.html" playOrder="7"><navLabel><text>Acknowledgments</text></navLabel><content src="0596006969_acknowledgments.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_installation_and_setup.html" playOrder="8"><navLabel><text>Installation and Setup</text></navLabel><content src="0596006969_installation_and_setup.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_getting_an_ant_distribution.html" playOrder="9"><navLabel><text>Getting an Ant Distribution</text></navLabel><content src="0596006969_getting_an_ant_distribution.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_getting_the_hsqldb_database_engine.html" playOrder="10"><navLabel><text>Getting the HSQLDB Database Engine</text></navLabel><content src="0596006969_getting_the_hsqldb_database_engine.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_setting_up_a_project_hierarchy.html" playOrder="11"><navLabel><text>Setting Up a Project Hierarchy</text></navLabel><content src="0596006969_setting_up_a_project_hierarchy.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_introduction_to_mapping.html" playOrder="12"><navLabel><text>Introduction to Mapping</text></navLabel><content src="0596006969_introduction_to_mapping.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_writing_a_mapping_document.html" playOrder="13"><navLabel><text>Writing a Mapping Document</text></navLabel><content src="0596006969_writing_a_mapping_document.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_generating_some_class.html" playOrder="14"><navLabel><text>Generating Some Class</text></navLabel><content src="0596006969_generating_some_class.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_cooking_up_a_schema.html" playOrder="15"><navLabel><text>Cooking Up a Schema</text></navLabel><content src="0596006969_cooking_up_a_schema.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_connecting_hibernate_to_mysql.html" playOrder="16"><navLabel><text>Connecting Hibernate to MySQL</text></navLabel><content src="0596006969_connecting_hibernate_to_mysql.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_harnessing_hibernate.html" playOrder="17"><navLabel><text>Harnessing Hibernate</text></navLabel><content src="0596006969_harnessing_hibernate.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_creating_persistent_objects.html" playOrder="18"><navLabel><text>Creating Persistent Objects</text></navLabel><content src="0596006969_creating_persistent_objects.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_finding_persistent_objects.html" playOrder="19"><navLabel><text>Finding Persistent Objects</text></navLabel><content src="0596006969_finding_persistent_objects.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_better_ways_to_build_queries.html" playOrder="20"><navLabel><text>Better Ways to Build Queries</text></navLabel><content src="0596006969_better_ways_to_build_queries.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_collections_and_associations.html" playOrder="21"><navLabel><text>Collections and Associations</text></navLabel><content src="0596006969_collections_and_associations.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_mapping_collections.html" playOrder="22"><navLabel><text>Mapping Collections</text></navLabel><content src="0596006969_mapping_collections.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_persisting_collections.html" playOrder="23"><navLabel><text>Persisting Collections</text></navLabel><content src="0596006969_persisting_collections.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_retrieving_collections.html" playOrder="24"><navLabel><text>Retrieving Collections</text></navLabel><content src="0596006969_retrieving_collections.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_using_bidirectional_associations.html" playOrder="25"><navLabel><text>Using Bidirectional Associations</text></navLabel><content src="0596006969_using_bidirectional_associations.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_working_with_simple_collections.html" playOrder="26"><navLabel><text>Working with Simple Collections</text></navLabel><content src="0596006969_working_with_simple_collections.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_richer_associations.html" playOrder="27"><navLabel><text>Richer Associations</text></navLabel><content src="0596006969_richer_associations.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_using_lazy_associations.html" playOrder="28"><navLabel><text>Using Lazy Associations</text></navLabel><content src="0596006969_using_lazy_associations.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_ordered_collections.html" playOrder="29"><navLabel><text>Ordered Collections</text></navLabel><content src="0596006969_ordered_collections.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_augmenting_associations_in_collections.html" playOrder="30"><navLabel><text>Augmenting Associations in Collections</text></navLabel><content src="0596006969_augmenting_associations_in_collections.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_lifecycle_associations.html" playOrder="31"><navLabel><text>Lifecycle Associations</text></navLabel><content src="0596006969_lifecycle_associations.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_reflexive_associations.html" playOrder="32"><navLabel><text>Reflexive Associations</text></navLabel><content src="0596006969_reflexive_associations.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_persistent_enumerated_types.html" playOrder="33"><navLabel><text>Persistent Enumerated Types</text></navLabel><content src="0596006969_persistent_enumerated_types.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_defining_a_persistent_enumerated_type.html" playOrder="34"><navLabel><text>Defining a Persistent Enumerated Type</text></navLabel><content src="0596006969_defining_a_persistent_enumerated_type.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_working_with_persistent_enumerations.html" playOrder="35"><navLabel><text>Working with Persistent Enumerations</text></navLabel><content src="0596006969_working_with_persistent_enumerations.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_custom_value_types.html" playOrder="36"><navLabel><text>Custom Value Types</text></navLabel><content src="0596006969_custom_value_types.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_defining_a_user_type.html" playOrder="37"><navLabel><text>Defining a User Type</text></navLabel><content src="0596006969_defining_a_user_type.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_using_a_custom_type_mapping.html" playOrder="38"><navLabel><text>Using a Custom Type Mapping</text></navLabel><content src="0596006969_using_a_custom_type_mapping.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_building_a_composite_user_type.html" playOrder="39"><navLabel><text>Building a Composite User Type</text></navLabel><content src="0596006969_building_a_composite_user_type.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_criteria_queries.html" playOrder="40"><navLabel><text>Criteria Queries</text></navLabel><content src="0596006969_criteria_queries.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_using_simple_criteria.html" playOrder="41"><navLabel><text>Using Simple Criteria</text></navLabel><content src="0596006969_using_simple_criteria.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_compounding_criteria.html" playOrder="42"><navLabel><text>Compounding Criteria</text></navLabel><content src="0596006969_compounding_criteria.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_applying_criteria_to_associations.html" playOrder="43"><navLabel><text>Applying Criteria to Associations</text></navLabel><content src="0596006969_applying_criteria_to_associations.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_querying_by_example.html" playOrder="44"><navLabel><text>Querying by Example</text></navLabel><content src="0596006969_querying_by_example.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_a_look_at_hql.html" playOrder="45"><navLabel><text>A Look at HQL</text></navLabel><content src="0596006969_a_look_at_hql.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_writing_hql_queries.html" playOrder="46"><navLabel><text>Writing HQL Queries</text></navLabel><content src="0596006969_writing_hql_queries.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_selecting_properties_and_pieces.html" playOrder="47"><navLabel><text>Selecting Properties and Pieces</text></navLabel><content src="0596006969_selecting_properties_and_pieces.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_sorting.html" playOrder="48"><navLabel><text>Sorting</text></navLabel><content src="0596006969_sorting.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_working_with_aggregate_values.html" playOrder="49"><navLabel><text>Working with Aggregate Values</text></navLabel><content src="0596006969_working_with_aggregate_values.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_writing_native_sql_queries.html" playOrder="50"><navLabel><text>Writing Native SQL Queries</text></navLabel><content src="0596006969_writing_native_sql_queries.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_hibernate_types.html" playOrder="51"><navLabel><text>Hibernate Types</text></navLabel><content src="0596006969_hibernate_types.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_basic_types.html" playOrder="52"><navLabel><text>Basic Types</text></navLabel><content src="0596006969_basic_types.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_persistent_enumerated_types-id001.html" playOrder="53"><navLabel><text>Persistent Enumerated Types</text></navLabel><content src="0596006969_persistent_enumerated_types-id001.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_custom_value_types-id001.html" playOrder="54"><navLabel><text>Custom Value Types</text></navLabel><content src="0596006969_custom_value_types-id001.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_any_type_mappings.html" playOrder="55"><navLabel><text>&quot;Any&quot; Type Mappings</text></navLabel><content src="0596006969_any_type_mappings.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_all_types.html" playOrder="56"><navLabel><text>All Types</text></navLabel><content src="0596006969_all_types.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_standard_criteria.html" playOrder="57"><navLabel><text>Standard Criteria</text></navLabel><content src="0596006969_standard_criteria.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_the_expression_factory.html" playOrder="58"><navLabel><text>The Expression Factory</text></navLabel><content src="0596006969_the_expression_factory.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_hibernate_sql_dialects.html" playOrder="59"><navLabel><text>Hibernate SQL Dialects</text></navLabel><content src="0596006969_hibernate_sql_dialects.xhtml"/><navPoint id="urn:orm:book:0596006969:chapter:0596006969_getting_fluent_in_the_local_sql.html" playOrder="60"><navLabel><text>Getting Fluent in the Local SQL</text></navLabel><content src="0596006969_getting_fluent_in_the_local_sql.xhtml"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_about_the_author.html" playOrder="61"><navLabel><text>About the Author</text></navLabel><content src="0596006969_about_the_author.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_colophon.html" playOrder="62"><navLabel><text>Colophon</text></navLabel><content src="0596006969_colophon.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:0596006969:chapter:0596006969_bvdidx.html" playOrder="63"><navLabel><text>Index</text></navLabel><content src="0596006969_bvdidx.xhtml"/></navPoint>
+</navMap>
+</ncx>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_using_bidirectional_associations"><a id="using_bidirectional_associations"/><h3 class="docSection1Title">4.4. Using Bidirectional Associations</h3><p class="docText">In our creation code, we established links from tracks to artists, simply by adding Java objects to appropriate <a id="idx-CHP-4-0174"/>collections. Hibernate did the work of translating these associations and groupings into the necessary cryptic entries in a join table it created for that purpose. It allowed us with easy, readable code to establish and probe these relationships. But remember that we made this association bidirectional—the <tt>Artist</tt> class has a collection of <tt>Track</tt> associations too. We didn't bother to store anything in there.<a id="idx-CHP-4-0175"/><a id="I_indexterm4_d1e4044"/></p><p class="docText">The great news is that we don't have to. Because of the fact that we marked this as an <a id="idx-CHP-4-0176"/>inverse mapping in the <tt>Artist</tt> mapping document, Hibernate understands that when we add an <tt>Artist</tt> association to a <tt>Track</tt>, we're implicitly adding that <tt>Track</tt> as an association to the <tt>Artist</tt> at the same time.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Warning:</b></i></span></p><p class="docText">This convenience works only when you make changes to the "primary" mapping, in which case they propagate to the <a id="idx-CHP-4-0177"/>inverse mapping. If you make changes only to the <a id="idx-CHP-4-0178"/>inverse mapping, in our case the <tt>Set</tt> of tracks in the <tt>Artist</tt> object, they will not be persisted. This unfortunately means your code must be sensitive to which mapping is the inverse.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">Let's build a simple interactive graphical application that can help us check whether the artist to track links really show up. It will let you type in an artist's name, and show you all the tracks associated with that artist. A lot of the code is very similar to our first query test. Create the file <i>QueryTest2.java</i> and enter the code shown in <a class="docLink" href="#source_for_querytestjava">Example 4-10</a>.</p><a id="source_for_querytestjava"/><h5 id="title-ID0EVEAG" class="docExampleTitle">Example 4-10. Source for QueryTest2.java</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1  package com.oreilly.hh;
+ 2
+ 3  import net.sf.hibernate.*;
+ 4  import net.sf.hibernate.cfg.Configuration;
+ 5
+ 6  import java.sql.Time;
+ 7  import java.util.*;
+ 8  import java.awt.*;
+ 9  import java.awt.event.*;
+10  import javax.swing.*;
+11
+12  /**
+13   * Provide a user interface to enter artist names and see their tracks.
+14   */
+15  public class QueryTest2 extends JPanel {
+16
+17      JList list;  // Will contain tracks associated with current artist
+18      DefaultListModel model; // Lets us manipulate the list contents
+19
+20      /**
+21       * Build the panel containing UI elements 
+22       */ 
+23      public QueryTest2() { 
+24          setLayout(new BorderLayout()); 
+25          model = new DefaultListModel(); 
+26          list = new JList(model);
+27          add(new JScrollPane(list), BorderLayout.SOUTH);
+28
+29          final JTextField artistField = new JTextField(30);
+30          artistField.addKeyListener(new KeyAdapter() {
+31                  public void keyTyped(KeyEvent e) {
+32                      SwingUtilities.invokeLater(new Runnable() {
+33                              public void run() {
+34                                  updateTracks(artistField.getText());
+35                              } 
+36                         });
+37                  } 
+38              });
+39          add(artistField, BorderLayout.EAST);
+40          add(new JLabel("Artist: "), BorderLayout.WEST);
+41      } 
+42
+43      /**
+44       * Update the list to contain the tracks associated with an artist
+45       */
+46      private void updateTracks(String name) {
+47          model.removeAllElements();  // Clear out previous tracks
+48          if (name.length() &lt; 1) return;   // Nothing to do
+49          try {
+50              // Ask for a session using the JDBC information we've configured
+51              Session session = sessionFactory.openSession(); 
+52              try {
+53                  Artist artist = CreateTest.getArtist(name, false, session);
+54                  if (artist == null) {  // Unknown artist
+55                      model.addElement("Artist not found");
+56                      return;
+57                  }
+58                  // List the tracks associated with the artist
+59                  for (Iterator iter = artist.getTracks().iterator() ;
+60                       iter.hasNext() ; ) {
+61                      Track aTrack = (Track)iter.next();
+62                      model.addElement("Track: \"" + aTrack.getTitle() +
+63                                       "\", " + aTrack.getPlayTime());
+64                  }
+65              } finally {
+66                  // No matter what, close the session
+67                  session.close();
+68              }
+69          } catch (Exception e) {
+70              System.err.println("Problem updating tracks:" + e);
+71              e.printStackTrace();
+72          }
+73      }
+74
+75      private static SessionFactory sessionFactory;// Used to talk to Hibernate
+76
+77      /**
+78       * Set up Hibernate, then build and display the user interface.
+79       */
+80      public static void main(String args[]) throws Exception {
+81          //Loadconfigurationproperties,read  mappings for persistent classes.
+82          Configuration config = new Configuration();
+83          config.addClass(Track.class).addClass(Artist.class);
+84
+85          // Get the session factory we can use for persistence
+86          sessionFactory = config.buildSessionFactory();
+87
+88          // Set up the UI
+89          JFrame frame = new JFrame("Artist Track Lookup");
+90          frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+91          frame.setContentPane(new QueryTest2());
+92          frame.setSize(400, 180);
+93          frame.setVisible(true);
+94      }
+95  }
+</pre><br/>
+</td></tr></table><p class="docText">The bulk of the novel code in this example deals with setting up a <a id="idx-CHP-4-0179"/>Swing user interface. It's actually a rather primitive interface, and won't resize nicely, but dealing with such details would make the code larger, and really falls outside the scope of this book. If you want examples of how to build rich, quality Swing interfaces, check out our <span class="docEmphasis">Java Swing</span>, Second Edition (O'Reilly). It's much thicker so it has room for all that good stuff.</p><blockquote><p class="docText"><span class="docEmphasis">Yes, this is a shameless plug</span>.</p></blockquote><p class="docText">The only item I want to highlight in the constructor is the <tt>KeyListener</tt> that gets added to <tt>artistField</tt> (lines 30–38). This rather tricky bit of code creates an anonymous class whose <tt>keyTyped()</tt> method is invoked whenever the <a id="idx-CHP-4-0180"/>user types in the artist text field. That method, lines 31–37, tries to update the track display by checking whether the field now contains a recognized artist name. Unfortunately, at the time the method gets invoked, the text field has not yet been updated to reflect the latest keystroke, so we're forced to defer the actual display update to a second anonymous class (the <tt>Runnable</tt> instance created on lines 32–36) via the <tt>invokeLater()</tt> method of <tt>Swing Utilities</tt>. This technique causes the update to happen when Swing "gets around to it," which in our case means the text field will have finished updating itself.</p><p class="docText"><a id="The"/>The <tt>updateTracks()</tt> method that gets called at that point is where the interesting Hibernate stuff happens. It starts by clearing the list on line 47, discarding any tracks it might have previously been displaying. If the artist name is empty, that's all it does. Otherwise, it opens a Hibernate session on line 51 and tries to look up the artist using the <tt>getArtist()</tt> method we wrote in <tt>CreateTest</tt>. This time we tell it <span class="docEmphasis">not</span> to create an artist if it can't find the one we asked for, so we'll get back a <tt>null</tt> if the <a id="idx-CHP-4-0181"/>user hasn't typed the name of a known artist. If that's the case, we just display a message to that effect (line 55).</p><p class="docText">If we do find an <tt>Artist</tt> record, on the other hand, line 59 iterates over any <tt>Track</tt> records found in the artist's set of associated tracks, and lines 61–63 display information about each one. All this will test whether the inverse association has worked the way we'd like it to. Finally (no pun intended), lines 65–68 make sure to close the session when we're leaving the method, even through an exception. You don't want to leak sessions—that's a good way to bog down and crash your whole database environment.</p><p class="docText">The <tt>main()</tt> method starts out with the same Hibernate configuration steps we've seen before in lines 81–86, then creates and displays the user interface frame in lines 89–93. Line 90 sets the interface up to end the program when it's closed. After displaying the frame, <tt>main()</tt> returns. From that point on, the Swing event loop is in control.</p><p class="docText">Once you've created (or downloaded) this source file, you also need to add a new target, shown in <a class="docLink" href="#ant_target_for_running_the_new_query_tes">Example 4-11</a>, to the end of <span class="docEmphasis">build.xml</span> (the Ant build file) to invoke this new class.</p><a id="ant_target_for_running_the_new_query_tes"/><h5 id="title-ID0EPHAG" class="docExampleTitle">Example 4-11. Ant target for running the new query test</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;target name="qtest2" description="Run a simple Artist exploration GUI"
+        depends="compile"&gt;
+  &lt;java classname="com.oreilly.hh.QueryTest2" fork="true"&gt;
+    &lt;classpath refid="project.class.path"/&gt;
+  &lt;/java&gt;
+&lt;/target&gt;
+</pre><br/>
+</td></tr></table><p class="docText">Now you can fire it up by typing <tt><b>ant qtest2</b></tt> and play with it for yourself. <a class="docLink" href="#a_simple_artist_tracks_browser">Figure 4-3</a> shows the program in action, displaying tracks for one of the artists in our sample data.</p><blockquote><p class="docText"><span class="docEmphasis">This is very similar to the existing "qtest" target; copy and tweak that</span>.</p></blockquote><a id="a_simple_artist_tracks_browser"/><p/><div class="center"><h5 class="docFigureTitle">Figure 4-3. A simple artist tracks browser</h5><a id="I_mediaobject4_d1e4211"/><p class="docText"><img src="Images/0596006969_using_bidirectional_associations_image01.png" alt="" width="308" height="148"/></p></div><br/></div></div></body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_writing_native_sql_queries"><a id="writing_native_sql_queries"/><h3 class="docSection1Title">9.5. Writing Native SQL Queries</h3><p class="docText">Given the power and convenience of HQL, and the way it dovetails so naturally with the objects in your Java code, why wouldn't you want to use it? Well, there might be some special feature supported by the native SQL dialect of your project's database that HQL can't exploit. If you're willing to accept the fact that using this feature will make it harder to change databases in the future, Hibernate will let you write queries in that native dialect while still helping you write expressions in terms of properties and translate the results to objects. (If you didn't want this help, you could just use a raw JDBC connection to run a plain <a id="idx-CHP-9-0327"/>SQL query, of course.)</p><p class="docText">Another circumstance in which it might be nice to meet your database halfway is if you're in the process of migrating an existing JDBC-based project to Hibernate, and you want to take small steps rather than thoroughly rewriting each query right away.</p><a id="how_do_i_do_that-id031"/><h4 id="title-ID0EYOBG" class="docSection2Title">9.1.1. How do I do that?</h4><p class="docText">If you're embedding your query text inside your Java source code, you use the <tt><b>Session</b></tt> method <tt><b>createSQLQuery()</b></tt> instead of <a class="docLink" href="0596006969_better_ways_to_build_queries.xhtml#revising_our_query_to_use_a_named_parame">Example 3-8</a>'s <tt>createQuery()</tt>. Of course, you know better than to code like that, so I won't even show you an example. The better approach is to put the query in a mapping document like <a class="docLink" href="0596006969_better_ways_to_build_queries.xhtml#our_query_in_the_mapping_document">Example 3-9</a>. The difference is that you use a <tt>sql-query</tt><a id="the"/> tag rather than the <tt><b>query</b></tt> tag we've seen up until now. You also need to tell Hibernate the mapped class you want to return, and the alias that you're using to refer to it (and its properties) in the query.</p><p class="docText">As a somewhat contrived example, suppose we want to know all the tracks that end exactly halfway through the last minute they're playing (in other words, the time display on the jukebox would be <span class="docEmphasis">h:mm</span>: <tt>30</tt>). An easy way to do that would be to take advantage of HSQLDB's built-in <tt>SECOND</tt> function, which gives you the seconds part of a <tt>Time</tt> value. Since HQL doesn't know about functions that are specific to HSQLDB's SQL dialect, this will push us into the realm of a native SQL query. <a class="docLink" href="#embedding_a_native_sql_dialect_query_in_">Example 9-23</a> shows what it would look like; add this after the HQL queries in <span class="docEmphasis">Track.hbm.xml</span>.</p><a id="embedding_a_native_sql_dialect_query_in_"/><h5 id="title-ID0EKQBG" class="docExampleTitle">Example 9-23. Embedding a native SQL dialect query in a Hibernate mapping</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;sql-query name="com.oreilly.hh.tracksEndingAt"&gt;
+     &lt;return alias="track" class="com.oreilly.hh.Track"/&gt;
+     &lt;![CDATA[
+             select {track.*}
+            from TRACK as {track}
+            where SECOND({track}.PLAYTIME) = :seconds
+          ]]&gt;
+&lt;/sql-query&gt;
+</pre><br/>
+</td></tr></table><p class="docText">The <tt>return</tt> tag tells Hibernate we're going to be using the alias <tt>track</tt> in our query to refer to a <tt>Track</tt> object. That allows us to use the shorthand <tt>{track.*}</tt> in the query body to refer to all the columns from the <tt>TRACK</tt> table we need in order to create a <tt>Track</tt> instance. (Notice that everywhere we use the alias in the query body we need to enclose it in curly braces. This gets us "out of" the native SQL environment so we can express things in terms of Hibernate-mapped classes and properties.)</p><p class="docText"><a id="The"/>The <tt>where</tt> clause in the query uses the <a id="idx-CHP-9-0328"/>HSQLDB <tt>SECOND</tt> function to narrow our results to include only tracks whose length has a specified number in the seconds part. Happily, even though we're building a native SQL query, we can still make use of Hibernate's nice named query parameters. In this case we're passing in a value named "<tt>seconds</tt>" to control the query.(You don't use curly braces to tell Hibernate you're using a named parameter even in an SQL query; its parser is smart enough to figure this out.)</p><p class="docText">The code that uses this mapped SQL query is no different than our previous examples using HQL queries. The <tt>getNamedQuery()</tt> method is used to load both kinds, and they both implement the <tt>Query</tt> interface. So our Java method invoking this query should look familiar. Add the code in <a class="docLink" href="#calling_a_native_sql_mapped_query">Example 9-24</a> after the <tt>printTrackSummary()</tt> method in <span class="docEmphasis">QueryTest.java</span>.</p><a id="calling_a_native_sql_mapped_query"/><h5 id="title-ID0EGSBG" class="docExampleTitle">Example 9-24. Calling a native SQL mapped query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+/**
+ * Print tracks that end some number of seconds into their final minute.
+ *
+ * @param seconds, the number of seconds at which we want tracks to end.
+ * @param session the Hibernate session that can retrieve data.
+ * @throws HibernateException if there is a problem.
+ **/
+public static void printTracksEndingAt(int seconds, Session session)
+    throws HibernateException
+
+{
+    Query query = session.getNamedQuery("com.oreilly.hh.tracksEndingAt");
+    query.setInteger("seconds", seconds);
+    List results = query.list();
+    for (ListIterator iter = results.listIterator() ; iter.hasNext() ; ) {
+        Track aTrack = (Track)iter.next();
+        System.out.println("Track: " + aTrack.getTitle()+
+                           ", length=" + aTrack.getPlayTime());
+    }
+}
+</pre><br/>
+</td></tr></table><p class="docText">Finally, add some lines to <tt>main()</tt> that call this method. <a class="docLink" href="#calling_printtracksendingat_to_display_t">Example 9-25</a> shows them added after the invocation of <tt>printTrackSummary()</tt>.</p><a id="calling_printtracksendingat_to_display_t"/><h5 id="title-ID0EYSBG" class="docExampleTitle">Example 9-25. Calling printTracksEndingAt() to display tracks ending at a half minute</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+       printTrackSummary(CreateTest.getArtist("Samuel Barber",
+                                              false, session), session);
+       <b>System.out.println("Tracks ending halfway through final minute:");
+       printTracksEndingAt(30, session);</b>
+} finally {
+    // No matter what, close the session
+
+...
+</pre><br/>
+</td></tr></table><p class="docText">These changes produce the additional output shown in <a class="docLink" href="#sample_output_from_the_native_sql_query">Example 9-26</a> when <tt><b>ant qtest</b></tt> is run.</p><a id="sample_output_from_the_native_sql_query"/><h5 id="title-ID0ELTBG" class="docExampleTitle">Example 9-26. Sample output from the native SQL query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+qtest:
+     [java] Track: Video Killed the Radio Star [ID=1]
+
+...
+
+     [java] Summary of tracks by Samuel Barber:
+     [java]        Total tracks: 2
+     [java]      Shortest track: 00:06:35
+     [java]       Longest track: 00:07:39
+     [java] <b>Tracks ending halfway through final minute:</b>
+     [java] <b>Track: Russian Trance, length=00:03:30</b>
+					</pre><br/>
+</td></tr></table><p class="docText">There's a lot more tedium and attention to detail required in using a native SQL query than an HQL query (especially when your query starts getting complex or referring to multiple tables), but it's nice to know that it is possible on the rare occasions where you really need one.</p><a id="what_abouthellip-id013"/><h4 id="title-ID0EZTBG" class="docSection2Title">9.5.1. What about…</h4><p class="docText">…Well, lots of things? You undoubtedly suspect this chapter barely scratches the surface of what you can do with HQL. That's definitely true. When you start combining some of these capabilities, and working with collections, associations, and powerful expressions, you can achieve some remarkable things. We can't possibly cover them all in this introduction, so you'll want to take a close look at the HQL section and examples in the Hibernate reference documentation, and do some experimentation on your own.</p><p class="docText">When you look through the Hibernate Query Language chapter in the reference documentation, be sure to look at the interesting things you can use in expressions, especially as they apply to collections. Don't miss the way you can use array bracket notation to select elements of indexed collections—you can even put arithmetic expressions inside the brackets.</p><blockquote><p class="docText"><span class="docEmphasis">This isn't your father's SQL…</span></p></blockquote><p class="docText">The "Tips and Tricks" section that follows their longer examples gives some useful advice about working efficiently in different database environments, and using a variety of Hibernate interfaces to achieve useful results in ways you might not think of, especially if you're coming from a SQL background.</p><p class="docText">Hopefully, this discussion has helped you get a grounding in the basics, and it will serve as a starting point and anchor for the explorations on which you will embark!</p></div></div></body>
+</html>

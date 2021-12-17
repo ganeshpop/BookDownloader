@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_selecting_properties_and_pieces"><a id="selecting_properties_and_pieces"/><h3 class="docSection1Title">9.2. Selecting Properties and Pieces</h3><p class="docText">The queries we've been using so far have returned entire persistent objects. This is the most common use of an object/relational mapping service like Hibernate, so it should come as no surprise. Once you've got the objects, you can use them in whatever way you need to within the familiar realm of Java code. There are circumstances where you might want only a subset of the properties that make up an object, though, such as producing reports. HQL can accommodate such needs, in exactly the same way you'd use ordinary SQL—projection in a <tt>select</tt> clause.<a id="idx-CHP-9-0309"/></p><a id="how_do_i_do_that-id028"/><h4 id="title-ID0EKKBG" class="docSection2Title">9.1.1. How do I do that?</h4><p class="docText">Suppose we want to change <span class="docEmphasis">QueryTest.java</span> to display only the titles of the tracks that meet our search criteria, and we want to extract only that information from the database in the first place. We'd start by changing	the query of <a class="docLink" href="0596006969_better_ways_to_build_queries.xhtml#our_query_in_the_mapping_document">Example 3-9</a> to retrieve only the <tt>title</tt> property. Edit <span class="docEmphasis">Track.hbm.xml</span> to make the query look like <a class="docLink" href="#obtaining_just_the_titles_of_the_short_t">Example 9-6</a>.</p><a id="obtaining_just_the_titles_of_the_short_t"/><h5 id="title-ID0EALBG" class="docExampleTitle">Example 9-6. Obtaining just the titles of the short tracks</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;query name="com.oreilly.hh.tracksNoLongerThan"&gt;
+  &lt;![CDATA[
+      <b>select track.title</b> from com.oreilly.hh.Track as track
+      where track.playTime &lt;= :length
+    ]]&gt;
+&lt;/query&gt; 
+</pre><br/>
+</td></tr></table><p class="docText"><a id="the"/>Make sure the <tt>tracksNoLongerThan()</tt> method in <span class="docEmphasis">QueryTest.java</span> is set up to use this query. (If you edited it to use criteria queries in <a class="docLink" href="0596006969_criteria_queries.xhtml#criteria_queries">Chapter 8</a>, change it back to the way it was in <a class="docLink" href="0596006969_better_ways_to_build_queries.xhtml#the_final_version_of_our_query_method">Example 3-10</a>. To save you the trouble of hunting that down, it's reproduced as <a class="docLink" href="#hql-driven_query_method_using_the_query_">Example 9-7</a>.)</p><a id="hql-driven_query_method_using_the_query_"/><h5 id="title-ID0E6LBG" class="docExampleTitle">Example 9-7. HQL-driven query method, using the query mapped in <a class="docLink" href="#obtaining_just_the_titles_of_the_short_t">Example 9-6</a></h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+public static List tracksNoLongerThan(Time length, Session session)
+    throws HibernateException
+{ 
+    Query query = session.getNamedQuery(
+                      "com.oreilly.hh.tracksNoLongerThan");
+    query.setTime("length", length);
+    return query.list();
+}
+</pre><br/>
+</td></tr></table><p class="docText">Finally, the <tt>main()</tt> method needs to be updated, as shown in <a class="docLink" href="#changes_to_querytests_main_method_to_wor">Example 9-8</a>, to reflect the fact that the query method is now returning the <tt>title</tt> property rather than entire <tt>Track</tt> records. This property is defined as a <tt>String</tt>, so the method now returns a <tt>List of Strings</tt>.<a id="idx-CHP-9-0310"/></p><a id="changes_to_querytests_main_method_to_wor"/><h5 id="title-ID0EDNBG" class="docExampleTitle">Example 9-8. Changes to QueryTest's main() method to work with the title query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+// Print the <b>titles of</b> tracks that will fit in five minutes
+List <b>titles</b> = tracksNoLongerThan(Time.valueOf("00:05:00"),
+                                                        session);
+for (ListIterator iter = <b>titles.</b>listIterator() ;
+     iter.hasNext() ; ) {
+    <b>String aTitle = (String)</b>iter.next();
+    System.out.println("Track: " + <b>aTitle</b>);
+} 
+</pre><br/>
+</td></tr></table><p class="docText">Those changes are pretty simple, and the relationship between the return type of the query and the list elements we see in Java is straight-forward. Depending on what data you've set up, running this version using <tt><b>ant qtest</b></tt> will result in output similar to <a class="docLink" href="#listing_just_the_titles_of_tracks_no_mor">Example 9-9</a>. (If you've not got any data, or you want it to look just like this, recreate the test data before displaying it by running <tt><b>ant schema ctest atest qtest</b></tt>.)</p><a id="listing_just_the_titles_of_tracks_no_mor"/><h5 id="title-ID0EFOBG" class="docExampleTitle">Example 9-9. Listing just the titles of tracks no more than five minutes long</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+qtest:
+     [java] Track: Russian Trance
+     [java] Track: Video Killed the Radio Star
+     [java] Track: Test Tone 1
+     [java] Track: In a Manner of Speaking
+     [java] Track: Gone
+     [java] Track: Never Turn Your Back on Mother Earth
+     [java] Track: Motherless Child
+</pre><br/>
+</td></tr></table><a id="what_abouthellip-id012"/><h4 id="title-ID0ELOBG" class="docSection2Title">9.2.1. What about…</h4><p class="docText">…Returning more than one property? You can certainly do this, and the properties can come from multiple objects if you're using a join, or if your query object has components or associations (which are, after all, a very convenient form of object-oriented join). As you'd expect from SQL, all you do is list the properties you'd like, separated by commas. As a simple example, let's get the IDs as well as the titles for our tracks in this query. Tweak <span class="docEmphasis">Track.hbm.xml</span> so the query looks like <a class="docLink" href="#selecting_multiple_properties_from_an_ob">Example 9-10</a>.</p><a id="selecting_multiple_properties_from_an_ob"/><h5 id="title-ID0EXOBG" class="docExampleTitle">Example 9-10. Selecting multiple properties from an object</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;query name="com.oreilly.hh.tracksNoLongerThan"&gt;
+  &lt;![CDATA[
+      select track.id, track.title from com.oreilly.hh.Track as track
+      where track.playTime &lt;= :length
+    ]]&gt;
+&lt;/query&gt;
+</pre><br/>
+</td></tr></table><p class="docText">We don't need to change the query method at all; it still invokes this query by name, passes in the same named parameter, and returns there resulting list. But what does that list contain now? We'll need to update our loop in <tt>main()</tt> so that it can show both the IDs and the titles.<a id="idx-CHP-9-0311"/></p><p class="docText">In situations like this, when it needs to return multiple, separate values for each "row" in a query, each entry in the <tt>List</tt> returned by Hibernate will contain an array of objects. Each array contains the selected properties, in the <tt>order</tt> they're listed in the query. So we'll get a list of two-element arrays; each array will contain an <tt>Integer</tt> followed by a <tt>String</tt>.</p><p class="docText"><a class="docLink" href="#working_with_multiple_separate_propertie">Example 9-11</a> shows how we can update <tt>main()</tt> in <span class="docEmphasis">QueryTest.java</span> to work with these arrays.</p><a id="working_with_multiple_separate_propertie"/><h5 id="title-ID0E5PBG" class="docExampleTitle">Example 9-11. Working with multiple, separate properties in query results</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+// Print <b>IDs and</b> titles of tracks that will fit in five minutes
+List titles = tracksNoLongerThan(Time.valueOf("00:05:00"),
+                                 session);
+for (ListIteratoriter = titles.listIterator() ;
+     iter.hasNext() ; ) {
+     <b>Object[] aRow = (Object[]</b>)iter.next();
+     <b>Integer anID = (Integer)aRow[0];
+     String aTitle = (String)aRow[1];</b>
+     System.out.println("Track: " + aTitle + " <b>[ID=" + anID + ']</b>');
+} 
+</pre><br/>
+</td></tr></table><p class="docText">Running <tt><b>ant qtest</b></tt> after these changes produces output like <a class="docLink" href="#listing_titles_and_ids">Example 9-12</a>.</p><a id="listing_titles_and_ids"/><h5 id="title-ID0E1QBG" class="docExampleTitle">Example 9-12. Listing titles and IDs</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+qtest:
+     [java] Track: Russian Trance [ID=0]
+     [java] Track: Video Killed the Radio Star [ID=1]
+     [java] Track: Test Tone 1 [ID=6]
+     [java] Track: In a Manner of Speaking [ID=8]
+     [java] Track: Gone [ID=10]
+     [java] Track: Never Turn Your Back on Mother Earth [ID=11]
+     [java] Track: Motherless Child [ID=12]
+</pre><br/>
+</td></tr></table><p class="docText">I hope that while looking at this example you thought "that's an awkward way to work with <tt>Track</tt> properties." If you didn't, compare <a class="docLink" href="#working_with_multiple_separate_propertie">Example 9-11</a><a id="of"/> with lines 48-56 of <a class="docLink" href="0596006969_finding_persistent_objects.xhtml#querytestjava">Example 3-5</a>. The latter is more concise and natural, and it prints even more information about the tracks. If you're extracting information about a mapped object, you're almost always better off taking full advantage of the mapping capability to extract an actual instance of the object, so you can work with its properties with the full expressive and type–safe capabilities of Java.</p><blockquote><p class="docText"><span class="docEmphasis">Was this some sort of cruel joke?</span></p></blockquote><p class="docText">So why did I show it at all? Well, there are situations where retrieving multiple values in an HQL query can make sense: you might want just one property from each of a couple of mapped classes, for example. Or you might want to return a group of related classes by listing the class names in the <tt>select</tt> clause. For such cases it's worth knowing this technique. There may also be significant performance benefits if your mapped object has dozens of large (or non-lazily associated) properties, and you're only interested in one or two.<a id="idx-CHP-9-0312"/></p><p class="docText">There is another surprising trick you can use to impose a good object structure even when you're building reports that select a bunch of properties from disparate mapped objects. HQL lets you construct and return an arbitrary object within your <tt>select</tt> clause. So you could create an adhoc reporting class whose properties reflect the values needed by your report, and return instances of this class in the query instead of cryptic <tt>Object</tt> arrays. If we'd defined a <tt>TrackSummary</tt> class with <tt>id</tt> and <tt>title</tt> properties and an appropriate constructor, our query could have used:</p><pre>
+	select new TrackSummary(track.id, track.title)
+</pre><br/>
+<p class="docText">instead of:</p><pre>
+	select track.id, track.title
+</pre><br/>
+<p class="docText">and we wouldn't have needed any of the array manipulation in the code that works with the results. (Again, in this case, it would still have made more sense to simply return the entire <tt>Track</tt>, but this is useful when you're working with properties from multiple objects or even synthetic results like aggregate functions, as demonstrated below.)<a id="I_indexterm9_d1e8000"/></p></div></div></body>
+</html>

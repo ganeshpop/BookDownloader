@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_retrieving_collections"><a id="retrieving_collections"/><h3 class="docSection1Title">4.3. Retrieving Collections</h3><p class="docText">You might expect that getting the collection information back out of the database is similarly easy. You'd be right! Let's enhance our <tt>QueryTest</tt> class to show us the artists associated with the tracks it displays. <a class="docLink" href="#querytestjava_enhanced_in_order_to_displ">Example 4-8</a> shows the appropriate changes and additions in bold. Little new code is needed.<a id="idx-CHP-4-0170"/><a id="idx-CHP-4-0171"/></p><a id="querytestjava_enhanced_in_order_to_displ"/><h5 id="title-ID0ETBAG" class="docExampleTitle">Example 4-8. QueryTest.java enhanced in order to display artists associated with tracks</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1  package com.oreilly.hh;
+ 2
+ 3  import net.sf.hibernate.*;
+ 4  import net.sf.hibernate.cfg.Configuration;
+ 5
+ 6  import java.sql.Time;
+ 7  import java.util.*;
+ 8
+ 9  /**
+10   * Retrieve data as objects
+11   */
+12  public class QueryTest {
+13
+14      /**
+15       * Retrieve any tracks that fit in the specified amount of time.
+16       *
+17       * @param length the maximum playing time for tracks to be returned.
+18       * @param session the Hibernate session that can retrieve data.
+19       * @return a list of {@link Track}s meeting the length restriction.
+20       * @throws HibernateException if there is a problem.
+21       */
+22      public static List tracksNoLongerThan(Time length, Session session)
+23          throws HibernateException
+24      {
+25          Query query = session.getNamedQuery(
+26                            "com.oreilly.hh.tracksNoLongerThan");
+27          query.setTime("length", length);
+28          return query.list();
+29      }
+30
+31      <b>/**
+32       * Build a parenthetical, comma-separated list of artist names.
+33       * @param artists the artists whose names are to be displayed.
+34       * @return formatted list, or an empty string if the set was empty.
+35       */
+36      public static String listArtistNames(Set artists) {
+37          StringBuffer result = new StringBuffer();
+38          for (Iterator iter = artists.iterator(); iter.hasNext(); ) {
+39              Artist artist = (Artist)iter.next();
+40              result.append((result.length() == 0) ? "(" : ", ");
+41              result.append(artist.getName());
+42          }
+43          if (result.length() &gt; 0) {
+44              result.append(") ");
+45          }
+46          return result.toString();
+47      }</b>
+48
+49      /**
+50       * Look up and print some tracks when invoked from the command line.
+51       */
+52      public static void main(String args[]) throws Exception {
+53          // Create a configuration based on the properties file we've put
+54          // in the standard place.
+55          Configuration config = new Configuration();
+56
+57          // Tell it about the classes we want mapped, taking advantage of
+58          // the way we've named their mapping documents.
+59          config.addClass(Track.class)<b>.addClass(Artist.class)</b>;
+60
+61          // Get the session factory we can use for persistence
+62          SessionFactory sessionFactory = config.buildSessionFactory();
+63
+64          // Ask for a session using the JDBC information we've configured
+65          Session session = sessionFactory.openSession();
+66          try {
+67              // Print the tracks that will fit in <b>seven</b> minutes
+68              List tracks = tracksNoLongerThan(Time.valueOf("00:07:00"),
+69                                               session);
+70              for (ListIterator iter = tracks.listIterator() ;
+71                   iter.hasNext() ; ) {
+72                  Track aTrack = (Track)iter.next();
+73                  System.out.println("Track: \"" + aTrack.getTitle() + "\" " +
+74                                     <b>listArtistNames(aTrack.getArtists()) +</b>
+75                                     aTrack.getPlayTime());
+76              } 
+77          } finally {
+78              // No matter what, close the session
+79              session.close();
+80          }
+81
+82          // Clean up after ourselves
+83          sessionFactory.close();
+84      }
+85  }
+</pre><br/>
+</td></tr></table><blockquote><p class="docText"><span class="docEmphasis">How easy was that?</span></p></blockquote><p class="docText">The first thing we add is a little utility method (lines 31–47) to format the set of artist names nicely, as a <a id="idx-CHP-4-0172"/>comma-delimited list inside parentheses, with proper spacing, or as nothing at all if the set of artists is empty.</p><p class="docText">Next, as with <tt>CreateTest</tt>, we need to tell Hibernate to map our new <tt>Artist</tt> class on line 59. Since all the interesting new multi-artist tracks are longer than five minutes, we increase the cutoff in our query to seven minutes so we can see some (line 68). Finally we call <tt>listArtistNames()</tt> at the proper position in the <tt>println()</tt> statement describing the tracks found (line 74).</p><p class="docText"><a class="docLink" href="#querytest_output_with_artist_information">Example 4-9</a> shows the new output from <tt><b>ant qtest</b></tt>.</p><a id="querytest_output_with_artist_information"/><h5 id="title-ID0EGDAG" class="docExampleTitle">Example 4-9. QueryTest output with artist information</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>ant qtest</b>
+Buildfile: build.xml
+
+prepare:
+
+compile:
+
+    [javac] Compiling 1 source file to /Users/jim/Documents/Work/OReilly/
+Hibernate/Examples/ch04/classes
+
+qtest:
+     [java] Track: "Russian Trance" (PPK) 00:03:30
+     [java] Track: "Video Killed the Radio Star" (The Buggles) 00:03:49
+     [java] Track: "Gravity's Angel" (Laurie Anderson) 00:06:06
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35
+     [java] Track: "Test Tone 1" 00:00:10
+
+BUILD SUCCESSFUL
+Total time: 17 seconds
+11.940u 1.510s 0:18.06 74.4% 0+0k 0+7io 0pf+0w
+</pre><br/>
+</td></tr></table><p class="docText">You'll notice two things. First, that this is much easier to interpret than the columns of numbers in <a class="docLink" href="0596006969_persisting_collections.xhtml#artist_and_track_associations_created_by">Figure 4-2</a>. And second, it worked! Even in the "tricky" case of the test tone track without any artist mappings, Hibernate takes the friendly approach of <a id="idx-CHP-4-0173"/>creating an empty artists <tt>Set</tt>, sparing us from peppering our code with the <tt>null</tt> checks we'd otherwise need to avoid crashing with <tt>NullPointerExceptions</tt>.</p><blockquote><p class="docText"><span class="docEmphasis">But wait, there's more! No additional code needed…</span></p></blockquote></div></div></body>
+</html>

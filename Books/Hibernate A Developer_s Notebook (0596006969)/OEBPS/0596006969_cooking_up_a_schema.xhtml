@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_cooking_up_a_schema"><a id="cooking_up_a_schema"/><h3 class="docSection1Title">2.3. Cooking Up a Schema</h3><p class="docText">That was pretty easy, wasn't it? You'll be happy to learn that <a id="idx-CHP-2-0061"/>creating <a id="idx-CHP-2-0062"/>database tables is a very similar process. As with code generation, you've already done most of the work in coming up with the mapping document. All that's left is to set up and run the schema generation tool.<a id="I_indexterm2_d1e1520"/><a id="I_indexterm2_d1e1525"/></p><a id="how_do_i_do_that-id006"/><h4 id="title-ID0E2LAE" class="docSection2Title">2.3.1. How do I do that?</h4><p class="docText">The first step is something we alluded to in <a class="docLink" href="0596006969_installation_and_setup.xhtml#installation_and_setup">Chapter 1</a>. We need to tell Hibernate the database we're going to be using, so it knows the specific "dialect" of SQL to use. SQL is a standard, yes, but every database goes beyond it in certain directions and has a specific set of features and limitations that affect real-life applications. To cope with this reality, Hibernate provides a set of classes that encapsulate the unique features of common <a id="idx-CHP-2-0063"/>database environments, in the package <tt>net.sf.hibernate.dialect</tt>. You just need to tell it which one you want to use. (And if you want to work with a database that isn't yet <a id="idx-CHP-2-0064"/>supported "out of the box," you can implement your own dialect.)<a id="idx-CHP-2-0065"/></p><p class="docText"><a id="use"/>In our case, we're working with HSQLDB, so we want to use <tt>HSQLDialect</tt>. The easiest way to configure <a id="idx-CHP-2-0066"/>Hibernate is to create a properties file named <i>hibernate.properties</i> and put it at the root level some-where in the class path. Create this file at the top level of your <span class="docEmphasis">src</span> directory, and put the lines shown in <a class="docLink" href="#setting_up_hibernateproperties">Example 2-4</a> into it.<a id="idx-CHP-2-0067"/></p><a id="setting_up_hibernateproperties"/><h5 id="title-ID0EQNAE" class="docExampleTitle">Example 2-4. Setting up hibernate.properties</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+hibernate.dialect=net.sf.hibernate.dialect.HSQLDialect
+hibernate.connection.driver_class=org.hsqldb.jdbcDriver
+hibernate.connection.url=jdbc:hsqldb:data/music
+hibernate.connection.username=sa
+hibernate.connection.password=
+</pre><br/>
+</td></tr></table><blockquote><p class="docText"><span class="docEmphasis">You can use an XML format for the configuration information as well, but for the simple needs we have here, it doesn't buy you anything</span>.</p></blockquote><p class="docText"><a id="to"/>In addition to <a id="idx-CHP-2-0068"/>establishing the SQL dialect we are using, this tells Hibernate how to establish a connection to the database using the JDBC driver that ships as part of the HSQLDB database JAR archive, and that the <span class="docEmphasis">data</span> should live in the data directory we've created—in the database named <span class="docEmphasis">music</span>. The username and empty password (indeed, all these values) should be familiar from the experiment we ran at the end of <a class="docLink" href="0596006969_installation_and_setup.xhtml#installation_and_setup">Chapter 1</a>.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">Notice that we're using a relative path to specify the database filename. This works fine in our examples—we're using ant to control the working directory. If you copy this for use in a web application or other environment, though, you'll likely need to be more explicit about the location of the file.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">You can put the properties file in other places, and give it other names, or use entirely different ways of getting the properties into Hibernate, but this is the default place it will look, so it's the path of least resistance (or, I guess, least runtime configuration).</p><p class="docText">We also need to add some new pieces to our build file, shown in <a class="docLink" href="#ant_build_file_additions_for_compilation">Example 2-5</a>. This is a somewhat substantial addition, because we need to compile our Java source in order to use the <a id="idx-CHP-2-0069"/>schema generation tool, which relies on reflection to get its details right. Add these targets right before the closing <tt>&lt;/project&gt;</tt> tag at the end of <span class="docEmphasis">build.xml</span>.</p><a id="ant_build_file_additions_for_compilation"/><h5 id="title-ID0ECPAE" class="docExampleTitle">Example 2-5. Ant build file additions for compilation and schema generation</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1    &lt;!-- Create our runtime subdirectories and copy resources into them --&gt;
+ 2    &lt;target name="prepare" description="Sets up build structures"&gt;
+ 3      &lt;mkdir dir="${class.root}"/&gt;
+ 4
+ 5      &lt;!-- Copy our property files and O/R mappings for use at runtime --&gt;
+ 6      &lt;copy todir="${class.root}" &gt;
+ 7        &lt;fileset dir="${source.root}" &gt;
+ 8          &lt;include name="**/*.properties"/&gt;
+ 9          &lt;include name="**/*.hbm.xml"/&gt;
+10        &lt;/fileset&gt;
+11      &lt;/copy&gt;
+12    &lt;/target&gt;
+13
+14    &lt;!-- Compile the java source of the project --&gt;
+15    &lt;target name="compile" depends="prepare"
+16            description="Compiles all Java classes"&gt;
+17      &lt;javac srcdir="${source.root}"
+18             destdir="${class.root}"
+19             debug="on"
+20             optimize="off"
+21             deprecation="on"&gt;
+22        &lt;classpath refid="project.class.path"/&gt;
+23      &lt;/javac&gt;
+24    &lt;/target&gt;
+25
+26    &lt;!-- Generate the <a id="idx-CHP-2-0070"/>schemas for all mapping files in our class tree --&gt;
+27    &lt;target name="schema" depends="compile"
+28            description="Generate DB schema from the O/R mapping files"&gt;
+29
+30      &lt;!-- Teach Ant how to use Hibernate's <a id="idx-CHP-2-0071"/>schema generation tool --&gt;
+31      &lt;taskdef name="schemaexport"
+32               classname="net.sf.hibernate.tool.hbm2ddl.SchemaExportTask"
+33               classpathref="project.class.path"/&gt;
+34
+35      &lt;schemaexport properties="${class.root}/hibernate.properties"
+36                    quiet="no" text="no" drop="no" delimiter=";"&gt;
+37        &lt;fileset dir="${class.root}"&gt;
+38          &lt;include name="**/*.hbm.xml"/&gt;
+39        &lt;/fileset&gt;
+40      &lt;/schemaexport&gt;
+41    &lt;/target&gt;
+</pre><br/>
+</td></tr></table><p class="docText">First we add a <tt>prepare</tt> target that is intended to be used by other targets more than from the command line. Its purpose is to create, if necessary, the <span class="docEmphasis">classes</span> directory into which we're going to compile, and then copy any properties and mapping files found in the <span class="docEmphasis">src</span> directory hierarchy to corresponding directories in the <span class="docEmphasis">classes</span> hierarchy. This hierarchical copy operation (using the special "<span class="docEmphStrong">**/*</span>" pattern) is a nice feature of Ant, enabling us to define and edit resources alongside to the source files that use them, while making those resources available at runtime via the class loader.<a id="idx-CHP-2-0072"/></p><p class="docText">The aptly named <tt>compile</tt> target at line 14 uses the built-in <tt>java</tt> task to compile all the Java source files found in the <span class="docEmphasis">src</span><a id="the"/> tree to the <span class="docEmphasis">classes</span> tree. Happily, this task also supports the project class path we've set up, so the compiler can find all the libraries we're using. The <tt>depends="prepare"</tt> attribute in the target definition tells Ant that before running the <tt>compile</tt> target, <tt>prepare</tt> must be run. Ant manages dependencies so that when you're building multiple targets with related dependencies, they are executed in the right order, and each dependency gets executed only once, even if it is mentioned by multiple targets.</p><p class="docText">If you're accustomed to using shell scripts to compile a lot of Java source, you'll be surprised by how quickly the compilation happens. Ant invokes the Java compiler within the same virtual machine that it is using, so there is no process startup delay for each compilation.</p><p class="docText">Finally, after all this groundwork, we can write the target we really wanted to! The <tt>schema</tt> target (line 26) depends on <tt>compile</tt>, so all our Java classes will be compiled and available for inspection when the schema generator runs. It uses <tt>taskdef</tt> internally at line 31 to define the <tt>schemaexport</tt> task that runs the Hibernate <a id="idx-CHP-2-0073"/>schema export tool, in the same way we provided access to the code generation tool at the top of the file. It then invokes this tool and tells it to generate the <a id="idx-CHP-2-0074"/>database schema associated with any mapping documents found in the <span class="docEmphasis">classes</span> tree.<a id="idx-CHP-2-0075"/></p><p class="docText">There are a number of parameters you can give the schema export tool to configure the way it works. In this example (at line 35) we're telling it to display the SQL it runs so we can watch what it's doing <tt>(quiet="no")</tt>, to actually interact with the database and create the schema rather than simply writing out a DDL file we could import later or simply deleting the schema <tt>(text="no", drop="no")</tt>. For more details about these and other configuration options, consult the Hibernate reference manual.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">You may be wondering why the <tt>taskdef</tt> for the schema update tool is inside our <tt>schema</tt> target, rather than at the top of the build file, next to the one for <tt>hbm2java</tt>. Well, I wanted it up there too, but I ran into a snag that's worth explaining. I got strange error messages the first time I tried to build the schema target, complaining there was no <span class="docEmphasis">hibernate.properties</span> on the class path and our compiled <tt>Track</tt> class couldn't be found. When I ran it again, it worked. Some detective work using <span class="docEmphStrong">ant-verbose</span> revealed that if the <span class="docEmphasis">classes</span> directory didn't exist when the <tt>taskdef</tt> was encountered, Ant helpfully removed it from the class path. Since a <tt>taskdef</tt> can't have its own dependencies, the solution is to move it into the <tt>schema</tt> target, giving it the benefit of that target's dependencies, ensuring the <span class="docEmphasis">classes</span><a id="the"/> directory exists by the time the <tt>taskdef</tt> is processed.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">With these additions, we're ready to generate the <a id="idx-CHP-2-0076"/>schema for our <tt>TRACK</tt> table.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Warning:</b></i></span></p><p class="docText">You might think the <tt>drop="no"</tt> setting in our <tt>schema task</tt> means you can use it to update the <tt>schema</tt>—it won't drop the tables, right? Alas, this is a misleading parameter name: it means it won't <span class="docEmphasis">just</span> drop the tables, rather it will go ahead and generate the schema <span class="docEmphasis">after</span> dropping them. Much as you want to avoid the <tt>codegen</tt> task after making any changes to the generated Java source, you mustn't export the schema if you've put any data into the <a id="idx-CHP-2-0077"/>database. Luckily, there is another tool you can use for incremental schema updates that works much the same way, as long as your JDBC driver is powerful enough. This <tt>SchemaUpdate</tt> tool can be used with an Ant <tt>taskdef</tt> too.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">Because we've asked the schema export task not to be "quiet," we want it to generate some log entries for us. In order for that to work, we need to configure <tt>log4j</tt>, the logging environment used by Hibernate. The easiest way to do this is to make a <i>log4j.properties</i> file available at the root of the class path. We can take advantage of our existing <tt>prepare</tt><a id="the"/> target to copy this from the <span class="docEmphasis">src</span> to the <span class="docEmphasis">classes</span> directory at the same time it copies Hibernate's properties. Create a file named <i>log4j.properties</i> in the <span class="docEmphasis">src</span> directory with the content shown in <a class="docLink" href="#the_logging_configuration_file_logjprope">Example 2-6</a>. An easy way to do this is to copy the file out of the <span class="docEmphasis">src</span> directory in the Hibernate distribution you downloaded, since it's provided for use by their own examples. If you're typing it in yourself, you can skip the blocks that are commented out; they are provided to suggest useful logging alternatives.)<a id="I_indexterm2_d1e1842"/></p><a id="the_logging_configuration_file_logjprope"/><h5 id="title-ID0EXVAE" class="docExampleTitle">Example 2-6. The logging configuration file, log4j.properties</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+### direct log messages to stdout ###
+log4j.appender.stdout=org.apache.log4j.ConsoleAppender
+log4j.appender.stdout.Target=System.out
+log4j.appender.stdout.layout=org.apache.log4j.PatternLayout
+log4j.appender.stdout.layout.ConversionPattern=%d{ABSOLUTE} %5p %c{1}:%L - %m%n
+
+### direct messages to file hibernate.log ###
+#log4j.appender.file=org.apache.log4j.FileAppender
+#log4j.appender.file.File=hibernate.log
+#log4j.appender.file.layout=org.apache.log4j.PatternLayout
+#log4j.appender.file.layout.ConversionPattern=%d{ABSOLUTE} %5p %c{1}:%L - %m%n
+
+### set log levels - for more verbose logging change 'info' to 'debug' ###
+
+log4j.rootLogger=warn, stdout
+
+log4j.logger.net.sf.hibernate=info
+
+### log just the SQL
+#log4j.logger.net.sf.hibernate.SQL=debug
+
+### log JDBC bind parameters ###
+log4j.logger.net.sf.hibernate.type=info
+
+### log schema export/update ###
+log4j.logger.net.sf.hibernate.tool.hbm2ddl=debug
+
+### log cache activity ###
+#log4j.logger.net.sf.hibernate.cache=debug
+
+### enable the following line if you want to track down connection ###
+### leakages when using DriverManagerConnectionProvider ###
+#log4j.logger.net.sf.hibernate.connection.DriverManagerConnectionProvider=trace
+</pre><br/>
+</td></tr></table><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">With the log configuration in place, you might want to edit the <tt>codegen</tt> target in <span class="docEmphasis">build.xml</span> so that it, too, depends on our new <tt>prepare</tt> target. This will ensure logging is configured whenever we use it, preventing the warnings we saw when first running it. As noted in the tip about class paths and task definitions in the previous section, though, to make it work the very first time you'll have to move the <tt>taskdef</tt> for <tt>hbm2java</tt> inside the <tt>codegen</tt><a id="put"/> target, in the same way we put <tt>schemaexport inside</tt> the <tt>schema</tt> target.<a id="idx-CHP-2-0078"/></p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">Time to make a schema! From the project directory, execute the command <tt><b>ant schema</b></tt>. You'll see output similar to <a class="docLink" href="#output_from_building_the_schema_using_hs">Example 2-7</a> as the <span class="docEmphasis">classes</span>directory is created and populated with resources, the Java source is compiled,<sup class="docFootnote"><a class="docLink" href="#CHP-2-FNOTE-1">[2-1]</a></sup> and the schema generator is run.</p><blockquote><p class="docFootnote"><sup><a id="CHP-2-FNOTE-1">[2-1]</a></sup> We're assuming you've already generated the code shown in <a class="docLink" href="0596006969_generating_some_class.xhtml#code_generated_from_the_track_mapping_do">Example 2-3</a>, or there won't be any Java source to compile, and the schema generation will fail. The <tt>schema target</tt> doesn't invoke <tt>codegen</tt> to automatically generate code, in case you've manually extended any of your generated classes.</p></blockquote><a id="output_from_building_the_schema_using_hs"/><h5 id="title-ID0EZXAE" class="docExampleTitle">Example 2-7. Output from building the schema using HSQLDB's embedded database server</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+						<b>% ant schema</b>
+Buildfile: build.xml
+
+prepare:
+    [mkdir] Created dir: /Users/jim/Documents/Work/OReilly/Hibernate/Examples/
+ch02/classes
+    [copy] Copying 3 files to /Users/jim/Documents/Work/OReilly/Hibernate/
+Examples/ch02/classes
+
+compile:
+    [javac] Compiling 1 source file to /Users/jim/Documents/Work/OReilly/
+Hibernate/Examples/ch02/classes
+
+schema:
+[schemaexport] 23:50:36,165 INFO Environment:432 - Hibernate 2.1.1
+[schemaexport] 23:50:36,202 INFO Environment:466 - loaded properties from
+resource hibernate.properties: {hibernate.connection.username=sa, hibernate.
+connection.password=, hibernate.cglib.use_reflection_optimizer=true, hibernate.
+dialect=net.sf.hibernate.dialect.HSQLDialect, hibernate.connection.url=jdbc:
+hsqldb:data/music, hibernate.connection.driver_class=org.hsqldb.jdbcDriver}
+[schemaexport] 23:50:36,310 INFO Environment:481 - using CGLIB reflection
+optimizer
+[schemaexport] 23:50:36,384 INFO Configuration:166 - Mapping file: /Users/jim/
+Documents/Work/OReilly/Hibernate/Examples/ch02/classes/com/oreilly/hh/Track.hbm.
+xml
+[schemaexport] 23:50:37,409 INFO Binder:225 - Mapping class: com.oreilly.hh.
+Track -&gt; TRACK
+[schemaexport] 23:50:37,928 INFO Dialect:82 - Using dialect: net.sf.hibernate.
+dialect.HSQLDialect
+[schemaexport] 23:50:37,942 INFO Configuration:584 - processing one-to-many
+association mappings
+[schemaexport] 23:50:37,947 INFO Configuration:593 - processing one-to-one
+association property references
+[schemaexport] 23:50:37,956 INFO Configuration:618 - processing foreign key
+constraints
+[schemaexport] 23:50:38,113 INFO Configuration:584 - processing one-to-many
+association mappings
+[schemaexport] 23:50:38,124 INFO Configuration:593 - processing one-to-one
+association property references
+[schemaexport] 23:50:38,132 INFO Configuration:618 - processing foreign key
+constraints
+[schemaexport] 23:50:38,149 INFO SchemaExport:98 - Running hbm2ddl schema export
+[schemaexport] 23:50:38,154 INFO SchemaExport:117 - exporting generated schema
+to <a id="idx-CHP-2-0079"/>database
+[schemaexport] 23:50:38,232 INFO DriverManagerConnectionProvider:41 - Using
+Hibernate built-in connection pool (not for production use!)
+[schemaexport] 23:50:38,238 INFO DriverManagerConnectionProvider:42 - Hibernate
+connection pool size: 20
+[schemaexport] 23:50:38,278 INFO DriverManagerConnectionProvider:71 - using
+driver: org.hsqldb.jdbcDriver at URL: jdbc:hsqldb:data/music
+[schemaexport] 23:50:38,283 INFO DriverManagerConnectionProvider:72 -connection
+properties: {user=sa, password=}
+[schemaexport] drop table TRACK if exists
+[schemaexport] 23:50:39,083 DEBUG SchemaExport:132 - drop table TRACK if exists
+[schemaexport] create table TRACK (
+[schemaexport]    TRACK_ID INTEGER NOT NULL IDENTITY,
+[schemaexport]    title VARCHAR(255) not null,
+[schemaexport]    filePath VARCHAR(255) not null,
+[schemaexport]    playTime TIME,
+[schemaexport]    added DATE,
+[schemaexport]    volume SMALLINT
+[schemaexport] )
+[schemaexport] 23:50:39,113 DEBUG SchemaExport:149 - create table TRACK (
+[schemaexport]    TRACK_ID INTEGER NOT NULL IDENTITY,
+[schemaexport]    title VARCHAR(255) not null,
+[schemaexport]    filePath VARCHAR(255) not null,
+[schemaexport]    playTime TIME,
+[schemaexport]    added DATE,
+[schemaexport]    volume SMALLINT
+[schemaexport] )
+[schemaexport] 23:50:39,142 INFO SchemaExport:160 - schema export complete
+[schemaexport] 23:50:39,178 INFO DriverManagerConnectionProvider:137 - cleaning
+up connection pool: jdbc:hsqldb:data/music
+
+BUILD SUCCESSFUL
+Total time: 10 seconds
+</pre><br/>
+</td></tr></table><p class="docText">Toward the end of the <tt>schemaexport</tt> section you can see the actual SQL used by Hibernate to create the <tt>TRACK</tt> table. If you look at the start of the <i>music.script</i> file in the <span class="docEmphasis">data</span> directory, you'll see it's been incorporated into the <a id="idx-CHP-2-0080"/>database. For a slightly more friendly (and perhaps convincing) way to see it, execute <tt><b>ant db</b></tt> to fire up the HSQLDB graphical interface, as shown in <a class="docLink" href="#the_database_interface_with_our_new_trac">Figure 2-1</a>.<a id="idx-CHP-2-0081"/></p><a id="the_database_interface_with_our_new_trac"/><p/><div class="center"><h5 class="docFigureTitle">Figure 2-1. The database interface with our new TRACK table expanded, and a query</h5><a id="I_mediaobject2_d1e1948"/><p class="docText"><img src="Images/0596006969_cooking_up_a_schema_image01.png" alt="" width="396" height="246"/></p></div><br/><a id="what_just_happened-id004"/><h4 id="title-ID0EPZAE" class="docSection2Title">2.3.2. What just happened?</h4><p class="docText">We were able to use Hibernate to create a data table in which we can persist instances of the Java class it created for us. We didn't have to type a single line of SQL or Java! Of course, our table is still empty at this point. Let's change that! The next chapter will look at the stuff you probably most want to see: using Hibernate from within a Java program to turn objects into <a id="idx-CHP-2-0082"/>database entries and vice versa.</p><p class="docText">Before diving into that cool task, it's worth taking a moment to reflect on how much we've been able to accomplish with a couple of XML and properties files. Hopefully you're starting to see the power and convenience that make Hibernate so exciting.</p><blockquote><p class="docText"><span class="docEmphasis">It's about time? Yeah, I suppose. But at least you didn't have to figure out all these steps from scratch</span>!</p></blockquote><a id="what_abouthellip-id003"/><h4 id="title-ID0E6ZAE" class="docSection2Title">2.1.4. What about…</h4><p class="docText">…Other approaches to ID generation? <a id="idx-CHP-2-0083"/>Keys that are globally unique across a database or the world? Hibernate can support a variety of methods for picking the keys for objects it stores in the database. This is controlled using the <tt>generator</tt> tag, line 15 in <a class="docLink" href="0596006969_writing_a_mapping_document.xhtml#the_mapping_document_for_tracks_trackhbm">Example 2-1</a>. In this example we told Hibernate to use the most natural kind of keys for the type of database that it happens to be using. Other alternatives include the popular "hi/lo" algorithm, global UUIDs, leaving it entirely up to your Java code, and more. See the "generator" section in the Basic O/R Mapping chapter of the Hibernate reference documentation for details. And, as usual, if none of the built-in choices are perfect for your needs, you can supply your own class to do it exactly how you'd like, implementing the interface <tt>net.sf.hibernate.id.IdentifierGenerator</tt> and supplying your class name in the <tt>generator</tt> tag.<a id="idx-CHP-2-0084"/></p></div></div></body>
+</html>

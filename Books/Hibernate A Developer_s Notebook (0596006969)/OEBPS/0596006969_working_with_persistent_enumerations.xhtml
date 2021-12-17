@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_working_with_persistent_enumerations"><a id="working_with_persistent_enumerations"/><h3 class="docSection1Title">6.2. Working with Persistent Enumerations</h3><p class="docText">If you were thinking about it, you may have noticed that we never defined a persistence mapping for the <tt>SourceMedia</tt> class in the first part of this chapter. That's because our persistent enumerated type is a <span class="docEmphasis">value</span> that gets persisted as part of one or more entities, rather than being an entity unto itself.</p><p class="docText">In that light, it's not surprising that we've not yet done any mapping. That happens when it's time to actually use the persistent enumeration.</p><a id="how_do_i_do_that-id020"/><h4 id="title-ID0EXUAG" class="docSection2Title">6.1.1. How do I do that?</h4><p class="docText">Recall that we wanted to keep track of the source media for the music tracks in our jukebox system. That means we want to use the <tt>SourceMedia</tt><a id="our"/> enumeration in our <tt>Track</tt> mapping. We can simply add a new <tt>property</tt> tag to the <tt>class</tt> definition in <span class="docEmphasis">Track.hbm.xml</span>, as shown in <a class="docLink" href="#adding_the_sourcemedia_property_to_the_t">Example 6-3</a>.<a id="I_indexterm6_d1e5693"/></p><a id="adding_the_sourcemedia_property_to_the_t"/><h5 id="title-ID0EWVAG" class="docExampleTitle">Example 6-3. Adding the sourceMedia property to the Track mapping document</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+&lt;property name="volume" type="short"&gt;
+  &lt;meta attribute="field-description"&gt;How loud to play the track&lt;/meta&gt;
+&lt;/property&gt;
+
+<b>&lt;property name="sourceMedia" type="com.oreilly.hh.SourceMedia"&gt;
+  &lt;meta attribute="field-description"&gt;Media on which track was obtained&lt;/meta&gt;</b>
+  &lt;meta attribute="use-in-tostring"&gt;true&lt;/meta&gt;
+<b>&lt;/property&gt;</b>
+&lt;/class&gt;
+...
+</pre><br/>
+</td></tr></table><p class="docText">Because the <tt>type</tt> of our <tt>sourceMedia</tt> property names a class that implements the <tt>PersistentEnum</tt> interface, Hibernate knows to persist it using its built-in enumeration support.</p><p class="docText">With this addition in place, running <tt><b>ant codegen</b></tt> updates our <tt>Track</tt> class to include the new property. The signature of the full-blown <tt>Track</tt> constructor now looks like this:</p><pre>
+	public Track(String title, String filePath, Date playTime, Date added,
+	             short volume, <b>com.oreilly.hh.SourceMedia sourceMedia,</b>
+	             Set artists, Set comments) { ... }
+</pre><br/>
+<p class="docText">We need to make corresponding changes in <span class="docEmphasis">CreateTest.java</span>:</p><pre>
+	Track track = new Track("Russian Trance",
+	                        "vol2/album610/track02.mp3",
+	                        Time.valueOf("00:03:30"), new Date(),
+	                        (short)0, <b>SourceMedia.CD,</b>
+	                        new HashSet(), new HashSet());
+	    ...
+	            track = new Track("Video Killed the Radio Star",
+	                              "vol2/album611/track12.mp3",
+	                              Time.valueOf("00:03:49"), new Date(),
+	                              (short)0, <b>SourceMedia.VHS,</b>
+	                              new HashSet(), new HashSet());
+</pre><br/>
+<p class="docText">And so on. To match the results shown later, mark the rest as coming from CDs, except for "The World '99" which comes from a stream and give "Test Tone 1" a <tt>null sourceMedia</tt><a id="run"/> value. At this point, run <tt><b>ant schema</b></tt> to rebuild the database schema with support for the new property, and run <tt><b>ant ctest</b></tt> to create the sample data.</p><a id="what_just_happened-id011"/><h4 id="title-ID0EZXAG" class="docSection2Title">6.2.1. What just happened?</h4><p class="docText">Our <tt>TRACK</tt> table now contains an integer column to store the <tt>sourceMedia</tt> property. We can see its values by looking at the contents of the table after creating the sample data (the easiest way is to run a query within <tt><b>ant db</b></tt>, as shown in <a class="docLink" href="#source_media_information_in_the_track_ta">Figure 6-1</a>).</p><p class="docText">We can verify that the values persisted to the database are correct by cross-checking the codes assigned to our persistent enumeration. Alternately, we can see a more meaningful version of the information by slightly enhancing the query test to print this property for the tracks it retrieves. The necessary changes are in bold in <a class="docLink" href="#displaying_source_media_in_querytestjava">Example 6-4</a>.</p><a id="source_media_information_in_the_track_ta"/><p/><div class="center"><h5 class="docFigureTitle">Figure 6-1. Source media information in the TRACK table</h5><a id="I_mediaobject6_d1e5783"/><p class="docText"><img src="Images/0596006969_working_with_persistent_enumerations_image01.png" alt="" width="392" height="246"/></p></div><br/><a id="displaying_source_media_in_querytestjava"/><h5 id="title-ID0E3YAG" class="docExampleTitle">Example 6-4. Displaying source media in QueryTest.java</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+// Print the tracks that will fit in seven minutes
+List tracks = tracksNoLongerThan(Time.valueOf("00:07:00"),
+                                 session);
+
+for (ListIterator iter = tracks.listIterator() ;
+     iter.hasNext() ; ) {
+    Track aTrack = (Track)iter.next();
+    <b>String mediaInfo = "";
+    if (aTrack.getSourceMedia() != null) {
+        mediaInfo = ", from " +
+            aTrack.getSourceMedia().getDescription();
+    }</b>
+    System.out.println("Track: \"" + aTrack.getTitle() + "\" " +
+                       listArtistNames(aTrack.getArtists()) +
+                       aTrack.getPlayTime() <b>+ mediaInfo</b>);
+</pre><br/>
+</td></tr></table><p class="docText">With these enhancements, running <tt><b>ant qtest</b></tt> yields the output shown in <a class="docLink" href="#human-oriented_display_of_source_media_i">Example 6-5</a>. Tracks with non-<tt>null</tt> source media values now have "from" and the appropriate media description displayed at the end.</p><a id="human-oriented_display_of_source_media_i"/><h5 id="title-ID0EVZAG" class="docExampleTitle">Example 6-5. Human-oriented display of source media information</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+qtest:
+     [java] Track: "Russian Trance" (PPK) 00:03:30, from Compact Disc
+     [java] Track: "Video Killed the Radio Star" (The Buggles) 00:03:49, from VHS
+Videocassette Tape
+     [java] Track: "Gravity's Angel" (Laurie Anderson) 00:06:06, from Compact Disc
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35, from Compact Disc
+     [java] Track: "Test Tone 1" 00:00:10
+     [java]   Comment: Pink noise to test equalization
+</pre><br/>
+</td></tr></table><p class="docText">Note that if we hadn't decided to do our own fancy formatting of a subset of the tracks' properties in <tt>QueryTest</tt> and instead relied on the <tt>toString()</tt> method in <tt>Track</tt>, we'd not have needed to make any changes to <tt>QueryTest</tt> to see this new information. Our mapping document specified that the <tt>sourceMedia</tt> property should be included in the <tt>toString()</tt> result, which would have taken care of it. You can inspect the generated <tt>toString()</tt> sourceto check this, or write a simple test program to see what the <tt>toString()</tt> output looks like. An excellent candidate would be to fix <tt>AlbumTest.java</tt> so it will compile and run after our changes to <tt>Track</tt>. The easiest fix is to simply hardcode the <tt>addAlbumTrack()</tt> method to assume everything comes from CDs, as in <a class="docLink" href="#human-oriented_display_of_source_media_i">Example 6-5</a> (the JavaDoc already excuses such shameful rigidity).</p><a id="fixing_albumtestjava_to_support_source_m"/><h5 id="title-ID0EC2AG" class="docExampleTitle">Example 6-6. Fixing AlbumTest.java to support source media</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+/**
+ * Quick and dirty helper method to handle repetitive portion of creating
+ * album tracks. A real implementation would have much more flexibility.
+ */
+private static void addAlbumTrack(Album album, String title, String file,
+                                  Time length, Artist artist, int disc,
+                                  int positionOnDisc, Session session)
+    throws HibernateException
+{
+    Track track = new Track(title, file, length, new Date(), (short)0,
+                            <b>SourceMedia.CD,</b> new HashSet(), new HashSet());
+    track.getArtists().add(artist);
+    //        session.save(track);
+    album.getTracks().add(new AlbumTrack(disc, positionOnDisc, track));
+}
+</pre><br/>
+</td></tr></table><p class="docText">With this fix in place, running <tt><b>ant atest</b></tt> shows that the source media information propagates all the way up to <tt>Album</tt><a id="own"/>'s own <tt>toString()</tt> method:</p><pre>
+	     [java] com.oreilly.hh.Album@e0f945[id=0,title=Counterfeit e.p.,
+	tracks=[com.oreilly.hh.AlbumTrack@1370ab[track=com.oreilly.hh.
+	Track@49f9fa[id=&lt;null&gt;,title=Compulsion,sourceMedia=Compact Disc]], com.
+	oreilly.hh.AlbumTrack@ba936a[track=com.oreilly.hh.Track@2421db[id=&lt;null&gt;,
+	title=In a Manner of Speaking,sourceMedia=Compact Disc]], com.oreilly.hh.
+	AlbumTrack@2ad974[track=com.oreilly.hh.Track@2a7640[id=&lt;null&gt;,title=Smile in
+	the Crowd,sourceMedia=Compact Disc]], com.oreilly.hh.
+	AlbumTrack@b9808e[track=com.oreilly.hh.Track@a721e2[id=&lt;null&gt;,
+	title=Gone,sourceMedia=Compact Disc]], com.oreilly.hh. 
+	AlbumTrack@a1ad7d[track=com.oreilly.hh.Track@851576[id=&lt;null&gt;,title=Never
+	Turn Your Back on Mother Earth,sourceMedia=Compact Disc]], com.oreilly.hh.
+	AlbumTrack@442c19[track=com.oreilly.hh.Track@ab2ddb[id=&lt;null&gt;,
+	title=Motherless Child,sourceMedia=Compact Disc]]]]
+</pre><br/>
+<p class="docText">With a little work, Hibernate lets you extend your typesafe enumerations to support persistence. And once you've invested that effort, you can persist them as easily as any other value type for which native support exists.</p><p class="docText">It will be interesting to see how Hibernate evolves to take advantage of the exciting <tt>enum</tt> keyword support in Java 1.5 once that's been out for a while. The need to implement <tt>PersistentEnum</tt> will probably disappear, since all real <tt>enums</tt> will already extend <tt>java.lang.Enum</tt> and will have interesting ways to obtain specific members. I hope that as Hibernate evolves to support these new first-class enumerations, it will also allow their symbolic enumeration constants to be stored in the database, rather than requiring the use of a cryptic integer column as it does today. In an ideal world, it will even be able to take advantage of the native support for enumerations provided by some databases.</p><p class="docText">If you're interested in an alternate approach to persisting typesafe enumerations that can achieve some of these goals today, read on to <a class="docLink" href="0596006969_custom_value_types.xhtml#custom_value_types">Chapter 7</a> in which the mysteries of custom type mapping are explored!</p></div></div></body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_persisting_collections"><a id="persisting_collections"/><h3 class="docSection1Title">4.2. Persisting Collections</h3><p class="docText">Our first task is to beef up the <tt>CreateTest</tt> class to take advantage of the new richness in our schema, creating some artists and associating them with tracks.<a id="idx-CHP-4-0164"/></p><a id="how_do_i_do_that-id012"/><h4 id="title-ID0EO5AE" class="docSection2Title">4.1.1. How do I do that?</h4><p class="docText">To begin with, add some helper methods to <span class="docEmphasis">CreateTest.java</span> to simplify the task, as shown in <a class="docLink" href="#utility_methods_to_help_find_and_create_">Example 4-5</a> (with changes and additions in bold).<a id="I_indexterm4_d1e3684"/></p><a id="utility_methods_to_help_find_and_create_"/><h5 id="title-ID0EB6AE" class="docExampleTitle">Example 4-5. Utility methods to help find and create artists, and to link them to tracks</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1  package com.oreilly.hh;
+ 2
+ 3  import net.sf.hibernate.*;
+ 4
+ 5  import net.sf.hibernate.cfg.Configuration;
+ 6
+ 7  import java.sql.Time;
+ 8  import java.util.*;
+ 9
+10  /**
+11   * Create <b>more</b> sample data, letting Hibernate persist it for us.
+12   */
+13  public class CreateTest {
+14
+15      <b>/**
+16       * Look up an artist record given a name.
+17       * @param name the name of the artist desired.
+18       * @param create controls whether a new record should be created if
+19       *        the specified artist is not yet in the database.
+20       * @param session the Hibernate session that can retrieve data
+21       * @return the artist with the specifiedname, or &lt;code&gt;null&lt;/code&gt;if no
+22       * such artist exists and &lt;code&gt;create&lt;/code&gt; is &lt;code&gt;false&lt;/code&gt;
+23       * @throws HibernateException if there is a problem.
+24       */
+25      public static Artist getArtist(String name, boolean create,
+26                                      Session session)
+27          throws HibernateException
+28      {
+29          Query query = session.getNamedQuery(
+30                            "com.oreilly.hh.artistByName");
+31          query.setString("name", name);
+32          Artist found = (Artist)query.uniqueResult();
+33          if (found == null &amp;&amp; create) {
+34              found = new Artist(name, new HashSet());
+35              session.save(found);
+36          }
+37          return found;
+38      }
+39
+40      /**
+41       * Utility method to associate an artist with a track
+42       */
+43      private static void addTrackArtist(Track track, Artist artist) {
+44          track.getArtists().add(artist);
+45      }</b>
+					</pre><br/>
+</td></tr></table><p class="docText">As is so often the case when working with Hibernate, this code is pretty simple and self explanatory. (Do notice that line 8 has changed—we used to import <tt>java.util.Date</tt>, but we're now importing the whole <tt>util</tt> package to work with <tt>Collections</tt>. The "*" is bold to highlight this, but it's easy to miss when scanning the example.)<a id="idx-CHP-4-0165"/></p><p class="docText">We'll want to reuse the same artists if we create multiple tracks for them— that's the whole point of using an <tt>Artist</tt> object rather than just storing strings—so our <tt>getArtist()</tt> method (starting at line 15) does the work of looking them up by name. The <tt>uniqueResult()</tt> method it uses on line 32 is a convenience feature of the <tt>Query</tt> interface, perfect in situations like this, where we know we'll either get one result or none. It saves us the trouble of getting back a list of results, checking the length and extracting the first result if it's there. We'll either get back the single result or <tt>null</tt> if there were none. (We'd be thrown an exception if there were more than one result, but our <tt>unique</tt> constraint on the column will prevent that.)</p><p class="docText">So all we need to do is check for <tt>null</tt> on line 33, and create a new <tt>Artist</tt> (lines 34–35) if we didn't find one and we're supposed to.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">If we left out the <tt>session.save()</tt> call, our artists would remain transient.(Itinerant painters? Sorry.) Hibernate is helpful enough to throw an exception if we try to commit our transaction in this state, by detecting references from <a id="idx-CHP-4-0166"/>persistent <tt>Track</tt> instances to transient <tt>Artist</tt> instances.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">The <tt>addTrackArtist()</tt> method (lines 40–45) is almost embarrassingly simple. It's just ordinary Java <tt>Collections</tt> code that grabs the <tt>Set</tt> of artists belonging to a <tt>Track</tt> and adds the specified <tt>Artist</tt> to it. Can that really do everything we need? Where's all the database manipulation code we normally have to write? Welcome to the wonderful world of object relational mapping tools!</p><p class="docText">You might have noticed that <tt>getArtist()</tt> uses a named query to retrieve the <tt>Artist</tt> record. In <a class="docLink" href="#artist_lookup_query_to_be_added_to_the_a">Example 4-6</a>, we will add that at the end of <tt>Artist.hbm.xml</tt> (actually, we could put it in any mapping file, but this is the most sensible place, since it relates to <tt>Artist</tt> records).</p><a id="artist_lookup_query_to_be_added_to_the_a"/><h5 id="title-ID0EQCAG" class="docExampleTitle">Example 4-6. Artist lookup query to be added to the artist mapping document</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;query name="com.oreilly.hh.artistByName"&gt;
+  &lt;![CDATA[
+      from com.oreilly.hh.Artist as artist
+      where upper(artist.name) = upper(:name)
+    ]]&gt;
+&lt;/query&gt;
+</pre><br/>
+</td></tr></table><p class="docText"><a id="the"/>We use the <tt>upper()</tt> function to perform case-insensitive comparison of artists' names, so that we retrieve the artist even if the capitalization is different during lookup than what's stored in the database. This sort of case-insensitive but preserving architecture, a user-friendly concession to the way humans like to work, is worth implementing whenever possible. Databases other than HSQLDB may have a different name for the function that converts strings to uppercase, but there should be one available.<a id="idx-CHP-4-0167"/></p><p class="docText">Now we can use this infrastructure to actually create some tracks with linked artists. <a class="docLink" href="#revisions_to_main_method_of_createtestja">Example 4-7</a> shows the remainder of the <tt>CreateTest</tt> class with the additions marked in bold. Edit your copy to match (or download it to save the typing).</p><a id="revisions_to_main_method_of_createtestja"/><h5 id="title-ID0EIDAG" class="docExampleTitle">Example 4-7. Revisions to main method of CreateTest.java in order to add artist associations</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1  public static void main(String args[]) throws Exception {
+ 2      // Create a configuration based on the properties file we've put
+ 3      // in the standard place.
+ 4      Configuration config = new Configuration();
+ 5
+ 6      // Tell it about the classes we want mapped, taking advantage of
+ 7      // the way we've named their mapping documents.
+ 8      config.addClass(Track.class)<b>.addClass(Artist.class)</b>;
+ 9
+10      // Get the session factory we can use for persistence
+11      SessionFactory sessionFactory = config.buildSessionFactory();
+12
+13      // Ask for a session using the JDBC information we've configured
+14      Session session = sessionFactory.openSession();
+15      Transaction tx = null;
+16      try {
+17          // Create some data and persist it 
+18          tx = session.beginTransaction(); 
+19
+20          Track track = new Track("Russian Trance",
+21                                  "vol2/album610/track02.mp3", 
+22                                  Time.valueOf("00:03:30"), new Date(),
+23                                  (short)0<b>, new HashSet()</b>);
+24          <b>addTrackArtist(track, getArtist("PPK", true, session));</b>
+25          session.save(track);
+26
+27          track = new Track("Video Killed the Radio Star",
+28                            "vol2/album611/track12.mp3",
+29                            Time.valueOf("00:03:49"), new Date(),
+30                            (short)0<b>, new HashSet()</b>);
+31          <b>addTrackArtist(track, getArtist("The Buggles", true, session));</b>
+32          session.save(track);
+33
+34
+35          track = new Track("Gravity's Angel", 
+36                            "vol2/album175/track03.mp3", 
+37                            Time.valueOf("00:06:06"), new Date(),
+38                            (short)0<b>, new HashSet()</b>);
+39          <b>addTrackArtist(track, getArtist("Laurie Anderson", true, session));</b>
+40          session.save(track); 
+41
+42          <b>track = new Track("Adagio for Strings (Ferry Corsten Remix)",
+43                            "vol2/album972/track01.mp3", 
+44                            Time.valueOf("00:06:35"), new Date(), 
+45                            (short)0, new HashSet()); 
+46          addTrackArtist(track, getArtist("William Orbit", true, session)); 
+47          addTrackArtist(track, getArtist("Ferry Corsten", true, session)); 
+48          addTrackArtist(track, getArtist("Samuel Barber", true, session)); 
+49          session.save(track); 
+50
+51          track = new Track("Adagio for Strings (ATB Remix)", 
+52                            "vol2/album972/track02.mp3", 
+53                            Time.valueOf("00:07:39"), new Date(), 
+54                            (short)0, new HashSet());
+55          addTrackArtist(track, getArtist("William Orbit", true, session)); 
+56          addTrackArtist(track, getArtist("ATB", true, session)); 
+57          addTrackArtist(track, getArtist("Samuel Barber", true, session)); 
+58          session.save(track);
+59
+60          track = new Track("The World '99",
+61                            "vol2/singles/pvw99.mp3",
+62                            Time.valueOf("00:07:05"), new Date(),
+63                            (short)0, new HashSet());
+64          addTrackArtist(track, getArtist("Pulp Victim", true, session)); 
+65          addTrackArtist(track, getArtist("Ferry Corsten", true, session)); 
+66          session.save(track);
+67
+68          track = new Track("Test Tone 1",
+69                            "vol2/singles/test01.mp3",
+70                            Time.valueOf("00:00:10"), new Date(),
+71                            (short)0, new HashSet());
+72          session.save(track);</b>
+73
+74          // We're done; make our changes permanent
+75          tx.commit();
+76
+77      } catch (Exception e) {
+78          if (tx != null) {
+79              // Something went wrong; discard all partial changes
+80              tx.rollback();
+81          }
+82          throw e;
+83      } finally {
+84          // No matter what, close the session
+85          session.close();
+86      }
+87
+88      // Clean up after ourselves
+89      sessionFactory.close();
+90   }
+91  }
+</pre><br/>
+</td></tr></table><p class="docText">The changes to the existing code are pretty minimal. First we need to map our new <tt>Artist</tt> class, which takes just one method call on line 8(again, thanks to the naming convention we've been following to link our mapping documents to their classes). The lines that created the three tracks from <a class="docLink" href="0596006969_harnessing_hibernate.xhtml#harnessing_hibernate">Chapter 3</a> need only  a single new parameter each, to supply an initially empty set of <tt>Artist</tt> associations (lines 23, 30, and 38). Each also gets a  new follow-up line establishing an association to the artist for that track. We could have structured this code differently, by writing a helper method to create the initial <tt>HashSet</tt> containing the artist, so we could do this all in one line. The approach we actually used scales better to multi-artist tracks, as the next section illustrates.</p><p class="docText">The largest chunk of new code, lines 42–66, simply adds three new tracks to show how multiple artists per track are handled. If you like electronica and dance remixes (or classical for that matter), you know how important an issue that can be. Because we set the links up as <a id="idx-CHP-4-0168"/>collections, it's simply a matter of adding each artist link to the tracks. Finally, lines 68–72 add a track with no artist associations to see how that behaves, too. Now you can run <tt><b>ant ctest</b></tt> to create the new sample data containing tracks, artists, and associations between them.</p><blockquote><p class="docText"><span class="docEmphasis">Of course, in real life you'd be getting this data into the database in some other way—through a user interface, or as part of the process of importing the actual music</span>.</p></blockquote><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText"><a id="test"/>A useful trick if you're making changes to your test <a id="idx-CHP-4-0169"/>data creation program and you want to try it again starting from an empty database is to issue the command <tt><b>ant schema ctest</b></tt>. This tells Ant to run the <tt>schema</tt> and <tt>ctest</tt> targets one after the other. Running <tt>schema</tt> blows away any existing data; then <tt>ctest</tt> gets to create it anew.</p><hr style="height: 1px; color: gray; background-color: gray;"/><a id="what_just_happened-id009"/><h4 id="title-ID0E6FAG" class="docSection2Title">4.1.2. What just happened?</h4><p class="docText">There's no visible output from running <tt>ctest:</tt> look at <span class="docEmphasis">data/music.script</span> to see what got created or fire up <tt><b>ant db</b></tt> to look at it via the graphical interface. Take a look at the contents of the three tables. <a class="docLink" href="#artist_and_track_associations_created_by">Figure 4-2</a> shows what ended up in the join table that represents associations between artists and tracks. The raw data is becoming cryptic. If you're used to relational modeling, this query shows you everything worked. If you're mortal like me, the next section is more convincing; it's certainly more fun.<a id="I_indexterm4_d1e3911"/></p><a id="artist_and_track_associations_created_by"/><p/><div class="center"><h5 class="docFigureTitle">Figure 4-2. Artist and track associations created by the new version of CreateTest</h5><a id="I_mediaobject4_d1e3919"/><p class="docText"><img src="Images/0596006969_persisting_collections_image01.png" alt="" width="396" height="246"/></p></div><br/></div></div></body>
+</html>

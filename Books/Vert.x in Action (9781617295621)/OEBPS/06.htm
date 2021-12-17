@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1018344"/>6 Beyond the event bus</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>How to expose services on top of the event bus</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>Asynchronous testing of both verticles and event-bus services</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011861"/>The event bus is a fundamental tool for articulating event processing in Vert.x, but there is more to it! Event-bus services are useful for exposing typed interfaces rather than plain messaging, especially when multiple message types are expected at an event-bus destination. Testing is also an important concept, and we’ll look at what is different in testing asynchronous Vert.x code compared to traditional testing.</p>
+
+  <p class="body"><a id="pgfId-1011867"/>In this chapter we will revisit an earlier example, refactor it into an event-bus service, and test it.</p>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011873"/>6.1 Revisiting heat sensors with a service API</h2>
+
+  <p class="body"><a id="pgfId-1011896"/><a id="marker-1011884"/><a id="marker-1011886"/>In chapter 3 we used heat sensors as an example. We had a <code class="fm-code-in-text">SensorData</code> verticle that kept <a id="marker-1011901"/>the last observed values for each sensor and compute their average using request/reply communication on the event bus. The following listing shows the code we used to compute the temperature average.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1011962"/>Listing 6.1 Event-bus-based average computation API</p>
+  <pre class="programlisting">private void average(Message&lt;JsonObject&gt; message) {        <span class="fm-combinumeral">❶</span>
+  double avg = lastValues.values().stream()
+    .collect(Collectors.averagingDouble(Double::doubleValue));
+  JsonObject json = new JsonObject().put("average", avg);
+  message.reply(json);                                     <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025995"/><span class="fm-combinumeral">❶</span> We receive an event from the event bus.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1026016"/><span class="fm-combinumeral">❷</span> We reply to the event.</p>
+
+  <p class="body"><a id="pgfId-1012079"/>This code is tightly coupled with the Vert.x event-bus APIs, as it needs to receive a message and reply to it. Any software component willing to call <code class="fm-code-in-text">average</code> has to send <a id="marker-1012090"/>a message over the event bus and expect a response.</p>
+
+  <p class="body"><a id="pgfId-1012100"/>But what if we could have a regular Java interface with methods to call, rather than having to send and receive messages over the event bus? The interface proposed in the next listing would be completely agnostic of the event bus.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012157"/>Listing 6.2 Heat sensor API as a Java interface</p>
+  <pre class="programlisting">public interface SensorDataService {
+  void valueFor(String sensorId, Handler&lt;AsyncResult&lt;JsonObject&gt;&gt;     <span class="fm-combinumeral">❶</span>
+  void average(Handler&lt;AsyncResult&lt;JsonObject&gt;&gt; handler);             <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025826"/><span class="fm-combinumeral">❶</span> Asynchronously ask for a sensor value.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025847"/><span class="fm-combinumeral">❷</span> Asynchronously ask for the average.</p>
+
+  <p class="body"><a id="pgfId-1012278"/>The proposed interface has methods with trailing callback parameters so the caller will be notified asynchronously of responses and errors. The <code class="fm-code-in-text">Handler&lt;AsyncResult&lt;T&gt;&gt;</code> type is commonly used for callbacks in Vert.x APIs, where <code class="fm-code-in-text">T</code> can be anything but is typically a JSON type.</p>
+
+  <p class="body"><a id="pgfId-1012300"/>The interface of listing 6.2 is what we are aiming for with event-bus services. Let’s revise the heat sensor example, replacing event-bus interactions <a id="marker-1012289"/>with a <code class="fm-code-in-text">SensorDataService</code> typed Java interface. <a id="marker-1012305"/><a id="marker-1012308"/></p>
+
+  <h2 class="fm-head" id="heading_id_4"><a id="pgfId-1012314"/>6.2 Return of the RPCs (remote procedure calls)</h2>
+
+  <p class="body"><a id="pgfId-1012354"/><a id="marker-1012325"/>You may already be familiar with <i class="fm-italics">remote procedure calls</i>, a popular abstraction in distributed computing.<a href="#pgfId-1022950">1</a> RPCs were introduced to hide network communications when you’re <i class="fm-italics">calling</i> functions running on another machine (the server). The idea is that a local function acts as a proxy, sending a message with the call arguments over the network to the server, and the server then calls the <i class="fm-italics">real</i> function. The response is then sent back to the proxy, and the client has the illusion of having called a regular, local function.</p>
+
+  <p class="body"><a id="pgfId-1012376"/>Vert.x event-bus services <a id="marker-1012365"/>are a form of <i class="fm-italics">asynchronous RPC</i>:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012385"/>A service encapsulates a set of operations, like <code class="fm-code-in-text">SensorDataService</code> in listing 6.2.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012408"/>A service is described by a regular Java API with methods for exposed operations.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012418"/>Neither the requester nor the implementation need to directly deal with event-bus messages.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012513"/>Figure 6.1 illustrates the various components at stake when <a id="marker-1012430"/>invoking the <code class="fm-code-in-text">average</code> method of the <code class="fm-code-in-text">SensorDataService</code> interface. The client code invokes the <code class="fm-code-in-text">average</code> method on a service proxy. This is an object that implements the <code class="fm-code-in-text">SensorDataService</code> interface and then sends a message <a id="marker-1012476"/>on the event bus to the <code class="fm-code-in-text">sensor.data-service</code> destination (this can be configured). The message <a id="marker-1012492"/>body contains the method call parameter values, so because <code class="fm-code-in-text">average</code> only takes a callback, the body is empty. The message also has an <code class="fm-code-in-text">action</code> header that indicates which method is being called.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH06_F01_Ponge.png" width="868" height="593"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1026515"/>Figure 6.1 How service proxies work</p>
+
+  <p class="body"><a id="pgfId-1012600"/>A proxy handler listens to the <code class="fm-code-in-text">sensor.data-service</code> destination and dispatches <a id="marker-1012557"/>method calls based on the message’s action header and body. The actual <code class="fm-code-in-text">SensorDataService</code> implementation <a id="marker-1012573"/>is used here, and the <code class="fm-code-in-text">average</code> method is called. The proxy handler <a id="marker-1012589"/>then replies to the event-bus message with a value passed through the <code class="fm-code-in-text">average</code> method callback. In turn, the client receives the reply through the service proxy, which passes the reply to the callback from the call on the client side.</p>
+
+  <p class="body"><a id="pgfId-1012609"/>This model can simplify dealing with the event bus, especially when many operations need to be exposed. It thus makes sense to define a Java interface as an API rather than manually dealing with messages. <a id="marker-1012611"/></p>
+
+  <h2 class="fm-head" id="heading_id_5"><a id="pgfId-1012618"/>6.3 Defining a service interface</h2>
+
+  <p class="body"><a id="pgfId-1012644"/><a id="marker-1012629"/>Listing 6.2 has the interface that <a id="marker-1012633"/>we want for <code class="fm-code-in-text">SensorDataService</code>, but there is a little more code to add. To develop an event-bus service, you need to</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012653"/>Write a Java interface that respects a few conventions</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012667"/>Write an implementation</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012677"/>Vert.x does not rely on magic through bytecode engineering or reflection at runtime, so service proxies and handlers need to be written and compiled. Fortunately, Vert.x comes with code generators, so you will generate both the service proxies and handlers at compilation time rather than write them yourself.</p>
+
+  <p class="body"><a id="pgfId-1012683"/>The complete <code class="fm-code-in-text">SensorDataService</code> interface is detailed in <a id="marker-1012694"/>the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012755"/>Listing 6.3 Sensor data service</p>
+  <pre class="programlisting">@ProxyGen                                                                  <span class="fm-combinumeral">❶</span>
+public interface SensorDataService {
+
+  static SensorDataService create(Vertx vertx) {                           <span class="fm-combinumeral">❷</span>
+    return new SensorDataServiceImpl(vertx);
+  }
+
+  static SensorDataService createProxy(Vertx vertx, String address) {      <span class="fm-combinumeral">❸</span>
+    return new SensorDataServiceVertxEBProxy(vertx, address);
+  }
+
+  void valueFor(String sensorId, Handler&lt;AsyncResult&lt;JsonObject&gt;&gt; handler);<span class="fm-combinumeral">❹</span>
+
+  void average(Handler&lt;AsyncResult&lt;JsonObject&gt;&gt; handler);                  <span class="fm-combinumeral">❺</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025460"/><span class="fm-combinumeral">❶</span> This annotation is used to generate an event-bus proxy.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025481"/><span class="fm-combinumeral">❷</span> Factory method for creating a service instance</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025498"/><span class="fm-combinumeral">❸</span> Factory method for creating a proxy</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025522"/><span class="fm-combinumeral">❹</span> Operation that takes a parameter and a callback</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025539"/><span class="fm-combinumeral">❺</span> Operation that takes no parameter and a callback</p>
+
+  <p class="body"><a id="pgfId-1012988"/>The <code class="fm-code-in-text">@ProxyGen</code> annotation is used to mark <a id="marker-1012999"/>an event-bus service interface so as to generate the proxy code.</p>
+
+  <p class="body"><a id="pgfId-1013031"/>You will also need to define a <code class="fm-code-in-text">package-info.java</code> file and annotate <a id="marker-1013020"/>the package definition with <code class="fm-code-in-text">@ModuleGen</code> to enable the annotation processor, as shown in the next listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013091"/>Listing 6.4 Package info file and enabling code generation</p>
+  <pre class="programlisting">@ModuleGen(groupPackage = "chapter6", name = "chapter6")     <span class="fm-combinumeral">❶</span>
+package chapter6;
+
+import io.vertx.codegen.annotations.ModuleGen;</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025400"/><span class="fm-combinumeral">❶</span> Enable a module with code generation.</p>
+
+  <p class="body"><a id="pgfId-1013196"/>The methods in a service interface need to adhere to a few conventions, notably that of having a callback as the last parameter. You will be tempted to use return values rather than callbacks, but remember that we are dealing with asynchronous operations, so we need callbacks! It is idiomatic for service interfaces to have factory methods <a id="marker-1013175"/>for both the service implementations (<code class="fm-code-in-text">create</code>) and proxies (<code class="fm-code-in-text">createProxy</code>). These methods greatly <a id="marker-1013201"/>simplify the code for either getting a proxy or publishing a service.</p>
+
+  <p class="body"><a id="pgfId-1013233"/>The <code class="fm-code-in-text">SensorDataServiceVertxEBProxy</code> class is generated <a id="marker-1013222"/>by the Vert.x code generator, and if you peek into it, you will see event-bus operations. There is also a <code class="fm-code-in-text">SensorDataServiceVertxProxyHandler</code> class that’s generated, but only Vert.x will use it, not your code.</p>
+
+  <p class="body"><a id="pgfId-1013255"/>Let’s now look at the actual service implementation <a id="marker-1013244"/>in the <code class="fm-code-in-text">SensorDataServiceImpl</code> class. <a id="marker-1013260"/></p>
+
+  <h2 class="fm-head" id="heading_id_6"><a id="pgfId-1013267"/>6.4 Service implementation</h2>
+
+  <p class="body"><a id="pgfId-1013277"/><a id="marker-1013278"/>The following service implementation is a direct adaptation of the code from chapter 3.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013337"/>Listing 6.5 Implementation of <code class="fm-code-in-listingcaption">SensorDataService</code></p>
+  <pre class="programlisting">class SensorDataServiceImpl implements SensorDataService {
+
+  private final HashMap&lt;String, Double&gt; lastValues = new HashMap&lt;&gt;();
+
+  SensorDataServiceImpl(Vertx vertx) {                                    <span class="fm-combinumeral">❶</span>
+    vertx.eventBus().&lt;JsonObject&gt;consumer("sensor.updates", message -&gt; {  <span class="fm-combinumeral">❷</span>
+      JsonObject json = message.body();
+      lastValues.put(json.getString("id"), json.getDouble("temp"));
+    });
+  }
+
+  @Override
+  public void valueFor(String sensorId, Handler&lt;AsyncResult&lt;JsonObject&gt;&gt; 
+  <span class="fm-code-continuation-arrow">➥</span> handler) {
+    if (lastValues.containsKey(sensorId)) {
+      JsonObject data = new JsonObject()
+        .put("sensorId", sensorId)
+        .put("value", lastValues.get(sensorId));
+      handler.handle(Future.succeededFuture(data));                       <span class="fm-combinumeral">❸</span>
+    } else {
+      handler.handle(Future.failedFuture("No value has been observed for " + 
+      <span class="fm-code-continuation-arrow">➥</span> sensorId));
+    }
+  }
+
+  @Override
+  public void average(Handler&lt;AsyncResult&lt;JsonObject&gt;&gt; handler) {
+    double avg = lastValues.values().stream()
+      .collect(Collectors.averagingDouble(Double::doubleValue));
+    JsonObject data = new JsonObject().put("average", avg);
+    handler.handle(Future.succeededFuture(data));
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025187"/><span class="fm-combinumeral">❶</span> We pass the Vert.x context.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025208"/><span class="fm-combinumeral">❷</span> To get notified of sensor updates, we still need to subscribe to the event bus.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025225"/><span class="fm-combinumeral">❸</span> Instead of passing messages for replies, we use asynchronous results.</p>
+
+  <p class="body"><a id="pgfId-1013630"/>Compared to the code of chapter 3, we have mostly replaced the event-bus code with passing asynchronous results via completed future objects. This code is also free from references to the service proxy handler code, which is being generated.</p>
+
+  <p class="fm-callout"><a id="pgfId-1013659"/><span class="fm-callout-head">Tip</span> The code in listing 6.5 is free of asynchronous operations. In more elaborated services, you will quickly stumble upon cases where you issue asynchronous calls to some other component like a database, an HTTP service, a message broker, or even another service over the event bus. Once you have a response ready, you will pass the result or an error to the method callback, just like <a id="marker-1013648"/>we did in <code class="fm-code-in-text1">SensorDataServiceImpl</code>. <a id="marker-1013664"/></p>
+
+  <h2 class="fm-head" id="heading_id_7"><a id="pgfId-1013671"/>6.5 Enabling proxy code generation</h2>
+
+  <p class="body"><a id="pgfId-1013733"/><a id="marker-1013682"/>Service proxy generation is done using <code class="fm-code-in-text">javac</code> and <code class="fm-code-in-text">apt</code> annotation processing <a id="marker-1013706"/>at compilation time. Two Vert.x modules <a id="marker-1013712"/>are required: <code class="fm-code-in-text">vertx-service-proxy</code> and <code class="fm-code-in-text">vertx-codegen</code>.</p>
+
+  <p class="body"><a id="pgfId-1013742"/>To make the Vert.x code generation work with annotation processing in Gradle, you will need a configuration similar to the following.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013799"/>Listing 6.6 Gradle configuration for code generation</p>
+  <pre class="programlisting">dependencies {
+  implementation("io.vertx:vertx-core:$version")
+  implementation("io.vertx:vertx-codegen:$version")
+  implementation("io.vertx:vertx-service-proxy:$version")
+
+  annotationProcessor("io.vertx:vertx-service-proxy:$version")        <span class="fm-combinumeral">❶</span>
+  annotationProcessor("io.vertx:vertx-codegen:$version:processor")
+  // (...)
+}
+
+tasks.getByName&lt;JavaCompile&gt;("compileJava") {
+  options.annotationProcessorGeneratedSourcesDirectory = 
+  <span class="fm-code-continuation-arrow">➥</span> File("$projectDir/src/main/generated")                           <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025049"/><span class="fm-combinumeral">❶</span> This is the scope for annotation processing.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1025070"/><span class="fm-combinumeral">❷</span> This allows you to customize where the files are being generated.</p>
+
+  <p class="body"><a id="pgfId-1013956"/>Now whenever the Java classes are being compiled, the proxy classes are generated. You can see the files in the src/main/generated folder of your project.</p>
+
+  <p class="body"><a id="pgfId-1014047"/>If you look into the <a id="marker-1013964"/>code of <code class="fm-code-in-text">SensorDataServiceVertxProxyHandler</code>, you’ll see a <code class="fm-code-in-text">switch</code> block in the <a id="marker-1013990"/><code class="fm-code-in-text">handle</code> method, where the <code class="fm-code-in-text">action</code> header is being used to dispatch the method call to the service implementation methods. Similarly, in the <code class="fm-code-in-text">average</code> method of <code class="fm-code-in-text">SensorDataServiceVertxEBProxy</code> you will see the code that sends a message over the event bus to invoke that method. The code of both <code class="fm-code-in-text">SensorDataServiceVertxProxyHandler</code> and <code class="fm-code-in-text">SensorDataServiceVertxEBProxy</code> is really what <a id="marker-1014052"/>you would write if you had to implement your <a id="marker-1014058"/>own event-bus service system. <a id="marker-1014064"/></p>
+
+  <h2 class="fm-head" id="heading_id_8"><a id="pgfId-1014071"/>6.6 Deploying event-bus services</h2>
+
+  <p class="body"><a id="pgfId-1014088"/><a id="marker-1014082"/><a id="marker-1014084"/>Event-bus services need to be deployed to verticles, and event-bus addresses need to be defined. The following listing shows how to deploy a service.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014144"/>Listing 6.7 Deploying a service</p>
+  <pre class="programlisting">public class DataVerticle extends AbstractVerticle {
+
+  @Override
+  public void start() {
+    new ServiceBinder(vertx)                                               <span class="fm-combinumeral">❶</span>
+      .setAddress("sensor.data-service")                                   <span class="fm-combinumeral">❷</span>
+      .register(SensorDataService.class, SensorDataService.create(vertx)); <span class="fm-combinumeral">❸</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024820"/><span class="fm-combinumeral">❶</span> Binds a service to an address</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024841"/><span class="fm-combinumeral">❷</span> The event-bus address for the service</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024858"/><span class="fm-combinumeral">❸</span> We expose a service implementation.</p>
+
+  <p class="body"><a id="pgfId-1014316"/>Deploying is as simple as binding to an address and passing a service implementation. We can use the factory <code class="fm-code-in-text">create</code> methods from the <code class="fm-code-in-text">SensorDataService</code> interface to do <a id="marker-1014321"/>this.</p>
+
+  <p class="body"><a id="pgfId-1014331"/>You can deploy multiple services on a verticle. It makes sense to deploy event-bus services that are functionally related together, so a verticle remains a coherent event-processing unit.</p>
+
+  <p class="body"><a id="pgfId-1014337"/>Obtaining a service proxy to issue method calls is done by calling the corresponding factory method and passing the correct event-bus destination, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014394"/>Listing 6.8 Obtaining a service proxy</p>
+  <pre class="programlisting">SensorDataService service = SensorDataService
+  .createProxy(vertx, "sensor.data-service");
+
+service.average(ar -&gt; {
+  if (ar.succeeded()) {
+    System.out.println("Average = " + ar.result());
+  } else {
+    ar.cause().printStackTrace();
+  }
+});</pre>
+
+  <p class="body"><a id="pgfId-1014486"/>The service interface follows the callbacks model, as this is the canonical definition for (asynchronous) service interfaces. <a id="marker-1014488"/><a id="marker-1014491"/></p>
+
+  <h2 class="fm-head" id="heading_id_9"><a id="pgfId-1014497"/>6.7 Service proxies beyond callbacks</h2>
+
+  <p class="body"><a id="pgfId-1014507"/><a id="marker-1014508"/>We explored asynchronous programming models other than callbacks in the previous chapter, but we designed event-bus services with callbacks. The good news is that you can leverage code generation to get, say, RxJava or Kotlin coroutine variants for your service proxies. Even better, you do not need much extra work!</p>
+
+  <p class="body"><a id="pgfId-1014516"/>To make this work, you need to add the <code class="fm-code-in-text">@VertxGen</code> annotation to your <a id="marker-1014527"/>service interface, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014588"/>Listing 6.9 Adding <code class="fm-code-in-listingcaption">@VertxGen</code> to a service interface</p>
+  <pre class="programlisting">@ProxyGen             <span class="fm-combinumeral">❶</span>
+@VertxGen             <span class="fm-combinumeral">❷</span>
+public interface SensorDataService {
+  // (...)
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024678"/><span class="fm-combinumeral">❶</span> To generate service proxies</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024699"/><span class="fm-combinumeral">❷</span> To allow code generation</p>
+
+  <p class="body"><a id="pgfId-1014712"/>When this annotation is present, code generation by a Vert.x Java annotation processor is enabled with all suitable code generators available at build time.</p>
+
+  <p class="body"><a id="pgfId-1014718"/>To generate RxJava bindings, we need to add the dependencies in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014775"/>Listing 6.10 Dependencies for RxJava code generation</p>
+  <pre class="programlisting">dependencies {
+  // (...)
+  implementation("io.vertx:vertx-rx-java2:$version")             <span class="fm-combinumeral">❶</span>
+  annotationProcessor("io.vertx:vertx-rx-java2-gen:$version")    <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024560"/><span class="fm-combinumeral">❶</span> Vert.x RxJava 2 module</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024581"/><span class="fm-combinumeral">❷</span> RxJava 2 Vert.x code generator</p>
+
+  <p class="body"><a id="pgfId-1014934"/>When we compile the project, a <code class="fm-code-in-text">chapter6.reactivex.SensorDataService</code> class is generated. This is a small shim that bridges the original callbacks API to RxJava. The class has all the methods <a id="marker-1014897"/>from the original <code class="fm-code-in-text">SensorDataService</code> API (including <code class="fm-code-in-text">create</code> factory <a id="marker-1014923"/>methods), plus <code class="fm-code-in-text">rx</code>-prefixed methods.</p>
+
+  <p class="body"><a id="pgfId-1015021"/>Given the <code class="fm-code-in-text">average</code> method that takes <a id="marker-1014954"/>a callback, the RxJava code generator creates an <code class="fm-code-in-text">rxAverage</code> method with no parameter that returns a <code class="fm-code-in-text">Single</code> object. Similarly, <code class="fm-code-in-text">valueFor</code> gets translated to <code class="fm-code-in-text">rxValueFor</code>, a method <a id="marker-1015000"/>that takes a <code class="fm-code-in-text">String</code> argument (the sensor identifier) and returns a <code class="fm-code-in-text">Single</code> object.</p>
+
+  <p class="body"><a id="pgfId-1015030"/>The next listing shows a sample use of the generated RxJava API.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015087"/>Listing 6.11 Using the RxJava variant of <code class="fm-code-in-listingcaption">SensorDataService</code></p>
+  <pre class="programlisting">SensorDataService service = SensorDataService
+  .createProxy(vertx, "sensor.data-service");      <span class="fm-combinumeral">❶</span>
+
+service.rxAverage()                                <span class="fm-combinumeral">❷</span>
+  .delaySubscription(3, TimeUnit.SECONDS, RxHelper.scheduler(vertx))
+  .repeat()
+  .map(data -&gt; "avg = " + data.getDouble("average"))
+  .subscribe(System.out::println);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024416"/><span class="fm-combinumeral">❶</span> An instance of chapter6.reactivex.SensorDataService</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024437"/><span class="fm-combinumeral">❷</span> rxAverage() gives a Single&lt;JsonObject&gt;.</p>
+
+  <p class="body"><a id="pgfId-1015215"/>The RxJava pipeline created here makes a new subscription every three seconds and extracts the average into a string that is then displayed on the standard output.</p>
+
+  <p class="fm-callout"><a id="pgfId-1015231"/><span class="fm-callout-head">Note</span> You must always develop your event-bus services with the callbacks API for the interface and implementation. Code generators then turn it into other models.</p>
+
+  <p class="body"><a id="pgfId-1015237"/>Now that you know how to develop event-bus services, let’s switch to the topic of testing verticles and services. <a id="marker-1015239"/></p>
+
+  <h2 class="fm-head" id="heading_id_10"><a id="pgfId-1015246"/>6.8 Testing and Vert.x</h2>
+
+  <p class="body"><a id="pgfId-1015256"/><a id="marker-1015257"/>Automated testing is critical in designing software, and Vert.x applications also need to be tested. The main difficulty when testing Vert.x code is the asynchronous nature of operations. Other than that, tests are classical: they have a setup phase and a test execution and verification phase, followed by a tear-down phase.</p>
+
+  <p class="body"><a id="pgfId-1015265"/>A verticle is relatively well isolated from the rest of the system, thanks to the event bus. This is very useful in a test environment:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1015271"/>The event bus allows you to send events to a verticle to put it in a desired state and to observe what events it produces.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015285"/>The configuration passed to a verticle when it is deployed allows you to tune some parameters for a test-centric environment (e.g., using an in-memory database).</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015295"/>It is possible to deploy <i class="fm-italics1">mock</i> verticles with controlled <a class="calibre9" id="marker-1015310"/>behaviors to substitute for verticles with lots of dependencies (e.g., databases, connecting to other verticles, etc.).</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1015336"/>As such, testing verticles is more <i class="fm-italics">integration testing</i> than <i class="fm-italics">unit testing</i>, regardless of whether the verticles under test are being deployed within the same JVM or in cluster mode. We need to see verticles as opaque boxes that we communicate with via the event bus, and possibly by connecting to network protocols that verticles expose. For instance, when a verticle exposes an HTTP service, we are likely going to issue HTTP requests in tests to check its behavior.</p>
+
+  <p class="body"><a id="pgfId-1015345"/>In this book, we will only focus on the Vert.x-specific aspects of testing. If you lack experience with the broader topic of testing, I recommend reading a book like <i class="fm-italics">Effective Unit Testing</i> by Lasse Koskela (Manning, 2013).</p>
+
+  <h3 class="fm-head1" id="heading_id_11"><a id="pgfId-1015360"/>6.8.1 Using JUnit 5 with Vert.x</h3>
+
+  <p class="body"><a id="pgfId-1015389"/><a id="marker-1021046"/><a id="marker-1021047"/>Vert.x supports both the classic JUnit 4 test framework as well as the more recent one for JUnit 5. Vert.x provides a module <a id="marker-1021049"/>called <code class="fm-code-in-text">vertx-junit5</code> with support for version 5 of the JUnit framework (<span class="fm-hyperlink"><a href="https://junit.org/junit5/">https://junit.org/junit5/</a></span>). To use it in a Vert.x project, you need to add the <code class="fm-code-in-text">io.vertx:vertx-junit5</code> dependency, and possibly some JUnit 5 libraries.</p>
+
+  <p class="body"><a id="pgfId-1015796"/>In a Gradle project, the <code class="fm-code-in-text">dependencies</code> section needs to <a id="marker-1015807"/>be updated as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015868"/>Listing 6.12 Using JUnit 5 with Vert.x for a Gradle build</p>
+  <pre class="programlisting">dependencies {
+  // (...)
+  testCompile("org.junit.jupiter:junit-jupiter-api:$junit5Version")        <span class="fm-combinumeral">❶</span>
+  testCompile("io.vertx:vertx-junit5:$vertxVersion")                       <span class="fm-combinumeral">❷</span>
+  testCompile("org.assertj:assertj-core:3.11.1")
+  testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junit5Version") <span class="fm-combinumeral">❸</span>
+}
+
+tasks.named&lt;Test&gt;("test") {
+  useJUnitPlatform()                                                       <span class="fm-combinumeral">❹</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024137"/><span class="fm-combinumeral">❶</span> The JUnit 5 APIs replace $junit5Version with a current JUnit 5 version.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024158"/><span class="fm-combinumeral">❷</span> The Vert.x JUnit 5 support library</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024175"/><span class="fm-combinumeral">❸</span> This is used by Gradle for running tests.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1024192"/><span class="fm-combinumeral">❹</span> This enables JUnit 5 support in Gradle.</p>
+
+  <p class="body"><a id="pgfId-1016128"/>The <code class="fm-code-in-text">vertx-junit5</code> library already has <a id="marker-1016069"/>a dependency on <code class="fm-code-in-text">junit-jupiter-api</code>, but it is a good <a id="marker-1016085"/>practice to fix the version in the build. The <code class="fm-code-in-text">junit-jupiter-engine</code> module needs to <a id="marker-1016101"/>be present in the <code class="fm-code-in-text">testRuntime</code> scope for <a id="marker-1016117"/>Gradle. Finally, JUnit 5 can be used with any assertion API, including its built-in one, and <i class="fm-italics">AssertJ</i> is a popular one. <a id="marker-1016133"/><a id="marker-1016136"/></p>
+
+  <h3 class="fm-head1" id="heading_id_12"><a id="pgfId-1016142"/>6.8.2 Testing DataVerticle</h3>
+
+  <p class="body"><a id="pgfId-1016181"/><a id="marker-1016153"/><a id="marker-1016155"/>We need two test cases to check the behavior of <code class="fm-code-in-text">DataVerticle</code>, and by extension <a id="marker-1016170"/>that of <code class="fm-code-in-text">SensorDataService</code>:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1016190"/>When no sensor is present, the average should be 0, and requesting a value for any sensor identifier must raise an error.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1016204"/>When there are sensors, we need to check the average value and individual sensor values.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1016292"/>Figure 6.2 shows the interactions for the test environment. The test case has a proxy reference to make calls to <code class="fm-code-in-text">SensorDataService</code>. The actual <code class="fm-code-in-text">DataVerticle</code> verticle is <a id="marker-1016235"/>deployed at the <code class="fm-code-in-text">sensor.data-service</code> destination. It can <a id="marker-1016251"/>issue <code class="fm-code-in-text">valueFor</code> and <code class="fm-code-in-text">average</code> method calls from tests. Since <code class="fm-code-in-text">DataVerticle</code> receives messages from sensors on the event bus, we can send arbitrary messages rather than deploying actual <code class="fm-code-in-text">HeatSensor</code> verticles over which we have no control. Mocking a verticle is often as simple as sending the type of messages it would send.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH06_F02_Ponge.png" width="919" height="408"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1026557"/>Figure 6.2 Isolating <code class="fm-code-in-figurecaption">SensorDataService</code></p>
+
+  <p class="body"><a id="pgfId-1016317"/>The following listing shows the test class preamble.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016388"/>Listing 6.13 Preamble of <code class="fm-code-in-listingcaption">SensorDataServiceTest</code></p>
+  <pre class="programlisting">@ExtendWith(VertxExtension.class)                                     <span class="fm-combinumeral">❶</span>
+class SensorDataServiceTest {
+
+  private SensorDataService dataService;                              <span class="fm-combinumeral">❷</span>
+
+  @BeforeEach                                                         <span class="fm-combinumeral">❸</span>
+  void prepare(Vertx vertx, VertxTestContext ctx) {
+    vertx.deployVerticle(new DataVerticle(), ctx.succeeding(id -&gt; {   <span class="fm-combinumeral">❹</span>
+      dataService = SensorDataService.createProxy(vertx,
+        "sensor.data-service");                                       <span class="fm-combinumeral">❺</span>
+      ctx.completeNow();                                              <span class="fm-combinumeral">❻</span>
+    }));
+  }
+// (,,,)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023640"/><span class="fm-combinumeral">❶</span> JUnit 5 extension for Vert.x</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023661"/><span class="fm-combinumeral">❷</span> Our service proxy reference</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023678"/><span class="fm-combinumeral">❸</span> Setup method, executed before each test</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023695"/><span class="fm-combinumeral">❹</span> We deploy the verticle that internally exposes a service, and we expect a successful deployment (succeeding).</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023712"/><span class="fm-combinumeral">❺</span> We get a proxy reference.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023729"/><span class="fm-combinumeral">❻</span> We notify that the setup has completed.</p>
+
+  <p class="body"><a id="pgfId-1016656"/>JUnit 5 supports extensions to give additional functionality. In particular, extensions can inject parameters into test methods, and they can intercept life-cycle events such as before and after a test method is called. The <code class="fm-code-in-text">VertxExtension</code> class simplifies <a id="marker-1016667"/>writing test cases by doing the following:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1016677"/>Injecting ready-to-use instances of <code class="fm-code-in-text">Vertx</code> with default configuration</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1016700"/>Injecting a <code class="fm-code-in-text">VertxTestContext</code> object to deal with the <a class="calibre9" id="marker-1016715"/>asynchronous nature of Vert.x code</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1016725"/>Ensuring awaiting for the <code class="fm-code-in-text">VertxTestContext</code> to either succeed or fail</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1016812"/>The <code class="fm-code-in-text">prepare</code> method is executed before <a id="marker-1016755"/>each test case, to prepare the test environment. We use it here to deploy the <code class="fm-code-in-text">DataVerticle</code> verticle and then fetch the service proxy and store it in the <code class="fm-code-in-text">dataService</code> field. Since deploying a verticle is an asynchronous operation, the <code class="fm-code-in-text">prepare</code> method is injected with a <code class="fm-code-in-text">Vertx</code> context and <a id="marker-1016801"/>a <code class="fm-code-in-text">VertxTestContext</code> object to notify when it has completed.</p>
+
+  <p class="fm-callout"><a id="pgfId-1016831"/><span class="fm-callout-head">Tip</span> Users of JUnit before version 5 may be surprised that the class and test methods are package-private; this is idiomatic with JUnit 5.</p>
+
+  <p class="body"><a id="pgfId-1016837"/>You can see the first test case, when no sensors are deployed, in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016894"/>Listing 6.14 Test case without sensors</p>
+  <pre class="programlisting">@Test
+void noSensor(VertxTestContext ctx) {                                 <span class="fm-combinumeral">❶</span>
+  Checkpoint failsToGet = ctx.checkpoint();                           <span class="fm-combinumeral">❷</span>
+  Checkpoint zeroAvg = ctx.checkpoint();
+
+  dataService.valueFor("abc", ctx.failing(err -&gt; ctx.verify(() -&gt; {   <span class="fm-combinumeral">❸</span>
+    assertThat(err.getMessage()).startsWith("No value has been observed");
+    failsToGet.flag();
+  })));
+
+  dataService.average(ctx.succeeding(data -&gt; ctx.verify(() -&gt; {
+    double avg = data.getDouble("average");
+    assertThat(avg).isCloseTo(0.0d, withPercentage(1.0d));
+    zeroAvg.flag();
+  })));
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023425"/><span class="fm-combinumeral">❶</span> VertxTestContext allows you to deal with asynchronous operations in tests to report success and failures.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023446"/><span class="fm-combinumeral">❷</span> A checkpoint is mainly used to ensure that an asynchronous operation passed at a certain line.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023463"/><span class="fm-combinumeral">❸</span> failing is a helper for Handler&lt;AsyncResult&gt;, and verify wraps assertions.</p>
+
+  <p class="body"><a id="pgfId-1017091"/>This test case assumes that no sensor has been deployed, so trying to get any sensor value must fail. We check this behavior by looking for the temperature value of sensor <code class="fm-code-in-text">abc</code>, which doesn’t exist. We then check that the average value is 0.</p>
+
+  <p class="body"><a id="pgfId-1017106"/>Checkpoints are flagged to mark that the test execution reached certain lines. When all declared checkpoints have been flagged, the test completes successfully. The test fails when an assertion fails, when an unexpected exception is thrown, or when a (configurable) delay elapses and not all checkpoints have been flagged.</p>
+
+  <div class="fm-sidebar-block">
+    <p class="fm-sidebar-title"><a class="calibre9" id="pgfId-1026597"/>Why asynchronous testing is different</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1026598"/>Testing asynchronous operations is slightly different from the regular testing you may be familiar with. The default contract in test executions is that a test runner thread calls test methods, and they fail when exceptions are thrown. Assertion methods throw exceptions to report errors.</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1026601"/>Since operations <a id="marker-1026599"/>like <code class="fm-code-in-text1">deployVerticle</code> and <code class="fm-code-in-text1">send</code> are asynchronous<a id="marker-1026600"/>, the test runner thread exits the method before they have any chance to complete. The <code class="fm-code-in-text1">VertxExtension</code> class takes care <a id="marker-1026602"/>of that by waiting for <code class="fm-code-in-text1">VertxTestContext</code> to report either <a id="marker-1026603"/>a success or a failure. To avoid having tests wait forever, there is a timeout (30 seconds by default).</p>
+  </div>
+
+  <p class="body"><a id="pgfId-1017198"/>Finally, we have a test case for when there are sensors.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017255"/>Listing 6.15 Test case with sensors</p>
+  <pre class="programlisting">@Test
+void withSensors(Vertx vertx, VertxTestContext ctx) {
+  Checkpoint getValue = ctx.checkpoint();
+  Checkpoint goodAvg = ctx.checkpoint();
+
+  JsonObject m1 = new JsonObject().put("id", "abc").put("temp", 21.0d);  <span class="fm-combinumeral">❶</span>
+  JsonObject m2 = new JsonObject().put("id", "def").put("temp", 23.0d);
+
+  vertx.eventBus()                                                       <span class="fm-combinumeral">❷</span>
+    .publish("sensor.updates", m1)
+    .publish("sensor.updates", m2);
+
+  dataService.valueFor("abc", ctx.succeeding(data -&gt; ctx.verify(() -&gt; {
+    assertThat(data.getString("sensorId")).isEqualTo("abc");
+    assertThat(data.getDouble("value")).isEqualTo(21.0d);
+    getValue.flag();
+  })));
+
+  dataService.average(ctx.succeeding(data -&gt; ctx.verify(() -&gt; {
+    assertThat(data.getDouble("average")).isCloseTo(22.0, 
+    <span class="fm-code-continuation-arrow">➥</span> withPercentage(1.0d));                                            <span class="fm-combinumeral">❸</span>
+    goodAvg.flag();
+  })));
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023168"/><span class="fm-combinumeral">❶</span> Messages to mock sensors</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023192"/><span class="fm-combinumeral">❷</span> We send the messages.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1023209"/><span class="fm-combinumeral">❸</span> AssertJ has assertions for floating-point values with error margins.</p>
+
+  <p class="body"><a id="pgfId-1017556"/>This test simulates two sensors with identifiers <code class="fm-code-in-text">abc</code> and <code class="fm-code-in-text">def</code> by sending <i class="fm-italics">fake</i> sensor data updates <a id="marker-1017523"/>over the event bus, just like a sensor would do. We then have determinism <a id="marker-1017529"/>in our assertions, and we can <a id="marker-1017535"/>check the behavior for both <code class="fm-code-in-text">valueFor</code> and <code class="fm-code-in-text">average</code> methods. <a id="marker-1017561"/><a id="marker-1017564"/></p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1017570"/>6.8.3 Running the tests</h3>
+
+  <p class="body"><a id="pgfId-1017596"/><a id="marker-1017581"/>The tests can be run from your IDE. You can also run <a id="marker-1017585"/>them using Gradle: <code class="fm-code-in-text">gradlew test</code>.</p>
+
+  <p class="body"><a id="pgfId-1017605"/>Gradle generates a human-readable test report in build/reports/tests/test/ index.html. When you open the file in a web browser, you can check that all tests passed, as shown in figure 6.3.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH06_F03_Ponge.png" width="639" height="476"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1026632"/>Figure 6.3 Test report</p>
+
+  <p class="body"><a id="pgfId-1017651"/>Note that the Gradle <code class="fm-code-in-text">test</code> task is a dependency of <code class="fm-code-in-text">build</code>, so the tests are always executed when the project is fully built. <a id="marker-1022816"/><a id="marker-1022817"/></p>
+
+  <h2 class="fm-head" id="heading_id_14"><a id="pgfId-1017665"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1017675"/>Event-bus services and proxies abstract from event-bus communications by providing an asynchronous service interface.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1017689"/>It is possible to generate bindings other than callbacks for event-bus services: RxJava, Kotlin coroutines, etc.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1017699"/>Testing asynchronous code and services is more challenging than in the traditional imperative cases, and Vert.x comes with dedicated support for JUnit 5.</p>
+    </li>
+  </ul>
+  <hr class="calibre12"/>
+
+  <p class="fm-footnote"><span class="footnotenumber">1.</span><a id="pgfId-1022950"/>Bruce Jay Nelson, “Remote Procedure Call,” PhD dissertation, Carnegie Mellon Univ., Pittsburgh, PA, USA. AAI8204168.</p>
+</div></body>
+</html>

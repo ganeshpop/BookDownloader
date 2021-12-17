@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_augmenting_associations_in_collections"><a id="augmenting_associations_in_collections"/><h3 class="docSection1Title">5.3. Augmenting Associations in Collections</h3><p class="docText">All right, we've got a handle on what we need to do if we want our albums' tracks to be kept in the right order. What about the additional information we'd like to keep, such as the disc on which the track is found? When we map a collection of associations, we've seen that Hibernate creates a join table in which to store the relationships between objects. And we've just seen how to add an index column to the <tt>ALBUM_TRACKS</tt> table to maintain an <a id="idx-CHP-5-0200"/>ordering for the collection. Ideally, we'd like the ability to augment that table with more information of our own choosing, in order to record the other details we'd like to know about album tracks.<a id="idx-CHP-5-0201"/><a id="idx-CHP-5-0202"/></p><p class="docText">As it turns out, we can do just that, and in a very straightforward way.</p><a id="how_do_i_do_that-id016"/><h4 id="title-ID0ENJAG" class="docSection2Title">5.1.1. How do I do that?</h4><p class="docText">Up until this point we've seen two ways of getting tables into our database schema. The first was by explicitly mapping properties of a Java object onto columns of a table. The second was defining a collection of <a id="idx-CHP-5-0203"/>associations, and specifying the table and columns used to manage that collection. As it turns out, there's nothing that prevents us from using a single table in both ways. Some of its columns can be used directly to map to our own objects' properties, while the others can manage the <a id="idx-CHP-5-0204"/>mapping of a collection. This lets us achieve our goals of recording the tracks that make up an album in an ordered way, augmented by additional details to support multi-disc albums.</p><blockquote><p class="docText"><span class="docEmphasis">This flexibility took a little getting used to but it makes sense, especially if you think about mapping objects to an existing database schema</span>.<a id="idx-CHP-5-0205"/></p></blockquote><p class="docText">We'll want a new data object, <tt>AlbumTrack</tt>, to contain information about how a track is used on an album. Since we've already seen several examples of how to map full-blown entities with independent existence, and there really isn't a need for our <tt>AlbumTrack</tt> object to exist outside the context of an <tt>Album</tt> entity, this is a good opportunity to look at mapping a <span class="docEmphasis">component</span>. Recall that in Hibernate jargon an entity is an object that stands on its own in the persistence mechanism: it can be created, queried, and deleted independently of any other objects, and therefore has its own persistent identity (as reflected by its mandatory <tt>id</tt> property). A component, in contrast, is an object that can be saved to and retrieved from the database, but only as a subordinate part of some other entity. In this case, we'll define a list of <tt>AlbumTrack</tt> objects as a component part of our <tt>Album</tt> entity. <a class="docLink" href="#albumhbmxml_the_mapping_definition_for_a">Example 5-4</a> shows a mapping for the <tt>Album</tt> class that achieves this.</p><a id="albumhbmxml_the_mapping_definition_for_a"/><h5 id="title-ID0EGLAG" class="docExampleTitle">Example 5-4. Album.hbm.xml, the mapping definition for an Album</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+1  &lt;?xml version="1.0"?&gt;
+2  &lt;!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 2.0//EN"
+3            "http://hibernate.sourceforge.net/hibernate-mapping-2.0.dtd"&gt;
+4
+5  &lt;hibernate-mapping&gt;
+6    &lt;class name="com.oreilly.hh.Album" table="ALBUM"&gt;
+7      &lt;meta attribute="class-description"&gt;
+8        Represents an album in the music database, an organized list of tracks.
+9        @author Jim Elliott (with help from Hibernate)
+10     &lt;/meta&gt;
+11
+12     &lt;id name="id" type="int" column="ALBUM_ID"&gt;
+13       &lt;meta attribute="scope-set"&gt;protected&lt;/meta&gt;
+14       &lt;generator class="native"/&gt;
+15     &lt;/id&gt;
+16
+17     &lt;property name="title" type="string"&gt;
+18       &lt;meta attribute="use-in-tostring"&gt;true&lt;/meta&gt;
+19       &lt;column name="TITLE" not-null="true" index="ALBUM_TITLE"/&gt;
+20     &lt;/property&gt;
+21
+22     &lt;property name="numDiscs" type="integer"/&gt;
+23
+24      &lt;set name="artists" table="ALBUM_ARTISTS"&gt;
+25        &lt;key column="ALBUM_ID"/&gt;
+26        &lt;many-to-many class="com.oreilly.hh.Artist" column="ARTIST_ID"/&gt;
+27      &lt;/set&gt;
+28
+29      &lt;set name="comments" table="ALBUM_COMMENTS"&gt;
+30        &lt;key column="ALBUM_ID"/&gt;
+31        &lt;element column="COMMENT" type="string"/&gt;
+32      &lt;/set&gt;
+33
+34      &lt;list name="tracks" table="ALBUM_TRACKS"&gt;
+35       &lt;meta attribute="use-in-tostring"&gt;true&lt;/meta&gt;
+36        &lt;key column="ALBUM_ID"/&gt;
+37        &lt;index column="POSITION"/&gt;
+38        &lt;composite-element class="com.oreilly.hh.AlbumTrack"&gt;
+39          &lt;many-to-one name="track" class="com.oreilly.hh.Track"&gt;
+40            &lt;meta attribute="use-in-tostring"&gt;true&lt;/meta&gt;
+41            &lt;column name="TRACK_ID"/&gt;
+42          &lt;/many-to-one&gt;
+43          &lt;property name="disc" type="integer"/&gt;
+44          &lt;property name="positionOnDisc" type="integer"/&gt;
+45        &lt;/composite-element&gt;
+46       &lt;/list&gt;
+47
+48      &lt;property name="added" type="date"&gt;
+49        &lt;meta attribute="field-description"&gt;When the album was created&lt;/meta&gt;
+50      &lt;/property&gt;
+51
+52    &lt;/class&gt;
+53  &lt;/hibernate-<a id="idx-CHP-5-0206"/>mapping&gt;
+</pre><br/>
+</td></tr></table><p class="docText">A lot of this is similar to <a id="idx-CHP-5-0207"/>mappings we've seen before, but the <tt>tracks</tt> list (starting on line 34) is worth some careful examination. The discussion gets involved, so let's step back a minute and recall exactly what we're trying to accomplish.</p><p class="docText">We want our album to keep an ordered list of the tracks that make it up, along with additional information about each track that tells which disc it's on (in case the album has multiple discs) and the track's position within the disc. This conceptual relationship is shown in the middle of <a class="docLink" href="#models_of_the_tables_concepts_and_object">Figure 5-1</a>. The association between albums and tracks is mediated by an "Album Tracks" object that adds disc and position information, as well as keeping them in the right order. The model of the tracks themselves is familiar (we're leaving out artist and comment information in this diagram, in an effort to keep it simpler). This model is what we've captured in the album mapping document, <a class="docLink" href="#albumhbmxml_the_mapping_definition_for_a">Example 5-4</a>. Let's examine the details of how it was done. Later we'll look at how Hibernate turns this specification into Java code (the bottom part of <a class="docLink" href="#models_of_the_tables_concepts_and_object">Figure 5-1</a>) and a database schema (the top part).</p><a id="models_of_the_tables_concepts_and_object"/><p/><div class="center"><h5 class="docFigureTitle">Figure 5-1. Models of the tables, concepts, and objects involved in representing album tracks</h5><a id="I_mediaobject5_d1e4715"/><p class="docText"><img src="Images/0596006969_augmenting_associations_in_collections_image01.png" alt="" width="397" height="503"/></p></div><br/><p class="docText">If you compare lines 34–46 of <a class="docLink" href="#albumhbmxml_the_mapping_definition_for_a">Example 5-4</a> with one of the <tt>set</tt>
+					<a id="idx-CHP-5-0208"/>mappings in the preceding chapter, you'll see a lot of similarity. It looks even more like <a class="docLink" href="0596006969_ordered_collections.xhtml#simple_ordered_mapping_of_tracks_for_an_">Example 5-2</a>, except that the association <a id="idx-CHP-5-0209"/>mapping has been moved inside a new <tt>composite-element</tt> mapping, lines 38–45. This element introduces the new <tt>AlbumTrack</tt> object we use to group the disc, position, and <tt>Track</tt> link needed to organize an album's tracks. Also, rather than being a many-to-many mapping (because an album generally has multiple tracks, and a given track file might be shared between several albums), the association between <tt>AlbumTrack</tt> and <tt>Track</tt> on line 39 is many-to-one: several <tt>AlbumTrack</tt> objects (from different albums) might refer to the same <tt>Track</tt> file if we're trying to save disk space, but each <tt>AlbumTrack</tt> object is concerned with only one <tt>Track</tt>. The <tt>list</tt> tag that contains <tt>AlbumTrack</tt> is implicitly one-to-many. (If you're still having trouble with these data modeling concepts, don't struggle too hard just now—the source code and schema coming up shortly will hopefully help you see what is happening here.)<a id="idx-CHP-5-0210"/></p><p class="docText">Okay, back to this new <tt>composite-element</tt> definition. It specifies that we want to use a new <tt>AlbumTrack</tt> class as the values that appear in our <tt>Album</tt> data bean's <tt>tracks</tt> list. The body of the <tt>composite-element</tt> tag defines the properties of <tt>AlbumTrack</tt>, which group all the information we need about a track on an album. The syntax for these nested properties, lines 39–44, is no different than that of the outer <a id="idx-CHP-5-0211"/>mappings for <tt>Album's</tt> own properties. They can even include their own nested composite elements, <a id="idx-CHP-5-0212"/>collections, or (as seen here) <tt>meta</tt> attributes. This gives us tremendous flexibility to set up fine-grained <a id="idx-CHP-5-0213"/>mappings that retain a healthy degree of object-oriented encapsulation.</p><p class="docText">In our composite <tt>AlbumTrack</tt><a id="actual"/> mapping, we are recording an association with the actual <tt>Track</tt> (lines 39–42) to be played at each position within the <tt>Album</tt>, as well as the disc on which that track is found (line 43), and, on line 44, this entry's position on that disc (for example, track 3 of disc 2). This achieves the goals we started with and illustrates how arbitrary information can be attached to a collection of <a id="idx-CHP-5-0214"/>associations. The source for the class itself can be found in <a class="docLink" href="#code_generated_for_albumtrackjava">Example 5-5</a>, and it might help clarify this discussion. Compare this source code with its graphical representation at the bottom of <a class="docLink" href="#models_of_the_tables_concepts_and_object">Figure 5-1</a>.</p><p class="docText">You may have noticed that I chose an explicit column name of <tt>TRACK_ID</tt> to use for the <tt>many-to-one</tt> link to the <tt>TRACK</tt> table (line 41). I've actually been doing this in a number of places, but previously it didn't require an entire separate line. It's worth talking about the reasoning behind this choice. Without this instruction, Hibernate will just use the property name <tt>(track)</tt> for the column name. You can use any names you want for your columns, but <span class="docEmphasis">Java Database Best Practices</span> encourages naming foreign key columns the same as the primary keys in the original tables to which they refer. This helps data modeling tools recognize and display the "natural joins" the foreign keys represent, which makes it easier for people to understand and work with the data. This consideration is also why I included the table names as part of the primary keys' column names.<a id="I_indexterm5_d1e4861"/><a id="I_indexterm5_d1e4864"/></p><a id="what_just_happened-id010"/><h4 id="title-ID0EURAG" class="docSection2Title">5.3.1. What just happened?</h4><p class="docText">I was all set to explain that by choosing to use a composite element to encapsulate our augmented track list, we'd have to write the Java source for <tt>AlbumTrack</tt> ourselves. I was sure this went far beyond the capabilities of the code generation tool. Much to my delight, when I tried <tt><b>ant codegen</b></tt> to see what sort of errors would result, the command reported success, and both <span class="docEmphasis">Album.java</span> and <span class="docEmphasis">AlbumTrack.java</span> appeared in the source directory!</p><blockquote><p class="docText"><span class="docEmphasis">Sometimes it's nice to be proved wrong</span>.</p></blockquote><p class="docText">It was at this point that I went back and added the <tt>use-in-tostring</tt> meta attribute for the <tt>track</tt>
+					<a id="idx-CHP-5-0215"/>many-to-one mapping inside the component. I wasn't sure this would work either, because the only examples of its use I've found in the reference manual are attached to actual <tt>property</tt> tags. But work it did, exactly as I hoped.<a id="idx-CHP-5-0216"/></p><p class="docText">The Hibernate best practices encourage using fine-grained classes and mapping them as components. Given how easily the code generation tool allows you to create them from your mapping documents, there is absolutely no excuse for ignoring this advice. <a class="docLink" href="#code_generated_for_albumtrackjava">Example 5-5</a> shows the source generated for our <a id="idx-CHP-5-0217"/>nested composite mapping.</p><a id="code_generated_for_albumtrackjava"/><h5 id="title-ID0EHTAG" class="docExampleTitle">Example 5-5. Code generated for AlbumTrack.java</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+package com.oreilly.hh;
+
+import java.io.Serializable;
+import org.apache.commons.lang.builder.ToStringBuilder;
+
+/**
+ *       Represents an album in the music database, an organized list of tracks.
+ *       @author Jim Elliott (with help from Hibernate)
+ *
+*/
+public class AlbumTrack implements Serializable {
+
+    /** nullable persistent field */
+    private int disc;
+
+    /** nullable persistent field */
+    private int positionOnDisc;
+
+    /** nullable persistent field */
+    private com.oreilly.hh.Track track;
+
+    /** full constructor */
+    public AlbumTrack(int disc, int positionOnDisc, com.oreilly.hh.Track track) {
+        this.disc = disc;
+        this.positionOnDisc = positionOnDisc;
+
+       this.track = track;
+   }
+
+   /** default constructor */
+   public AlbumTrack() {
+   }
+
+   public int getDisc() {
+       return this.disc;
+   }
+
+   public void setDisc(int disc) {
+       this.disc = disc;
+   }
+
+   public int getPositionOnDisc() {
+       return this.positionOnDisc;
+   }
+
+   public void setPositionOnDisc(int positionOnDisc) {
+       this.positionOnDisc = positionOnDisc;
+   }
+
+   public com.oreilly.hh.Track getTrack() {
+       return this.track;
+   }
+
+   public void setTrack(com.oreilly.hh.Track track) {
+       this.track = track;
+   }
+
+   public String toString() {
+       return new ToStringBuilder(this)
+           .append("track", getTrack())
+           .toString();
+   }
+
+}
+</pre><br/>
+</td></tr></table><p class="docText">This looks similar to the generated code for entities we've seen in previous chapters, but it lacks an <tt>id</tt> property, which makes sense. Component classes don't need identifier fields, and they need not implement any special interfaces. The class JavaDoc is shared with the <tt>Album</tt> class, in which this component is used. The source of the <tt>Album</tt> class itself is a typical generated entity, so there's no need to reproduce it here.</p><p class="docText">At this point we can build the schema for these new mappings, via <tt><b>ant schema</b></tt>. <a class="docLink" href="#additions_to_the_schema_caused_by_our_ne">Example 5-6</a> shows highlights of the resulting schema creation process. This is the concrete HSQLDB representation of the schema modeled at the top of <a class="docLink" href="#models_of_the_tables_concepts_and_object">Figure 5-1</a>.</p><a id="additions_to_the_schema_caused_by_our_ne"/><h5 id="title-ID0EFUAG" class="docExampleTitle">Example 5-6. Additions to the schema caused by our new Album mapping</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+[schemaexport] create table ALBUM (
+[schemaexport]    ALBUM_ID INTEGER NOT NULL IDENTITY,
+[schemaexport]    TITLE VARCHAR(255) not null,
+[schemaexport]    numDiscs INTEGER,
+[schemaexport]    added DATE
+[schemaexport] )
+...
+[schemaexport] create table ALBUM_COMMENTS (
+[schemaexport]    ALBUM_ID INTEGER not null,
+[schemaexport]    COMMENT VARCHAR(255)
+[schemaexport] )
+...
+[schemaexport] create table ALBUM_ARTISTS (
+[schemaexport]    ALBUM_ID INTEGER not null,
+[schemaexport]    ARTIST_ID INTEGER not null,
+[schemaexport]    primary key (ALBUM, ARTIST)
+[schemaexport] )
+...
+[schemaexport] create table ALBUM_TRACKS (
+[schemaexport]    ALBUM_ID INTEGER not null,
+[schemaexport]    TRACK_ID INTEGER,
+[schemaexport]    disc INTEGER,
+[schemaexport]    positionOnDisc INTEGER,
+[schemaexport]    POSITION INTEGER not null,
+[schemaexport]    primary key (ALBUM_ID, POSITION)
+[schemaexport] )
+...
+[schemaexport] create index ALBUM_TITLE on ALBUM (title)
+...
+[schemaexport] alter table ALBUM_COMMENTS add constraint FK1E2C21E43B7864F
+foreign key (ALBUM_ID) references ALBUM
+...
+[schemaexport] alter table ALBUM_ARTISTS add constraint FK7BA403FC3B7864F foreign
+key (ALBUM_ID) references ALBUM
+...
+[schemaexport] alter table ALBUM_TRACKS add constraint FKD1CBBC783B7864F foreign
+key (ALBUM_ID) references ALBUM
+...
+[schemaexport] alter table ALBUM_TRACKS add constraint FKD1CBBC78697F14B foreign
+key (TRACK_ID) references TRACK
+</pre><br/>
+</td></tr></table><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Warning:</b></i></span></p><p class="docText">You may find that making radical changes to the schema causes problems for Hibernate or the HSQLDB driver. When I switched between the above two approaches for mapping album tracks, I ran into trouble because the first set of mappings established database constraints that Hibernate didn't know to drop before trying to build the revised schema. This prevented it from dropping and recreating some tables. If this ever happens to you, you can delete the database file (<i>music.script</i> in the <span class="docEmphasis">data</span> directory) and start from scratch, which should work fine.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText"><a class="docLink" href="#the_schema_with_album-related_tables">Figure 5-2</a> shows our enriched schema in HSQLDB's graphical management interface.</p><a id="the_schema_with_album-related_tables"/><p/><div class="center"><h5 class="docFigureTitle">Figure 5-2. The schema with album-related tables</h5><a id="I_mediaobject5_d1e4963"/><p class="docText"><img src="Images/0596006969_augmenting_associations_in_collections_image02.png" alt="" width="396" height="246"/></p></div><br/><p class="docText"><a id="separate"/>You might wonder why we use the separate <tt>Track</tt> class at all, rather than simply embedding all that information directly in our enhanced <tt>AlbumTracks</tt> collection. The simple answer is that not all tracks are part of an album—some might be singles, downloads, or otherwise independent. Given that we need a separate table to keep track of these anyway, it would be a poor design choice to duplicate its contents in the <tt>AlbumTracks</tt> table rather than associating with it. There is also a more subtle advantage to this approach, which is actually used in my own music database: this structure allows us to share a single track file between multiple albums. If the same song appears on an album, a "best of" collection, and one or more period <a id="idx-CHP-5-0218"/>collections or sound tracks, linking all these albums to the same track file saves disk space.</p><p class="docText">Let's look at some sample code showing how to use these new data objects. <a class="docLink" href="#source_of_albumtestjava">Example 5-7</a> shows a class that creates an album record and its list of tracks, then prints it out to test the <a id="idx-CHP-5-0219"/>debugging; <a id="idx-CHP-5-0220"/>support we've configured for the <tt>toString()</tt> method.</p><a id="source_of_albumtestjava"/><h5 id="title-ID0EKWAG" class="docExampleTitle">Example 5-7. Source of AlbumTest.java</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1  package com.oreilly.hh;
+ 2
+ 3  import net.sf.hibernate.*;
+ 4  import net.sf.hibernate.cfg.Configuration;
+ 5
+ 6  import java.sql.Time;
+ 7  import java.util.*;
+ 8
+ 9  /**
+10   * Create sample album data, letting Hibernate persist it for us.
+11   */
+12  public class AlbumTest {
+13
+14      /**
+15       * Quick and dirty helper method to handle repetitive portion of creating
+16       * album tracks. A real implementation would have much more flexibility.
+17       */
+18      private static void addAlbumTrack(Album album, String title, String file,
+19                                         Time length, Artist artist, int disc,
+20                                         int positionOnDisc, Session session)
+21          throws HibernateException
+22      {
+23          Track track = new Track(title, file, length, new Date(), (short)0,
+24                                  new HashSet(), new HashSet());
+25          track.getArtists().add(artist);
+26          session.save(track);
+27          album.getTracks().add(new AlbumTrack(disc, positionOnDisc, track));
+28      }
+29
+30      public static void main(String args[]) throws Exception {
+31          // Create a configuration based on the properties file we've put
+32          // in the standard place.
+33          Configuration config = new Configuration();
+34
+35          // Tell it about the classes we want mapped.
+36          config.addClass(Track.class).addClass(Artist.class);
+37          config.addClass(Album.class);
+38
+39          // Get the session factory we can use for persistence
+40          SessionFactory sessionFactory = config.buildSessionFactory();
+41
+42          // Ask for a session using the JDBC information we've configured
+43          Session session = sessionFactory.openSession();
+44          Transaction tx = null;
+45          try {
+46              // Create some data and persist it
+47              tx = session.beginTransaction();
+48
+49              Artist artist = CreateTest.getArtist("Martin L. Gore", true,
+50                                                   session);
+51              List albumTracks = new ArrayList(5);
+52              Album album = new Album("Counterfeit e.p.", 1, new Date(),
+53                                    albumTracks, new HashSet(), new HashSet());
+54              album.getArtists().add(artist);
+55              session.save(album);
+56
+57          addAlbumTrack(album, "Compulsion", "vol1/album83/track01.mp3",
+58                       Time.valueOf("00:05:29"), artist, 1, 1, session);
+59          addAlbumTrack(album, "In a Manner of Speaking",
+60                       "vol1/album83/track02.mp3", Time.valueOf("00:04:21"),
+61                       artist, 1, 2, session);
+62          addAlbumTrack(album, "Smile in the Crowd",
+63                       "vol1/album83/track03.mp3", Time.valueOf("00:05:06"),
+64                       artist, 1, 3, session);
+65          addAlbumTrack(album, "Gone", "vol1/album83/track04.mp3",
+66                       Time.valueOf("00:03:32"), artist, 1, 4, session);
+67          addAlbumTrack(album, "Never Turn Your Back on Mother Earth",
+68                       "vol1/album83/track05.mp3", Time.valueOf("00:03:07"),
+69                       artist, 1, 5, session);
+70          addAlbumTrack(album, "Motherless Child", "vol1/album83/track06.mp3",
+71                         Time.valueOf("00:03:32"), artist, 1, 6, session);
+72
+73          System.out.println(album);
+74
+75          // We're done; make our changes permanent
+76          tx.commit();
+77
+78      } catch (Exception e) {
+79          if (tx != null) {
+80              // Something went wrong; discard all partial changes
+81              tx.rollback();
+82          }
+83          throw e;
+84      } finally {
+85          // No matter what, close the session
+86          session.close();
+87      }
+88
+89      // Clean up after ourselves
+90      sessionFactory.close();
+91    }
+92  }
+</pre><br/>
+</td></tr></table><p class="docText">The <tt>addAlbumTrack()</tt> method starting on line 14 creates and persists a <tt>Track</tt><a id="single"/> object given the specified parameters, associates it with a single <tt>Artist</tt> (line 25), then adds it to the supplied <tt>Album</tt>, recording the disc it's on and its position within that disc (line 27). In this simple example we're creating an album with just one disc. This quick-and-dirty method can't cope with many variations, but it does allow the example to be compressed nicely.<a id="idx-CHP-5-0221"/></p><p class="docText">We also need a new target at the end of <span class="docEmphasis">build.xml</span> to invoke the class. Add the lines of <a class="docLink" href="#new_target_to_run_our_album_test_class">Example 5-8</a> at the end of the file (but inside the <tt>project</tt> tag, of course).</p><a id="new_target_to_run_our_album_test_class"/><h5 id="title-ID0ENXAG" class="docExampleTitle">Example 5-8. New target to run our album test class</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;target name="atest" description="Creates and persists some album data"
+        depends="compile"&gt;
+  &lt;java classname="com.oreilly.hh.AlbumTest" fork="true"&gt;
+    &lt;classpath refid="project.class.path"/&gt;
+  &lt;/java&gt;
+&lt;/target&gt;
+</pre><br/>
+</td></tr></table><p class="docText">With this in place, assuming you've generated the schema, run <tt><b>ant ctest</b></tt> followed by <tt><b>ant atest</b></tt>. (Running <tt>ctest</tt> first is optional, but having some extra data in there to begin with makes the album data somewhat more interesting. Recall that you can run these targets in one command as <tt><b>ant ctest atest</b></tt>, and if you want to start by erasing the contents of the database first, you can invoke <tt><b>ant schema ctest atest</b></tt>.) The debugging output produced by this command is shown in <a class="docLink" href="#output_from_running_the_album_test">Example 5-9</a>. Although admittedly cryptic, you should be able to see that the album and tracks have been created, and the order of the tracks has been maintained.</p><a id="output_from_running_the_album_test"/><h5 id="title-ID0EIYAG" class="docExampleTitle">Example 5-9. Output from running the album test</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+atest:
+     [java] com.oreilly.hh.Album@863cc1[id=0,title=Counterfeit e.p.,tracks=[com.
+oreilly.hh.AlbumTrack@b3cc96[track=com.oreilly.hh.
+Track@fea539[id=7,title=Compulsion]], com.oreilly.hh.AlbumTrack@3ca972[track=com.
+oreilly.hh.Track@f2e328[id=8,title=In a Manner of Speaking]], com.oreilly.hh.
+AlbumTrack@98a1f4[track=com.oreilly.hh.Track@1f6c18[id=9,title=Smile in the
+Crowd]], com.oreilly.hh.AlbumTrack@b0d990[track=com.oreilly.hh.
+Track@f1cdfb[id=10,title=Gone]], com.oreilly.hh.AlbumTrack@9baf0b[track=com.
+oreilly.hh.Track@a59d2[id=11,title=Never Turn Your Back on Mother Earth]], com.
+oreilly.hh.AlbumTrack@10c69[track=com.oreilly.hh.
+Track@8f1ed7[id=12,title=Motherless Child]]]]
+</pre><br/>
+</td></tr></table><p class="docText">If we run our old query test, we can see both the old and new data, as in <a class="docLink" href="#all_tracks_are_less_than_seven_minutes_l">Example 5-10</a>.</p><a id="all_tracks_are_less_than_seven_minutes_l"/><h5 id="title-ID0EUYAG" class="docExampleTitle">Example 5-10. All tracks are less than seven minutes long, whether from albums or otherwise</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>ant qtest</b>
+Buildfile: build.xml
+...
+qtest:
+     [java] Track: "Russian Trance" (PPK) 00:03:30
+     [java] Track: "Video Killed the Radio Star" (The Buggles) 00:03:49
+     [java] Track: "Gravity's Angel" (Laurie Anderson) 00:06:06
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35
+     [java] Track: "Test Tone 1" 00:00:10
+     [java] Comment: Pink noise to test equalization
+     [java] Track: "Compulsion" (Martin L. Gore) 00:05:29
+     [java] Track: "In a Manner of Speaking" (Martin L. Gore) 00:04:21
+     [java] Track: "Smile in the Crowd" (Martin L. Gore) 00:05:06
+     [java] Track: "Gone" (Martin L. Gore) 00:03:32
+     [java] Track: "Never Turn Your Back on Mother Earth" (Martin L. Gore) 00:03:07
+     [java] Track: "Motherless Child" (Martin L. Gore) 00:03:32
+
+BUILD SUCCESSFUL
+Total time: 12 seconds
+</pre><br/>
+</td></tr></table><p class="docText">Finally, <a class="docLink" href="#our_augmented_collection_of_associations">Figure 5-3</a> shows a query in the HSQLDB interface that examines the contents of the <tt>ALBUM_TRACKS</tt> table.</p><a id="our_augmented_collection_of_associations"/><p/><div class="center"><h5 class="docFigureTitle">Figure 5-3. Our augmented collection of associations in action</h5><a id="I_mediaobject5_d1e5089"/><p class="docText"><img src="Images/0596006969_augmenting_associations_in_collections_image03.png" alt="" width="396" height="246"/></p></div><br/></div></div></body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_creating_persistent_objects"><a id="creating_persistent_objects"/><h3 class="docSection1Title">3.1. Creating Persistent Objects</h3><p class="docText">Let's start by creating some objects in Java and persisting them to the database, so we can see how they turn into rows and columns for us. Because of the way we've organized our mapping document and properties file, it's extremely easy to configure the Hibernate session factory and get things rolling.</p><p class="docText">To get started, set up the Hibernate environment and use it to turn some new <tt>Track</tt> instances into corresponding rows in the database table.</p><a id="how_do_i_do_that-id008"/><h4 id="title-ID0EDSAE" class="docSection2Title">3.1.1. How do I do that?</h4><p class="docText">This discussion assumes you've created the schema and generated Java code by following the examples in <a class="docLink" href="0596006969_introduction_to_mapping.xhtml#introduction_to_mapping">Chapter 2</a>. If you haven't, you can start by downloading the examples archive from this book's web site, jumping in to the <span class="docEmphasis">ch03</span> directory, and copying in the third-party libraries as instructed in <a class="docLink" href="0596006969_installation_and_setup.xhtml#installation_and_setup">Chapter 1</a>. Once you've done that, use the commands <tt><b>ant codegen</b></tt> followed by <tt><b>ant schema</b></tt> to set up the generated Java code and database schema on which this example is based. As with the other examples, these commands should be issued in a shell/command window whose current working directory is the top of your project tree, containing Ant's <i>build.xml</i> file.</p><p class="docText">We'll start with a simple example class, <tt>CreateTest</tt>, containing the necessary imports and housekeeping code to bring up the Hibernate environment and create some <tt>Track</tt> instances that can be persisted using the XML mapping document we started with. The source is shown in <a class="docLink" href="#createtestjava">Example 3-1</a>.</p><blockquote><p class="docText"><span class="docEmphasis">The examples in most chapters build on the previous ones, so if you are skipping around, you'll really want to download the sample code</span>.</p></blockquote><a id="createtestjava"/><h5 id="title-ID0EOTAE" class="docExampleTitle">Example 3-1. CreateTest.java</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1   package com.oreilly.hh;
+ 2
+ 3   import net.sf.hibernate.*;
+ 4   import net.sf.hibernate.cfg.Configuration;
+ 5
+ 6   import java.sql.Time;
+ 7   import java.util.Date;
+ 8
+ 9   /**
+10    * Create sample <a id="idx-CHP-3-0099"/>data, letting Hibernate persist it for us.
+11    */
+12   public class CreateTest {
+13
+14       public static void main(String args[]) throws Exception {
+15           // Create a configuration based on the properties file we've put
+16           // in the standard place.
+17           Configuration config = new Configuration();
+18
+19           // Tell it about the classes we want mapped, taking advantage of
+20           // the way we've named their mapping documents.
+21           config.addClass(Track.class);
+22
+23           // Get the session factory we can use for persistence
+24           SessionFactory sessionFactory = config.buildSessionFactory();
+25
+26           // Ask for a session using the JDBC information we've configured
+27           Session session = sessionFactory.openSession();
+28           Transaction tx = null;
+29           try {
+30               // Create some data and persist it
+31               tx = session.beginTransaction();
+32
+33               Track track = new Track("Russian Trance",
+34                                       "vol2/album610/track02.mp3",
+35                                       Time.valueOf("00:03:30"), new Date(),
+36                                       (short)0);
+37               session.save(track);
+38
+39               track = new Track("Video Killed the Radio Star",
+40                                 "vol2/album611/track12.mp3",
+41                                 Time.valueOf("00:03:49"), new Date(),
+42                                 (short)0);
+43               session.save(track);
+44
+45
+46              track = new Track("Gravity's Angel",
+47                                "vol2/album175/track03.mp3",
+48                                Time.valueOf("00:06:06"), new Date(),
+49                                (short)0);
+50             session.save(track);
+51
+52             // We're done; make our changes permanent
+53             tx.commit();
+54
+55         } catch (Exception e) {
+56             if (tx != null) {
+57                 // Something went wrong; discard all partial changes
+58                 tx.rollback();
+59             }
+60             throw e;
+61         } finally {
+62             // No matter what, close the session
+63             session.close();
+64         }
+65
+66         // Clean up after ourselves
+67         sessionFactory.close();
+68      }
+69   }
+</pre><br/>
+</td></tr></table><p class="docText">With all we've got in place by now it's quite easy to tell Ant how to run this test. Add the target shown in <a class="docLink" href="#ant_target_to_invoke_our_data_creation_t">Example 3-2</a> right before the closing <tt>&lt;/project&gt;</tt> tag at the end of <span class="docEmphasis">build.xml</span>.</p><a id="ant_target_to_invoke_our_data_creation_t"/><h5 id="title-ID0EGUAE" class="docExampleTitle">Example 3-2. Ant target to invoke our data creation test</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;target name="ctest" description="Creates and persists some sample data"
+        depends="compile"&gt;
+  &lt;java classname="com.oreilly.hh.CreateTest" fork="true"&gt;
+    &lt;classpath refid="project.class.path"/&gt;
+  &lt;/java&gt;
+&lt;/target&gt;
+</pre><br/>
+</td></tr></table><p class="docText">All right, we're ready to create some data! <a class="docLink" href="#invoking_the_createtest_class">Example 3-3</a> shows the results of invoking the new <tt>ctest</tt> target. Its dependency on the <tt>compile</tt> target ensures the <tt>CreateTest</tt> class gets compiled before we try to use it. The output for <tt>ctest</tt> itself shows the logging emitted by Hibernate as the environment and mappings are set up and the connection is shut back down.</p><a id="invoking_the_createtest_class"/><h5 id="title-ID0E5UAE" class="docExampleTitle">Example 3-3. Invoking the CreateTest class</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>ant ctest</b>
+Buildfile: build.xml
+
+prepare:
+compile:
+    [javac] Compiling 1 source file to /Users/jim/Documents/Work/OReilly/
+Hibernate/Examples/ch03/classes
+
+ctest:
+     [java] 00:07:46,376 INFO Environment:432 - Hibernate 2.1.1
+     [java] 00:07:46,514 INFO Environment:466 - loaded properties from resource
+hibernate.properties: {hibernate.connection.username=sa, hibernate.connection.
+password=, hibernate.cglib.use_reflection_optimizer=true, hibernate.dialect=net.
+sf.hibernate.dialect.HSQLDialect, hibernate.connection.url=jdbc:hsqldb:data/
+music, hibernate.connection.driver_class=org.hsqldb.jdbcDriver}
+     [java] 00:07:46,644 INFO Environment:481 - using CGLIB reflection optimizer
+     [java] 00:07:46,691 INFO Configuration:318 - Mapping resource: com/oreilly/
+hh/Track.hbm.xml
+     [java] 00:07:50,686 INFO Binder:225 - Mapping class: com.oreilly.hh.Track
+-&gt; TRACK
+     [java] 00:07:51,620 INFO Configuration:584 - processing one-to-many
+association mappings
+     [java] 00:07:51,627 INFO Configuration:593 - processing one-to-one
+association property references
+     [java] 00:07:51,628 INFO Configuration:618 - processing foreign key
+constraints
+     [java] 00:07:51,869 INFO Dialect:82 - Using dialect: net.sf.hibernate.
+dialect.HSQLDialect
+     [java] 00:07:51,886 INFO SettingsFactory:62 - Use outer join fetching: false
+     [java] 00:07:51,966 INFO DriverManagerConnectionProvider:41 - Using
+Hibernate built-in connection pool (not for production use!)
+     [java] 00:07:52,036 INFO DriverManagerConnectionProvider:42 - Hibernate
+connection pool size: 20
+     [java] 00:07:52,117 INFO DriverManagerConnectionProvider:71 - using driver:
+org.hsqldb.jdbcDriver at URL: jdbc:hsqldb:data/music
+     [java] 00:07:52,135 INFO DriverManagerConnectionProvider:72 - connection
+properties: {user=sa, password=}
+     [java] 00:07:52,171 INFO TransactionManagerLookupFactory:33 - No
+TransactionManagerLookup configured (in JTA environment, use of process level
+read-write cache is not recommended)
+     [java] 00:07:53,497 INFO SettingsFactory:89 - Use scrollable result sets:
+true
+     [java] 00:07:53,504 INFO SettingsFactory:99 - Query language substitutions: {}
+     [java] 00:07:53,507 INFO SettingsFactory:110 - cache provider:
+net.sf.ehcache.hibernate.Provider
+     [java] 00:07:53,528 INFO Configuration:1057 - instantiating and configuring
+caches
+     [java] 00:07:54,533 INFO SessionFactoryImpl:119 - building session factory
+     [java] 00:07:56,721 INFO SessionFactoryObjectFactory:82 - no JNDI name
+configured
+     [java] 00:07:57,357 INFO SessionFactoryImpl:527 - closing
+     [java] 00:07:57,370 INFO DriverManagerConnectionProvider:137 - cleaning up
+connection pool: jdbc:hsqldb:data/music
+
+BUILD SUCCESSFUL
+Total time: 23 seconds
+</pre><br/>
+</td></tr></table><a id="what_just_happened-id006"/><h4 id="title-ID0EIVAE" class="docSection2Title">3.1.2. What just happened?</h4><p class="docText">Our test class fired up Hibernate, loaded the mapping information for the <tt>Track</tt> class, opened a persistence session to the associated HSQLDB database, and used that to create some instances and persist them in the <tt>TRACK</tt> table. Then it shut down the session and closed the database connection, ensuring the data was saved.</p><p class="docText">After running this test, you can use <tt><b><a id="idx-CHP-3-0100"/>ant db</b></tt> to take a look at the <a id="idx-CHP-3-0101"/>contents of the database. You should find three rows in the <tt>TRACK</tt> table now, as shown in <a class="docLink" href="#test_data_persisted_into_the_track_table">Figure 3-1</a>. (Type your query in the text box at the top of the window and click the Execute button. You can get a command skeleton and syntax documentation by choosing Command → Select in the menu bar.)</p><a id="test_data_persisted_into_the_track_table"/><p/><div class="center"><h5 class="docFigureTitle">Figure 3-1. Test data persisted into the TRACK table</h5><a id="I_mediaobject3_d1e2437"/><p class="docText"><img src="Images/0596006969_creating_persistent_objects_image01.png" alt="" width="226" height="107"/></p></div><br/><p class="docText">The first part of <a class="docLink" href="#createtestjava">Example 3-1</a><a id="Hibernate"/>'s code needs little explanation. Lines 3 and 4 import some useful Hibernate <a id="idx-CHP-3-0102"/><a id="including"/>classes, including <tt>Configuration</tt>, which is used to set up the Hibernate environment. The <tt>Time</tt> and <tt>Date</tt> classes are used in our data objects to represent track playing times and creation timestamps. The only method we implement in <tt>CreateTest</tt> is the <tt>main()</tt> method that supports invocation from the command line.<a id="idx-CHP-3-0103"/></p><p class="docText">When run, we start by <a id="idx-CHP-3-0104"/>creating a Hibernate <tt>Configuration</tt> object on line 17. Since we don't tell it otherwise, it looks for a file named <i>hibernate. properties</i> at the root level in the class path. It finds the one we created in the previous chapter (see <a class="docLink" href="0596006969_cooking_up_a_schema.xhtml#setting_up_hibernateproperties">Example 2-4</a>), which tells it we're using HSQLDB, and how to find the database. Next line 21 requests mapping services for the <tt>Track</tt> class. Because we've placed the mapping file <i>Track.hbm.xml</i> in the same package, and followed the standard naming convention, Hibernate is able to find and load it without requiring an explicit path. This approach is particularly handy when you want to distribute your application as a Jar archive, or when you are operating in a web application environment.<a id="idx-CHP-3-0105"/></p><p class="docText">That's all the configuration we need in order to create and persist track data, so we're ready to create the <tt>SessionFactory</tt> on line 24. Its purpose is to provide us with <tt>Session</tt> objects, the main avenue for interaction with Hibernate. The <tt>SessionFactory</tt> is thread safe, and you only need one for your entire application. (To be more precise, you need one for each database environment for which you want persistence services; most applications therefore need only one.) <a id="idx-CHP-3-0106"/>Creating the session factory is a pretty expensive and slow operation, so you'll definitely want to share it throughout your application. It's trivial in a one-class application like this one, but the reference documentation provides some good examples of ways to do it in more realistic scenarios.<a id="idx-CHP-3-0107"/></p><p class="docText">When it comes time to actually perform persistence, we ask the <tt>SessionFactory</tt> to open a <tt>Session</tt> for us (line 27), which establishes a JDBC connection to the database, and provides us with a context in which we can create, obtain, manipulate, and delete <a id="idx-CHP-3-0108"/>persistent objects. As long as the session is open, a connection to the database is maintained, and changes to the persistent objects associated with the session are tracked so they can be applied to the database when the session is closed. Conceptually you can think of a session as a "large scale transaction" between the persistent objects and the database, which may encompass several database-level transactions. Like a database transaction, though, you should not think about keeping your Hibernate session open over long periods of application existence (such as while you're waiting for user input). A single session is used for a specific and bounded operation in the application, something like populating the user interface or making a change that has been committed by the user. The next operation will use a new session. Also note that <tt>Session</tt> objects are not thread safe, so they cannot be shared between threads. Each thread needs to obtain its own session from the factory.</p><blockquote><p class="docText"><span class="docEmphasis">It's worth getting a solid understanding of the purposes and lifecycles of these objects. This notebook gives you just enough information to get started; you'll want to spend some time with the reference documentation and understand the examples in depth</span>.<a id="idx-CHP-3-0109"/></p></blockquote><p class="docText">We need to look more closely at the <a id="idx-CHP-3-0110"/>lifecycle of <a id="idx-CHP-3-0111"/>mapped objects in Hibernate, and how this relates to sessions, because the terminology is rather specific and the concepts are quite important. A mapped object such as an instance of our <tt>Track</tt> class moves back and forth between two states with respect to Hibernate: <span class="docEmphasis">transient</span> and <span class="docEmphasis">persistent</span>. An object that is transient is not associated with any session. When you first create a <tt>Track</tt> instance using <tt>new()</tt>, it is transient; unless you tell Hibernate to persist it, the object will vanish when it is garbage collected or your application terminates.<a id="idx-CHP-3-0112"/></p><p class="docText">Passing a transient mapped object to a <tt>Session's save()</tt> method causes it to become <a id="idx-CHP-3-0113"/>persistent. It will survive garbage collection and termination of the Java VM, staying available until it is explicitly deleted. (There is a related distinction between <span class="docEmphasis">entities</span> and <span class="docEmphasis">values</span> discussed at the beginning of <a class="docLink" href="0596006969_hibernate_types.xhtml#hibernate_types">Appendix A</a>. Mapped objects that have been persisted are called entities, even if they do not currently exist as an instance in any virtual machine.) If you've got a persistent object and you call <tt>Session's delete()</tt> method on it, the object transitions back to a transient state. The object still exists as an instance in your application, but it is no longer going to stay around unless you change your mind and save it again; it's ceased being an entity.<a id="idx-CHP-3-0114"/></p><p class="docText">On the other hand, and this point is worth extra emphasis, if you haven't deleted an object (so it's still persistent), when you change its <a id="idx-CHP-3-0115"/>properties there is no need to save it again for those changes to be reflected in the database. Hibernate automatically tracks changes to any <a id="idx-CHP-3-0116"/>persistent objects and flushes those changes to the database at appropriate times. When you close the session, any pending changes are flushed.</p><blockquote><p class="docText"><span class="docEmphasis">Hang in there, we'll be back to the example soon</span>!</p></blockquote><p class="docText">An important but subtle point concerns the status of persistent objects you worked with in a session that has been closed, such as after you run a query to find all entities matching some criteria (you'll see how to do this in the upcoming section, "Finding Persistent Objects"). As noted above, you don't want to keep this session around longer than necessary to perform the database operation, so you close it once your queries are finished. What's the deal with the mapped objects you've loaded at this point? Well, they were persistent while the session was around, but once they are no longer associated with an active session (in this case because the session has been closed) they are not persistent any longer. Now, this doesn't mean that they no longer exist in the database; indeed, if you run the query again (assuming nobody has changed the data in the meantime), you'll get back the same set of objects; they're still entities. It simply means that there is not currently an active correspondence being maintained between the state of the objects in your virtual machine and the database. It is perfectly reasonable to carry on working with the objects. If you later need to make changes to the objects and you want the changes to "stick," you will open a new session and use it to save the changed objects. Because each entity has a unique ID, Hibernate has no problem figuring out how to link the transient objects back to the appropriate <a id="idx-CHP-3-0117"/>persistent state in the new session.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">Of course, as with any environment in which you're making changes to an offline copy of information backed by a database, you need to think about <a id="idx-CHP-3-0118"/>application-level data integrity constraints. You may need to devise some higher-level locking or versioning protocol to support them. Hibernate can offer help with this task too, but the design and detailed implementation is up to you. The reference manual does strongly recommend the use of a version field, and there are several approaches available.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">Armed with these concepts and terms, the remainder of the example is easy enough to understand. Line 31 sets up a database transaction using our open session. Within that, we create a few <tt>Track</tt> instances containing sample data and save them in the session (lines 33–50), turning them from transient instances into persistent entities. Finally, line 53 commits our transaction, atomically (as a single, indivisible unit) making all the database changes permanent. The <tt>try/catch/finally</tt> block wrapped around all this shows an important and useful idiom for working with transactions. If anything goes wrong, lines 56–60 will roll back the transaction and then bubble out the exception, leaving the database the way we found it. The session is closed in the <tt>finally</tt> portion at line 63, ensuring that this takes place whether we exit through the "happy path" of a successful commit, or via an exception that caused rollback. Either way, it gets closed as it should.</p><p class="docText">At the end of our method we also close the session factory itself on line 67. This is something you'd do in the "graceful shutdown" section of your application. In a web application environment, it would be in the appropriate lifecycle event handler.<sup class="docFootnote"><a class="docLink" href="#CHP-3-FNOTE-1">[3-1]</a></sup> In this simple example, when the <tt>main()</tt> method returns, the application is ending.</p><blockquote><p class="docFootnote"><sup><a id="CHP-3-FNOTE-1">[3-1]</a></sup> If you're not familiar with these, read about the <tt>ServletContextListener</tt> interface in the Servlet 2.3 specification.</p></blockquote><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Warning:</b></i></span></p><p class="docText">One pitfall I discovered in working with this test program is that it is necessary to explicitly close both the <tt>SessionFactory</tt> and Session. If you don't, the application won't exit when <tt>main()</tt> returns, and you have to kill it with Ctrl-C. This turns out to be caused by a non-daemon thread used in the current HSQLDB logging implementation. The HSQLDB developers have said they may fix this in the next release, in which logging is being heavily revamped. Even if they do, similar issues may exist with other databases; it's better to be safe and close things gracefully when you know you're done using them.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">At this point it's worth pausing a moment to reflect on the fact that we wrote no code to connect to the database or to issue SQL commands. Looking back to the preceding chapter, we didn't even have to create the table ourselves, nor the <tt>Track</tt> object that encapsulates our data. Yet the query in <a class="docLink" href="#test_data_persisted_into_the_track_table">Figure 3-1</a> shows nicely readable data representing the Java objects created and persisted by our short, simple test program. Hopefully you'll agree that this reflects very well on the power and convenience of Hibernate as a persistence service. For being free and lightweight, Hibernate can certainly do a lot for you, quickly and easily.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Warning:</b></i></span></p><p class="docText">Although the Hibernate reference documentation states that the use of <a id="idx-CHP-3-0119"/>transactions is optional, I found that (at least through Version 2.1.1, with the HSQLDB database) any changes I made outside the context of a Hibernate transaction would disappear when the application ended. Analyzing the SQL emitted by Hibernate revealed that even though I didn't request a transaction, <a id="idx-CHP-3-0120"/>auto-commit was being turned off, so my changes were getting rolled back when the application ended. So for now it's always necessary to use <a id="idx-CHP-3-0121"/>explicit transactions in your code, a good habit in any case.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">An alternate way of seeing the results of our persistence test is to simply look at the database itself. Since we're using HSQLDB, the database is stored in a highly human-readable format: the <a id="idx-CHP-3-0122"/>file <i>music.script</i> contains a series of SQL statements that are used to reconstruct the in-memory database structures when the database is opened. The end of the file contains our persisted objects, as shown in <a class="docLink" href="#looking_at_the_raw_database_file">Example 3-4</a>.</p><a id="looking_at_the_raw_database_file"/><h5 id="title-ID0EN6AE" class="docExampleTitle">Example 3-4. Looking at the raw database file</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+%<b>tail <a id="idx-CHP-3-0123"/>data/music.script</b>
+CREATE ALIAS ATAN FOR "java.lang.Math.atan"
+CREATE ALIAS UPPER FOR "org.hsqldb.Library.ucase"
+CREATE ALIAS ASCII FOR "org.hsqldb.Library.ascii"
+CREATE ALIAS RAND FOR "java.lang.Math.random"
+CREATE ALIAS LENGTH FOR "org.hsqldb.Library.length"
+CREATE ALIAS ROUND FOR "org.hsqldb.Library.round"
+CREATE ALIAS REPLACE FOR "org.hsqldb.Library.replace"
+INSERT INTO TRACK VALUES(0,'Russian Trance','vol2/album610/track02.mp3',
+'00:03:30','2003-12-11',0)
+INSERT INTO TRACK VALUES(1,'Video Killed the Radio Star','vol2/album611/
+track12.mp3','00:03:49','2003-12-11',0)
+INSERT INTO TRACK VALUES(2,'Gravity''s Angel','vol2/album175/track03.mp3',
+'00:06:06','2003-12-11',0)
+</pre><br/>
+</td></tr></table><p class="docText">The final three statements show our <tt>TRACK</tt>
+					<a id="idx-CHP-3-0124"/>table rows. The aliases that come before them are part of the normal HSQLDB environment you get when <a id="idx-CHP-3-0125"/>creating a new database.<a id="idx-CHP-3-0126"/></p><blockquote><p class="docText"><span class="docEmphasis">Tempted to learn more about HSQLDB? I won't try to stop you</span>!</p></blockquote><a id="what_abouthellip-id005"/><h4 id="title-ID0E1AAG" class="docSection2Title">3.1.3. What about…</h4><p class="docText">…Objects with relationships to other objects? Collections of objects? You're right, these are cases where persistence gets more challenging (and, if done right, valuable). Hibernate can handle associations like this just fine. In fact, there isn't any special effort involved on our part. We'll discuss this in <a class="docLink" href="0596006969_collections_and_associations.xhtml#collections_and_associations">Chapter 4</a>. For now, let's look at how to retrieve objects that were persisted in earlier sessions.</p></div></div></body>
+</html>

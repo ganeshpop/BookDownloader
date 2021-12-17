@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+<head>
+<meta content="ID:ISBN:9781617295621" name="dtb:uid"/>
+<meta content="3" name="dtb:depth"/>
+<meta content="0" name="dtb:totalPageCount"/>
+<meta content="0" name="dtb:maxPageNumber"/>
+</head>
+<docTitle><text>Vert.x in Action</text></docTitle>
+<docAuthor><text>Julien Ponge</text></docAuthor>
+<navMap><navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2ftitle.xhtml" playOrder="1"><navLabel><text>Vert.x in Action</text></navLabel><content src="title.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2fcopyright.xhtml" playOrder="2"><navLabel><text>Copyright</text></navLabel><content src="copyright.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2fdedication.xhtml" playOrder="3"><navLabel><text>dedication</text></navLabel><content src="dedication.xhtml"/></navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2fbtoc.htm" playOrder="4"><navLabel><text>brief contents</text></navLabel><content src="btoc.htm"/></navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2ftoc.htm" playOrder="5"><navLabel><text>contents</text></navLabel><content src="toc.htm"/></navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2ffm.htm" playOrder="6"><navLabel><text>front matter</text></navLabel><content src="fm.htm"/><navPoint id="heading_id_3" playOrder="7"><navLabel><text>foreword</text></navLabel><content src="fm.htm#heading_id_3"/></navPoint>
+<navPoint id="heading_id_4" playOrder="8"><navLabel><text>preface</text></navLabel><content src="fm.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="9"><navLabel><text>acknowledgments</text></navLabel><content src="fm.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="10"><navLabel><text>about this book</text></navLabel><content src="fm.htm#heading_id_6"/><navPoint id="heading_id_7" playOrder="11"><navLabel><text>Who should read this book</text></navLabel><content src="fm.htm#heading_id_7"/></navPoint>
+<navPoint id="heading_id_8" playOrder="12"><navLabel><text>How this book is organized: A roadmap</text></navLabel><content src="fm.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="13"><navLabel><text>About the code</text></navLabel><content src="fm.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="14"><navLabel><text>liveBook discussion forum</text></navLabel><content src="fm.htm#heading_id_10"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_11" playOrder="15"><navLabel><text>about the author</text></navLabel><content src="fm.htm#heading_id_11"/></navPoint>
+<navPoint id="heading_id_12" playOrder="16"><navLabel><text>about the cover illustration</text></navLabel><content src="fm.htm#heading_id_12"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2fp1.htm" playOrder="17"><navLabel><text>Part 1. Fundamentals of asynchronous programming with Vert.x</text></navLabel><content src="p1.htm"/></navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f01.htm" playOrder="18"><navLabel><text>1 Vert.x, asynchronous programming, and reactive systems</text></navLabel><content src="01.htm"/><navPoint id="heading_id_3" playOrder="19"><navLabel><text>1.1 Being distributed and networked is the norm</text></navLabel><content src="01.htm#heading_id_3"/></navPoint>
+<navPoint id="heading_id_4" playOrder="20"><navLabel><text>1.2 Not living on an isolated island</text></navLabel><content src="01.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="21"><navLabel><text>1.3 There is no free lunch on the network</text></navLabel><content src="01.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="22"><navLabel><text>1.4 The simplicity of blocking APIs</text></navLabel><content src="01.htm#heading_id_6"/></navPoint>
+<navPoint id="heading_id_7" playOrder="23"><navLabel><text>1.5 Blocking APIs waste resources, increase costs</text></navLabel><content src="01.htm#heading_id_7"/></navPoint>
+<navPoint id="heading_id_8" playOrder="24"><navLabel><text>1.6 Asynchronous programming with non-blocking I/O</text></navLabel><content src="01.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="25"><navLabel><text>1.7 Multiplexing event-driven processing: The case of the event loop</text></navLabel><content src="01.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="26"><navLabel><text>1.8 What is a reactive system?</text></navLabel><content src="01.htm#heading_id_10"/></navPoint>
+<navPoint id="heading_id_11" playOrder="27"><navLabel><text>1.9 What else does reactive mean?</text></navLabel><content src="01.htm#heading_id_11"/></navPoint>
+<navPoint id="heading_id_12" playOrder="28"><navLabel><text>1.10 What is Vert.x?</text></navLabel><content src="01.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="29"><navLabel><text>1.11 Your first Vert.x application</text></navLabel><content src="01.htm#heading_id_13"/><navPoint id="heading_id_14" playOrder="30"><navLabel><text>1.11.1 Preparing the project</text></navLabel><content src="01.htm#heading_id_14"/></navPoint>
+<navPoint id="heading_id_15" playOrder="31"><navLabel><text>1.11.2 The VertxEcho class</text></navLabel><content src="01.htm#heading_id_15"/></navPoint>
+<navPoint id="heading_id_16" playOrder="32"><navLabel><text>1.11.3 The role of callbacks</text></navLabel><content src="01.htm#heading_id_16"/></navPoint>
+<navPoint id="heading_id_17" playOrder="33"><navLabel><text>1.11.4 So is this a reactive application?</text></navLabel><content src="01.htm#heading_id_17"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_18" playOrder="34"><navLabel><text>1.12 What are the alternatives to Vert.x?</text></navLabel><content src="01.htm#heading_id_18"/></navPoint>
+<navPoint id="heading_id_19" playOrder="35"><navLabel><text>Summary</text></navLabel><content src="01.htm#heading_id_19"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f02.htm" playOrder="36"><navLabel><text>2 Verticles: The basic processing units of Vert.x</text></navLabel><content src="02.htm"/><navPoint id="heading_id_3" playOrder="37"><navLabel><text>2.1 Writing a verticle</text></navLabel><content src="02.htm#heading_id_3"/><navPoint id="heading_id_4" playOrder="38"><navLabel><text>2.1.1 Preparing the project</text></navLabel><content src="02.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="39"><navLabel><text>2.1.2 The verticle class</text></navLabel><content src="02.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="40"><navLabel><text>2.1.3 Running and first observations</text></navLabel><content src="02.htm#heading_id_6"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_7" playOrder="41"><navLabel><text>2.2 More on verticles</text></navLabel><content src="02.htm#heading_id_7"/><navPoint id="heading_id_8" playOrder="42"><navLabel><text>2.2.1 Blocking and the event loop</text></navLabel><content src="02.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="43"><navLabel><text>2.2.2 Asynchronous notification of life-cycle events</text></navLabel><content src="02.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="44"><navLabel><text>2.2.3 Deploying verticles</text></navLabel><content src="02.htm#heading_id_10"/></navPoint>
+<navPoint id="heading_id_11" playOrder="45"><navLabel><text>2.2.4 Passing configuration data</text></navLabel><content src="02.htm#heading_id_11"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_12" playOrder="46"><navLabel><text>2.3 When code needs to block</text></navLabel><content src="02.htm#heading_id_12"/><navPoint id="heading_id_13" playOrder="47"><navLabel><text>2.3.1 Worker verticles</text></navLabel><content src="02.htm#heading_id_13"/></navPoint>
+<navPoint id="heading_id_14" playOrder="48"><navLabel><text>2.3.2 The executeBlocking operation</text></navLabel><content src="02.htm#heading_id_14"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_15" playOrder="49"><navLabel><text>2.4 So what is really in a verticle?</text></navLabel><content src="02.htm#heading_id_15"/><navPoint id="heading_id_16" playOrder="50"><navLabel><text>2.4.1 Verticles and their environment</text></navLabel><content src="02.htm#heading_id_16"/></navPoint>
+<navPoint id="heading_id_17" playOrder="51"><navLabel><text>2.4.2 More on contexts</text></navLabel><content src="02.htm#heading_id_17"/></navPoint>
+<navPoint id="heading_id_18" playOrder="52"><navLabel><text>2.4.3 Bridging Vert.x and non-Vert.x threading models</text></navLabel><content src="02.htm#heading_id_18"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_19" playOrder="53"><navLabel><text>Summary</text></navLabel><content src="02.htm#heading_id_19"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f03.htm" playOrder="54"><navLabel><text>3 Event bus: The backbone of a Vert.x application</text></navLabel><content src="03.htm"/><navPoint id="heading_id_3" playOrder="55"><navLabel><text>3.1 What is the event bus?</text></navLabel><content src="03.htm#heading_id_3"/><navPoint id="heading_id_4" playOrder="56"><navLabel><text>3.1.1 Is the event bus just another message broker?</text></navLabel><content src="03.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="57"><navLabel><text>3.1.2 Point-to-point messaging</text></navLabel><content src="03.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="58"><navLabel><text>3.1.3 Request-reply messaging</text></navLabel><content src="03.htm#heading_id_6"/></navPoint>
+<navPoint id="heading_id_7" playOrder="59"><navLabel><text>3.1.4 Publish/subscribe messaging</text></navLabel><content src="03.htm#heading_id_7"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_8" playOrder="60"><navLabel><text>3.2 The event bus in an example</text></navLabel><content src="03.htm#heading_id_8"/><navPoint id="heading_id_9" playOrder="61"><navLabel><text>3.2.1 Heat sensor verticle</text></navLabel><content src="03.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="62"><navLabel><text>3.2.2 Listener verticle</text></navLabel><content src="03.htm#heading_id_10"/></navPoint>
+<navPoint id="heading_id_11" playOrder="63"><navLabel><text>3.2.3 Sensor data verticle</text></navLabel><content src="03.htm#heading_id_11"/></navPoint>
+<navPoint id="heading_id_12" playOrder="64"><navLabel><text>3.2.4 HTTP server verticle</text></navLabel><content src="03.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="65"><navLabel><text>3.2.5 Bootstrapping the application</text></navLabel><content src="03.htm#heading_id_13"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_14" playOrder="66"><navLabel><text>3.3 Clustering and the distributed event bus</text></navLabel><content src="03.htm#heading_id_14"/><navPoint id="heading_id_15" playOrder="67"><navLabel><text>3.3.1 Clustering in Vert.x</text></navLabel><content src="03.htm#heading_id_15"/></navPoint>
+<navPoint id="heading_id_16" playOrder="68"><navLabel><text>3.3.2 From event bus to distributed event bus</text></navLabel><content src="03.htm#heading_id_16"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_17" playOrder="69"><navLabel><text>Summary</text></navLabel><content src="03.htm#heading_id_17"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f04.htm" playOrder="70"><navLabel><text>4 Asynchronous data and event streams</text></navLabel><content src="04.htm"/><navPoint id="heading_id_3" playOrder="71"><navLabel><text>4.1 Unified stream model</text></navLabel><content src="04.htm#heading_id_3"/></navPoint>
+<navPoint id="heading_id_4" playOrder="72"><navLabel><text>4.2 What is back-pressure?</text></navLabel><content src="04.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="73"><navLabel><text>4.3 Making a music-streaming jukebox</text></navLabel><content src="04.htm#heading_id_5"/><navPoint id="heading_id_6" playOrder="74"><navLabel><text>4.3.1 Features and usage</text></navLabel><content src="04.htm#heading_id_6"/></navPoint>
+<navPoint id="heading_id_7" playOrder="75"><navLabel><text>4.3.2 HTTP processing: The big picture</text></navLabel><content src="04.htm#heading_id_7"/></navPoint>
+<navPoint id="heading_id_8" playOrder="76"><navLabel><text>4.3.3 Jukebox verticle basics</text></navLabel><content src="04.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="77"><navLabel><text>4.3.4 Incoming HTTP connections</text></navLabel><content src="04.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="78"><navLabel><text>4.3.5 Downloading as efficiently as possible</text></navLabel><content src="04.htm#heading_id_10"/></navPoint>
+<navPoint id="heading_id_11" playOrder="79"><navLabel><text>4.3.6 Reading MP3 files, but not too fast</text></navLabel><content src="04.htm#heading_id_11"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_12" playOrder="80"><navLabel><text>4.4 Parsing simple streams</text></navLabel><content src="04.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="81"><navLabel><text>4.5 Parsing complex streams</text></navLabel><content src="04.htm#heading_id_13"/></navPoint>
+<navPoint id="heading_id_14" playOrder="82"><navLabel><text>4.6 A quick note on the stream fetch mode</text></navLabel><content src="04.htm#heading_id_14"/></navPoint>
+<navPoint id="heading_id_15" playOrder="83"><navLabel><text>Summary</text></navLabel><content src="04.htm#heading_id_15"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f05.htm" playOrder="84"><navLabel><text>5 Beyond callbacks</text></navLabel><content src="05.htm"/><navPoint id="heading_id_3" playOrder="85"><navLabel><text>5.1 Composing asynchronous operations: The edge service example</text></navLabel><content src="05.htm#heading_id_3"/><navPoint id="heading_id_4" playOrder="86"><navLabel><text>5.1.1 Scenario</text></navLabel><content src="05.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="87"><navLabel><text>5.1.2 Heat sensor verticles</text></navLabel><content src="05.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="88"><navLabel><text>5.1.3 Snapshot service verticle</text></navLabel><content src="05.htm#heading_id_6"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_7" playOrder="89"><navLabel><text>5.2 Callbacks</text></navLabel><content src="05.htm#heading_id_7"/><navPoint id="heading_id_8" playOrder="90"><navLabel><text>5.2.1 Implementation</text></navLabel><content src="05.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="91"><navLabel><text>5.2.2 Running</text></navLabel><content src="05.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="92"><navLabel><text>5.2.3 The “callback hell” is not the problem</text></navLabel><content src="05.htm#heading_id_10"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_11" playOrder="93"><navLabel><text>5.3 Futures and promises</text></navLabel><content src="05.htm#heading_id_11"/><navPoint id="heading_id_12" playOrder="94"><navLabel><text>5.3.1 Futures and promises in Vert.x</text></navLabel><content src="05.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="95"><navLabel><text>5.3.2 Future-based APIs in Vert.x 4</text></navLabel><content src="05.htm#heading_id_13"/></navPoint>
+<navPoint id="heading_id_14" playOrder="96"><navLabel><text>5.3.3 Interoperability with CompletionStage APIs</text></navLabel><content src="05.htm#heading_id_14"/></navPoint>
+<navPoint id="heading_id_15" playOrder="97"><navLabel><text>5.3.4 Collector service with Vert.x futures</text></navLabel><content src="05.htm#heading_id_15"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_16" playOrder="98"><navLabel><text>5.4 Reactive extensions</text></navLabel><content src="05.htm#heading_id_16"/><navPoint id="heading_id_17" playOrder="99"><navLabel><text>5.4.1 RxJava in a nutshell</text></navLabel><content src="05.htm#heading_id_17"/></navPoint>
+<navPoint id="heading_id_18" playOrder="100"><navLabel><text>5.4.2 RxJava and Vert.x</text></navLabel><content src="05.htm#heading_id_18"/></navPoint>
+<navPoint id="heading_id_19" playOrder="101"><navLabel><text>5.4.3 Collector service in RxJava</text></navLabel><content src="05.htm#heading_id_19"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_20" playOrder="102"><navLabel><text>5.5 Kotlin coroutines</text></navLabel><content src="05.htm#heading_id_20"/><navPoint id="heading_id_21" playOrder="103"><navLabel><text>5.5.1 What is a coroutine?</text></navLabel><content src="05.htm#heading_id_21"/></navPoint>
+<navPoint id="heading_id_22" playOrder="104"><navLabel><text>5.5.2 Vert.x and Kotlin coroutines</text></navLabel><content src="05.htm#heading_id_22"/></navPoint>
+<navPoint id="heading_id_23" playOrder="105"><navLabel><text>5.5.3 Edge service with coroutines</text></navLabel><content src="05.htm#heading_id_23"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_24" playOrder="106"><navLabel><text>5.6 Which model should I use?</text></navLabel><content src="05.htm#heading_id_24"/></navPoint>
+<navPoint id="heading_id_25" playOrder="107"><navLabel><text>Summary</text></navLabel><content src="05.htm#heading_id_25"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f06.htm" playOrder="108"><navLabel><text>6 Beyond the event bus</text></navLabel><content src="06.htm"/><navPoint id="heading_id_3" playOrder="109"><navLabel><text>6.1 Revisiting heat sensors with a service API</text></navLabel><content src="06.htm#heading_id_3"/></navPoint>
+<navPoint id="heading_id_4" playOrder="110"><navLabel><text>6.2 Return of the RPCs (remote procedure calls)</text></navLabel><content src="06.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="111"><navLabel><text>6.3 Defining a service interface</text></navLabel><content src="06.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="112"><navLabel><text>6.4 Service implementation</text></navLabel><content src="06.htm#heading_id_6"/></navPoint>
+<navPoint id="heading_id_7" playOrder="113"><navLabel><text>6.5 Enabling proxy code generation</text></navLabel><content src="06.htm#heading_id_7"/></navPoint>
+<navPoint id="heading_id_8" playOrder="114"><navLabel><text>6.6 Deploying event-bus services</text></navLabel><content src="06.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="115"><navLabel><text>6.7 Service proxies beyond callbacks</text></navLabel><content src="06.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="116"><navLabel><text>6.8 Testing and Vert.x</text></navLabel><content src="06.htm#heading_id_10"/><navPoint id="heading_id_11" playOrder="117"><navLabel><text>6.8.1 Using JUnit 5 with Vert.x</text></navLabel><content src="06.htm#heading_id_11"/></navPoint>
+<navPoint id="heading_id_12" playOrder="118"><navLabel><text>6.8.2 Testing DataVerticle</text></navLabel><content src="06.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="119"><navLabel><text>6.8.3 Running the tests</text></navLabel><content src="06.htm#heading_id_13"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_14" playOrder="120"><navLabel><text>Summary</text></navLabel><content src="06.htm#heading_id_14"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2fp2.htm" playOrder="121"><navLabel><text>Part 2. Developing reactive services with Vert.x</text></navLabel><content src="p2.htm"/></navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f07.htm" playOrder="122"><navLabel><text>7 Designing a reactive application</text></navLabel><content src="07.htm"/><navPoint id="heading_id_3" playOrder="123"><navLabel><text>7.1 What makes an application reactive</text></navLabel><content src="07.htm#heading_id_3"/></navPoint>
+<navPoint id="heading_id_4" playOrder="124"><navLabel><text>7.2 The 10k steps challenge scenario</text></navLabel><content src="07.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="125"><navLabel><text>7.3 One application, many services</text></navLabel><content src="07.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="126"><navLabel><text>7.4 Service specifications</text></navLabel><content src="07.htm#heading_id_6"/><navPoint id="heading_id_7" playOrder="127"><navLabel><text>7.4.1 User profile service</text></navLabel><content src="07.htm#heading_id_7"/></navPoint>
+<navPoint id="heading_id_8" playOrder="128"><navLabel><text>7.4.2 Ingestion service</text></navLabel><content src="07.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="129"><navLabel><text>7.4.3 Activity service</text></navLabel><content src="07.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="130"><navLabel><text>7.4.4 Public API</text></navLabel><content src="07.htm#heading_id_10"/></navPoint>
+<navPoint id="heading_id_11" playOrder="131"><navLabel><text>7.4.5 User web application</text></navLabel><content src="07.htm#heading_id_11"/></navPoint>
+<navPoint id="heading_id_12" playOrder="132"><navLabel><text>7.4.6 Event stats service</text></navLabel><content src="07.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="133"><navLabel><text>7.4.7 Congrats service</text></navLabel><content src="07.htm#heading_id_13"/></navPoint>
+<navPoint id="heading_id_14" playOrder="134"><navLabel><text>7.4.8 Dashboard web application</text></navLabel><content src="07.htm#heading_id_14"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_15" playOrder="135"><navLabel><text>7.5 Running the application</text></navLabel><content src="07.htm#heading_id_15"/></navPoint>
+<navPoint id="heading_id_16" playOrder="136"><navLabel><text>Summary</text></navLabel><content src="07.htm#heading_id_16"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f08.htm" playOrder="137"><navLabel><text>8 The web stack</text></navLabel><content src="08.htm"/><navPoint id="heading_id_3" playOrder="138"><navLabel><text>8.1 Exposing a public API</text></navLabel><content src="08.htm#heading_id_3"/><navPoint id="heading_id_4" playOrder="139"><navLabel><text>8.1.1 Routing HTTP requests</text></navLabel><content src="08.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="140"><navLabel><text>8.1.2 Making HTTP requests</text></navLabel><content src="08.htm#heading_id_5"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_6" playOrder="141"><navLabel><text>8.2 Access control with JWT tokens</text></navLabel><content src="08.htm#heading_id_6"/><navPoint id="heading_id_7" playOrder="142"><navLabel><text>8.2.1 Using JWT tokens</text></navLabel><content src="08.htm#heading_id_7"/></navPoint>
+<navPoint id="heading_id_8" playOrder="143"><navLabel><text>8.2.2 What is in a JWT token?</text></navLabel><content src="08.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="144"><navLabel><text>8.2.3 Handling JWT tokens with Vert.x</text></navLabel><content src="08.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="145"><navLabel><text>8.2.4 Issuing JWT tokens with Vert.x</text></navLabel><content src="08.htm#heading_id_10"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_11" playOrder="146"><navLabel><text>8.3 Cross-origin resource sharing (CORS)</text></navLabel><content src="08.htm#heading_id_11"/><navPoint id="heading_id_12" playOrder="147"><navLabel><text>8.3.1 What is the problem?</text></navLabel><content src="08.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="148"><navLabel><text>8.3.2 Supporting CORS with Vert.x</text></navLabel><content src="08.htm#heading_id_13"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_14" playOrder="149"><navLabel><text>8.4 A modern web frontend</text></navLabel><content src="08.htm#heading_id_14"/><navPoint id="heading_id_15" playOrder="150"><navLabel><text>8.4.1 Vue.js</text></navLabel><content src="08.htm#heading_id_15"/></navPoint>
+<navPoint id="heading_id_16" playOrder="151"><navLabel><text>8.4.2 Vue.js application structure and build integration</text></navLabel><content src="08.htm#heading_id_16"/></navPoint>
+<navPoint id="heading_id_17" playOrder="152"><navLabel><text>8.4.3 Backend integration illustrated</text></navLabel><content src="08.htm#heading_id_17"/></navPoint>
+<navPoint id="heading_id_18" playOrder="153"><navLabel><text>8.4.4 Static content serving with Vert.x</text></navLabel><content src="08.htm#heading_id_18"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_19" playOrder="154"><navLabel><text>8.5 Writing integration tests</text></navLabel><content src="08.htm#heading_id_19"/></navPoint>
+<navPoint id="heading_id_20" playOrder="155"><navLabel><text>Summary</text></navLabel><content src="08.htm#heading_id_20"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f09.htm" playOrder="156"><navLabel><text>9 Messaging and event streaming with Vert.x</text></navLabel><content src="09.htm"/><navPoint id="heading_id_3" playOrder="157"><navLabel><text>9.1 Event-driven services beyond HTTP with Vert.x</text></navLabel><content src="09.htm#heading_id_3"/><navPoint id="heading_id_4" playOrder="158"><navLabel><text>9.1.1 What Vert.x provides</text></navLabel><content src="09.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="159"><navLabel><text>9.1.2 The middleware and services that we’ll use</text></navLabel><content src="09.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="160"><navLabel><text>9.1.3 What is AMQP (and a message broker)?</text></navLabel><content src="09.htm#heading_id_6"/></navPoint>
+<navPoint id="heading_id_7" playOrder="161"><navLabel><text>9.1.4 What is Kafka?</text></navLabel><content src="09.htm#heading_id_7"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_8" playOrder="162"><navLabel><text>9.2 Reliably ingesting messages over HTTP and AMQP</text></navLabel><content src="09.htm#heading_id_8"/><navPoint id="heading_id_9" playOrder="163"><navLabel><text>9.2.1 Ingesting from AMQP</text></navLabel><content src="09.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="164"><navLabel><text>9.2.2 Translating AMQP messages to Kafka records</text></navLabel><content src="09.htm#heading_id_10"/></navPoint>
+<navPoint id="heading_id_11" playOrder="165"><navLabel><text>9.2.3 Ingesting from HTTP</text></navLabel><content src="09.htm#heading_id_11"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_12" playOrder="166"><navLabel><text>9.3 Sending congratulation emails</text></navLabel><content src="09.htm#heading_id_12"/><navPoint id="heading_id_13" playOrder="167"><navLabel><text>9.3.1 Listening for daily step update events</text></navLabel><content src="09.htm#heading_id_13"/></navPoint>
+<navPoint id="heading_id_14" playOrder="168"><navLabel><text>9.3.2 Sending emails</text></navLabel><content src="09.htm#heading_id_14"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_15" playOrder="169"><navLabel><text>9.4 Integration tests</text></navLabel><content src="09.htm#heading_id_15"/><navPoint id="heading_id_16" playOrder="170"><navLabel><text>9.4.1 Ingestion testing</text></navLabel><content src="09.htm#heading_id_16"/></navPoint>
+<navPoint id="heading_id_17" playOrder="171"><navLabel><text>9.4.2 Congratulation email testing</text></navLabel><content src="09.htm#heading_id_17"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_18" playOrder="172"><navLabel><text>Summary</text></navLabel><content src="09.htm#heading_id_18"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f10.htm" playOrder="173"><navLabel><text>10 Persistent state management with databases</text></navLabel><content src="10.htm"/><navPoint id="heading_id_3" playOrder="174"><navLabel><text>10.1 Databases and Vert.x</text></navLabel><content src="10.htm#heading_id_3"/><navPoint id="heading_id_4" playOrder="175"><navLabel><text>10.1.1 What the Eclipse Vert.x stack provides</text></navLabel><content src="10.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="176"><navLabel><text>10.1.2 A note on data/object mapping, and why you may not always need it</text></navLabel><content src="10.htm#heading_id_5"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_6" playOrder="177"><navLabel><text>10.2 User profile service with MongoDB</text></navLabel><content src="10.htm#heading_id_6"/><navPoint id="heading_id_7" playOrder="178"><navLabel><text>10.2.1 Data model</text></navLabel><content src="10.htm#heading_id_7"/></navPoint>
+<navPoint id="heading_id_8" playOrder="179"><navLabel><text>10.2.2 User profile API verticle and initialization</text></navLabel><content src="10.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="180"><navLabel><text>10.2.3 Validating user input</text></navLabel><content src="10.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="181"><navLabel><text>10.2.4 Adding users in MongoDB</text></navLabel><content src="10.htm#heading_id_10"/></navPoint>
+<navPoint id="heading_id_11" playOrder="182"><navLabel><text>10.2.5 Authenticating a user</text></navLabel><content src="10.htm#heading_id_11"/></navPoint>
+<navPoint id="heading_id_12" playOrder="183"><navLabel><text>10.2.6 Fetching a user’s data</text></navLabel><content src="10.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="184"><navLabel><text>10.2.7 Updating a user’s data</text></navLabel><content src="10.htm#heading_id_13"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_14" playOrder="185"><navLabel><text>10.3 Activity service with PostgreSQL</text></navLabel><content src="10.htm#heading_id_14"/><navPoint id="heading_id_15" playOrder="186"><navLabel><text>10.3.1 Data model</text></navLabel><content src="10.htm#heading_id_15"/></navPoint>
+<navPoint id="heading_id_16" playOrder="187"><navLabel><text>10.3.2 Opening a connection pool</text></navLabel><content src="10.htm#heading_id_16"/></navPoint>
+<navPoint id="heading_id_17" playOrder="188"><navLabel><text>10.3.3 Life of a device update event</text></navLabel><content src="10.htm#heading_id_17"/></navPoint>
+<navPoint id="heading_id_18" playOrder="189"><navLabel><text>10.3.4 Inserting a new record</text></navLabel><content src="10.htm#heading_id_18"/></navPoint>
+<navPoint id="heading_id_19" playOrder="190"><navLabel><text>10.3.5 Generating a device’s daily activity update</text></navLabel><content src="10.htm#heading_id_19"/></navPoint>
+<navPoint id="heading_id_20" playOrder="191"><navLabel><text>10.3.6 Activity API queries</text></navLabel><content src="10.htm#heading_id_20"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_21" playOrder="192"><navLabel><text>10.4 Integration tests</text></navLabel><content src="10.htm#heading_id_21"/><navPoint id="heading_id_22" playOrder="193"><navLabel><text>10.4.1 Testing the user profile service</text></navLabel><content src="10.htm#heading_id_22"/></navPoint>
+<navPoint id="heading_id_23" playOrder="194"><navLabel><text>10.4.2 Testing the activity service API</text></navLabel><content src="10.htm#heading_id_23"/></navPoint>
+<navPoint id="heading_id_24" playOrder="195"><navLabel><text>10.4.3 Testing the activity service’s event handling</text></navLabel><content src="10.htm#heading_id_24"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_25" playOrder="196"><navLabel><text>Summary</text></navLabel><content src="10.htm#heading_id_25"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f11.htm" playOrder="197"><navLabel><text>11 End-to-end real-time reactive event processing</text></navLabel><content src="11.htm"/><navPoint id="heading_id_3" playOrder="198"><navLabel><text>11.1 Advanced stream data processing with Kafka and RxJava</text></navLabel><content src="11.htm#heading_id_3"/><navPoint id="heading_id_4" playOrder="199"><navLabel><text>11.1.1 Enriching daily device updates to generate user updates</text></navLabel><content src="11.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="200"><navLabel><text>11.1.2 Computing device-update ingestion throughput using time-window aggregates</text></navLabel><content src="11.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="201"><navLabel><text>11.1.3 Computing per-city trends using aggregation discriminants and time windows</text></navLabel><content src="11.htm#heading_id_6"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_7" playOrder="202"><navLabel><text>11.2 Real-time reactive web applications</text></navLabel><content src="11.htm#heading_id_7"/><navPoint id="heading_id_8" playOrder="203"><navLabel><text>11.2.1 Forwarding Kafka records to the Vert.x event bus</text></navLabel><content src="11.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="204"><navLabel><text>11.2.2 Bridging the event bus and web applications</text></navLabel><content src="11.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="205"><navLabel><text>11.2.3 From Kafka to live web application updates</text></navLabel><content src="11.htm#heading_id_10"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_11" playOrder="206"><navLabel><text>11.3 Streams and state</text></navLabel><content src="11.htm#heading_id_11"/><navPoint id="heading_id_12" playOrder="207"><navLabel><text>11.3.1 A stream of updates</text></navLabel><content src="11.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="208"><navLabel><text>11.3.2 Hydrating the ranking state</text></navLabel><content src="11.htm#heading_id_13"/></navPoint>
+<navPoint id="heading_id_14" playOrder="209"><navLabel><text>11.3.3 Periodically updating rankings from the updates stream</text></navLabel><content src="11.htm#heading_id_14"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_15" playOrder="210"><navLabel><text>Summary</text></navLabel><content src="11.htm#heading_id_15"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f12.htm" playOrder="211"><navLabel><text>12 Toward responsiveness with load and chaos testing</text></navLabel><content src="12.htm"/><navPoint id="heading_id_3" playOrder="212"><navLabel><text>12.1 Initial experiments: Is the performance any good?</text></navLabel><content src="12.htm#heading_id_3"/><navPoint id="heading_id_4" playOrder="213"><navLabel><text>12.1.1 Some considerations before load testing</text></navLabel><content src="12.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="214"><navLabel><text>12.1.2 Simulating users with Locust</text></navLabel><content src="12.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="215"><navLabel><text>12.1.3 Load testing the API with Hey</text></navLabel><content src="12.htm#heading_id_6"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_7" playOrder="216"><navLabel><text>12.2 Let’s do some chaos engineering</text></navLabel><content src="12.htm#heading_id_7"/><navPoint id="heading_id_8" playOrder="217"><navLabel><text>12.2.1 Test plan</text></navLabel><content src="12.htm#heading_id_8"/></navPoint>
+<navPoint id="heading_id_9" playOrder="218"><navLabel><text>12.2.2 Chaos testing with Pumba</text></navLabel><content src="12.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="219"><navLabel><text>12.2.3 We are not resilient (yet)</text></navLabel><content src="12.htm#heading_id_10"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_11" playOrder="220"><navLabel><text>12.3 From “scalable” to “scalable and resilient”</text></navLabel><content src="12.htm#heading_id_11"/><navPoint id="heading_id_12" playOrder="221"><navLabel><text>12.3.1 Enforcing timeouts</text></navLabel><content src="12.htm#heading_id_12"/></navPoint>
+<navPoint id="heading_id_13" playOrder="222"><navLabel><text>12.3.2 Using a circuit breaker</text></navLabel><content src="12.htm#heading_id_13"/></navPoint>
+<navPoint id="heading_id_14" playOrder="223"><navLabel><text>12.3.3 Resiliency and fallback strategies</text></navLabel><content src="12.htm#heading_id_14"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_15" playOrder="224"><navLabel><text>Summary</text></navLabel><content src="12.htm#heading_id_15"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2f13.htm" playOrder="225"><navLabel><text>13 Final notes: Container-native Vert.x</text></navLabel><content src="13.htm"/><navPoint id="heading_id_3" playOrder="226"><navLabel><text>13.1 Heat sensors in a cloud</text></navLabel><content src="13.htm#heading_id_3"/><navPoint id="heading_id_4" playOrder="227"><navLabel><text>13.1.1 Heat sensor service</text></navLabel><content src="13.htm#heading_id_4"/></navPoint>
+<navPoint id="heading_id_5" playOrder="228"><navLabel><text>13.1.2 Sensor gateway</text></navLabel><content src="13.htm#heading_id_5"/></navPoint>
+<navPoint id="heading_id_6" playOrder="229"><navLabel><text>13.1.3 Heat API</text></navLabel><content src="13.htm#heading_id_6"/></navPoint>
+<navPoint id="heading_id_7" playOrder="230"><navLabel><text>13.1.4 Deploying to a local cluster</text></navLabel><content src="13.htm#heading_id_7"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_8" playOrder="231"><navLabel><text>13.2 Making the services work in Kubernetes</text></navLabel><content src="13.htm#heading_id_8"/><navPoint id="heading_id_9" playOrder="232"><navLabel><text>13.2.1 Building container images</text></navLabel><content src="13.htm#heading_id_9"/></navPoint>
+<navPoint id="heading_id_10" playOrder="233"><navLabel><text>13.2.2 Clustering and Kubernetes</text></navLabel><content src="13.htm#heading_id_10"/></navPoint>
+<navPoint id="heading_id_11" playOrder="234"><navLabel><text>13.2.3 Kubernetes deployment and service resources</text></navLabel><content src="13.htm#heading_id_11"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_12" playOrder="235"><navLabel><text>13.3 First-class Kubernetes citizens</text></navLabel><content src="13.htm#heading_id_12"/><navPoint id="heading_id_13" playOrder="236"><navLabel><text>13.3.1 Health checks</text></navLabel><content src="13.htm#heading_id_13"/></navPoint>
+<navPoint id="heading_id_14" playOrder="237"><navLabel><text>13.3.2 Metrics</text></navLabel><content src="13.htm#heading_id_14"/></navPoint>
+</navPoint>
+<navPoint id="heading_id_15" playOrder="238"><navLabel><text>13.4 The end of the beginning</text></navLabel><content src="13.htm#heading_id_15"/></navPoint>
+<navPoint id="heading_id_16" playOrder="239"><navLabel><text>Summary</text></navLabel><content src="13.htm#heading_id_16"/></navPoint>
+</navPoint>
+<navPoint id="urn:orm:book:9781617295621:chapter:OEBPS%2fText%2findex.htm" playOrder="240"><navLabel><text>index</text></navLabel><content src="index.htm"/></navPoint>
+</navMap>
+</ncx>

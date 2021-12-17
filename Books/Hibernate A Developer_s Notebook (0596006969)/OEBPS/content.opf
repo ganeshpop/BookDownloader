@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="2.0" >
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"  xmlns:opf="http://www.idpf.org/2007/opf">
+<dc:title>Hibernate: A Developer&#x27;s Notebook</dc:title>
+<dc:creator opf:file-as="James Elliott" opf:role="aut">James Elliott</dc:creator>
+<dc:description>&lt;span&gt;&lt;span&gt;&lt;span&gt;&lt;p&gt;
+Do you enjoy writing software, except for the database code?
+&lt;em&gt;Hibernate:A Developer&#x27;s Notebook&lt;/em&gt; is for you. Database
+experts may enjoy fiddling with SQL, but you don&#x27;t have to--the
+rest of the application is the fun part. And even database experts
+dread the tedious plumbing and typographical spaghetti needed to
+put their SQL into a Java program. &lt;em&gt;Hibernate: A Developers
+Notebook&lt;/em&gt; shows you how to use Hibernate to automate
+persistence: you write natural Java objects and some simple
+configuration files, and Hibernate automates all the interaction
+between your objects and the database. You don&#x27;t even need to know
+the database is there, and you can change from one database to
+another simply by changing a few statements in a configuration
+file. &lt;em&gt;Hibernate: A Developer&#x27;s Notebook&lt;/em&gt; walks you through
+the ins and outs of using Hibernate, from installation and
+configuration, to complex associations and composite types. Two
+chapters explore ways to write sophisticated queries, which you can
+express either through a pure Java API, or with an SQL-inspired,
+but object-oriented, query language. Don&#x27;t let that intimidate you
+though: one of the biggest surprises in working with Hibernate is
+that for many of the common real-world application scenarios, you
+don&#x27;t need an explicit query at all. If you&#x27;ve needed to add a
+database backend to your application, don&#x27;t put it off. It&#x27;s much
+more fun than it used to be, and &lt;em&gt;Hibernate: A Developer&#x27;s
+Notebook&lt;/em&gt; shows you why. Here&#x27;s what a few reviewers had to say:
+&quot;I&#x27;m sitting on an airplane after finishing &lt;em&gt;Hibernate: A
+Developer&#x27;s Notebook&lt;/em&gt;. It&#x27;s rare to find a book on a new Java
+technology that you can get through on a domestic flight. That this
+notebook effectively and succinctly tackles object-relational
+mapping makes it, and Hibernate, even more impressive. Many books
+in this category would need to be checked luggage. With this book,
+you travel first class.&quot; --Mike Clark &quot;A simple persistence
+framework deserves a simple book, and this one delivers. The
+examples are well described and easy to understand, yet
+sophisticated enough to demonstrate Hibernate in a real-world
+context. Jim, I&#x27;m a new fan.&quot; --Bruce Tate About the new
+Developer&#x27;s Notebook Series from O&#x27;Reilly: Developer&#x27;s Notebooks
+are a new book series covering important new tools for software
+developers. Developer&#x27;s Notebooks stress example over explanation
+and practice over theory. They are about learning by doing; by
+experimenting with tools and discovering what works. &quot;All lab, no
+lecture,&quot; with a thoughtful lab partner to guide the way.
+&lt;/p&gt;&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;</dc:description>
+<dc:publisher>O&#x27;Reilly Media, Inc.</dc:publisher>
+<dc:rights></dc:rights>
+<dc:language>en-US</dc:language>
+<dc:date>2004-05-10</dc:date>
+<dc:identifier id="bookid">9780596006969</dc:identifier>
+<meta name="cover" content="Images/default_cover.jpeg"/>
+</metadata>
+<manifest>
+<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />
+<item id="default_cover" href="default_cover.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_hibernate_a_developers_notebook" href="0596006969_hibernate_a_developers_notebook.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_preface" href="0596006969_preface.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_how_to_use_this_book" href="0596006969_how_to_use_this_book.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_font_conventions" href="0596006969_font_conventions.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_on_the_web_site" href="0596006969_on_the_web_site.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_xhow_to_contact_us" href="0596006969_xhow_to_contact_us.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_acknowledgments" href="0596006969_acknowledgments.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_installation_and_setup" href="0596006969_installation_and_setup.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_getting_an_ant_distribution" href="0596006969_getting_an_ant_distribution.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_getting_the_hsqldb_database_engine" href="0596006969_getting_the_hsqldb_database_engine.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_setting_up_a_project_hierarchy" href="0596006969_setting_up_a_project_hierarchy.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_introduction_to_mapping" href="0596006969_introduction_to_mapping.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_writing_a_mapping_document" href="0596006969_writing_a_mapping_document.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_generating_some_class" href="0596006969_generating_some_class.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_cooking_up_a_schema" href="0596006969_cooking_up_a_schema.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_connecting_hibernate_to_mysql" href="0596006969_connecting_hibernate_to_mysql.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_harnessing_hibernate" href="0596006969_harnessing_hibernate.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_creating_persistent_objects" href="0596006969_creating_persistent_objects.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_finding_persistent_objects" href="0596006969_finding_persistent_objects.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_better_ways_to_build_queries" href="0596006969_better_ways_to_build_queries.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_collections_and_associations" href="0596006969_collections_and_associations.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_mapping_collections" href="0596006969_mapping_collections.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_persisting_collections" href="0596006969_persisting_collections.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_retrieving_collections" href="0596006969_retrieving_collections.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_using_bidirectional_associations" href="0596006969_using_bidirectional_associations.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_working_with_simple_collections" href="0596006969_working_with_simple_collections.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_richer_associations" href="0596006969_richer_associations.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_using_lazy_associations" href="0596006969_using_lazy_associations.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_ordered_collections" href="0596006969_ordered_collections.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_augmenting_associations_in_collections" href="0596006969_augmenting_associations_in_collections.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_lifecycle_associations" href="0596006969_lifecycle_associations.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_reflexive_associations" href="0596006969_reflexive_associations.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_persistent_enumerated_types" href="0596006969_persistent_enumerated_types.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_defining_a_persistent_enumerated_type" href="0596006969_defining_a_persistent_enumerated_type.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_working_with_persistent_enumerations" href="0596006969_working_with_persistent_enumerations.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_custom_value_types" href="0596006969_custom_value_types.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_defining_a_user_type" href="0596006969_defining_a_user_type.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_using_a_custom_type_mapping" href="0596006969_using_a_custom_type_mapping.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_building_a_composite_user_type" href="0596006969_building_a_composite_user_type.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_criteria_queries" href="0596006969_criteria_queries.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_using_simple_criteria" href="0596006969_using_simple_criteria.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_compounding_criteria" href="0596006969_compounding_criteria.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_applying_criteria_to_associations" href="0596006969_applying_criteria_to_associations.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_querying_by_example" href="0596006969_querying_by_example.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_a_look_at_hql" href="0596006969_a_look_at_hql.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_writing_hql_queries" href="0596006969_writing_hql_queries.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_selecting_properties_and_pieces" href="0596006969_selecting_properties_and_pieces.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_sorting" href="0596006969_sorting.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_working_with_aggregate_values" href="0596006969_working_with_aggregate_values.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_writing_native_sql_queries" href="0596006969_writing_native_sql_queries.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_hibernate_types" href="0596006969_hibernate_types.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_basic_types" href="0596006969_basic_types.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_persistent_enumerated_types-id001" href="0596006969_persistent_enumerated_types-id001.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_custom_value_types-id001" href="0596006969_custom_value_types-id001.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_any_type_mappings" href="0596006969_any_type_mappings.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_all_types" href="0596006969_all_types.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_standard_criteria" href="0596006969_standard_criteria.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_the_expression_factory" href="0596006969_the_expression_factory.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_hibernate_sql_dialects" href="0596006969_hibernate_sql_dialects.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_getting_fluent_in_the_local_sql" href="0596006969_getting_fluent_in_the_local_sql.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_about_the_author" href="0596006969_about_the_author.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_colophon" href="0596006969_colophon.xhtml" media-type="application/xhtml+xml" />
+<item id="0596006969_bvdidx" href="0596006969_bvdidx.xhtml" media-type="application/xhtml+xml" />
+<item id="img_0596006969_setting_up_a_project_hierarchy_image02" href="Images/0596006969_setting_up_a_project_hierarchy_image02.png" media-type="image/png" />
+<item id="img_0596006969_hibernate_a_developers_notebook_image01" href="Images/0596006969_hibernate_a_developers_notebook_image01.png" media-type="image/png" />
+<item id="img_0596006969_cooking_up_a_schema_image01" href="Images/0596006969_cooking_up_a_schema_image01.png" media-type="image/png" />
+<item id="img_0596006969_lifecycle_associations_image01" href="Images/0596006969_lifecycle_associations_image01.png" media-type="image/png" />
+<item id="img_0596006969_mapping_collections_image01" href="Images/0596006969_mapping_collections_image01.png" media-type="image/png" />
+<item id="img_0596006969_augmenting_associations_in_collections_image01" href="Images/0596006969_augmenting_associations_in_collections_image01.png" media-type="image/png" />
+<item id="img_0596006969_augmenting_associations_in_collections_image02" href="Images/0596006969_augmenting_associations_in_collections_image02.png" media-type="image/png" />
+<item id="img_0596006969_augmenting_associations_in_collections_image03" href="Images/0596006969_augmenting_associations_in_collections_image03.png" media-type="image/png" />
+<item id="img_0596006969_using_bidirectional_associations_image01" href="Images/0596006969_using_bidirectional_associations_image01.png" media-type="image/png" />
+<item id="img_0596006969_setting_up_a_project_hierarchy_image01" href="Images/0596006969_setting_up_a_project_hierarchy_image01.png" media-type="image/png" />
+<item id="img_default_cover" href="Images/default_cover.jpeg" media-type="image/jpeg" />
+<item id="img_0596006969_building_a_composite_user_type_image01" href="Images/0596006969_building_a_composite_user_type_image01.png" media-type="image/png" />
+<item id="img_0596006969_persisting_collections_image01" href="Images/0596006969_persisting_collections_image01.png" media-type="image/png" />
+<item id="img_0596006969_creating_persistent_objects_image01" href="Images/0596006969_creating_persistent_objects_image01.png" media-type="image/png" />
+<item id="img_0596006969_using_a_custom_type_mapping_image01" href="Images/0596006969_using_a_custom_type_mapping_image01.png" media-type="image/png" />
+<item id="img_0596006969_working_with_persistent_enumerations_image01" href="Images/0596006969_working_with_persistent_enumerations_image01.png" media-type="image/png" />
+<item id="style_00" href="Styles/Style00.css" media-type="text/css" />
+<item id="style_01" href="Styles/Style01.css" media-type="text/css" />
+</manifest>
+<spine toc="ncx">
+<itemref idref="default_cover"/>
+<itemref idref="0596006969_hibernate_a_developers_notebook"/>
+<itemref idref="0596006969_preface"/>
+<itemref idref="0596006969_how_to_use_this_book"/>
+<itemref idref="0596006969_font_conventions"/>
+<itemref idref="0596006969_on_the_web_site"/>
+<itemref idref="0596006969_xhow_to_contact_us"/>
+<itemref idref="0596006969_acknowledgments"/>
+<itemref idref="0596006969_installation_and_setup"/>
+<itemref idref="0596006969_getting_an_ant_distribution"/>
+<itemref idref="0596006969_getting_the_hsqldb_database_engine"/>
+<itemref idref="0596006969_setting_up_a_project_hierarchy"/>
+<itemref idref="0596006969_introduction_to_mapping"/>
+<itemref idref="0596006969_writing_a_mapping_document"/>
+<itemref idref="0596006969_generating_some_class"/>
+<itemref idref="0596006969_cooking_up_a_schema"/>
+<itemref idref="0596006969_connecting_hibernate_to_mysql"/>
+<itemref idref="0596006969_harnessing_hibernate"/>
+<itemref idref="0596006969_creating_persistent_objects"/>
+<itemref idref="0596006969_finding_persistent_objects"/>
+<itemref idref="0596006969_better_ways_to_build_queries"/>
+<itemref idref="0596006969_collections_and_associations"/>
+<itemref idref="0596006969_mapping_collections"/>
+<itemref idref="0596006969_persisting_collections"/>
+<itemref idref="0596006969_retrieving_collections"/>
+<itemref idref="0596006969_using_bidirectional_associations"/>
+<itemref idref="0596006969_working_with_simple_collections"/>
+<itemref idref="0596006969_richer_associations"/>
+<itemref idref="0596006969_using_lazy_associations"/>
+<itemref idref="0596006969_ordered_collections"/>
+<itemref idref="0596006969_augmenting_associations_in_collections"/>
+<itemref idref="0596006969_lifecycle_associations"/>
+<itemref idref="0596006969_reflexive_associations"/>
+<itemref idref="0596006969_persistent_enumerated_types"/>
+<itemref idref="0596006969_defining_a_persistent_enumerated_type"/>
+<itemref idref="0596006969_working_with_persistent_enumerations"/>
+<itemref idref="0596006969_custom_value_types"/>
+<itemref idref="0596006969_defining_a_user_type"/>
+<itemref idref="0596006969_using_a_custom_type_mapping"/>
+<itemref idref="0596006969_building_a_composite_user_type"/>
+<itemref idref="0596006969_criteria_queries"/>
+<itemref idref="0596006969_using_simple_criteria"/>
+<itemref idref="0596006969_compounding_criteria"/>
+<itemref idref="0596006969_applying_criteria_to_associations"/>
+<itemref idref="0596006969_querying_by_example"/>
+<itemref idref="0596006969_a_look_at_hql"/>
+<itemref idref="0596006969_writing_hql_queries"/>
+<itemref idref="0596006969_selecting_properties_and_pieces"/>
+<itemref idref="0596006969_sorting"/>
+<itemref idref="0596006969_working_with_aggregate_values"/>
+<itemref idref="0596006969_writing_native_sql_queries"/>
+<itemref idref="0596006969_hibernate_types"/>
+<itemref idref="0596006969_basic_types"/>
+<itemref idref="0596006969_persistent_enumerated_types-id001"/>
+<itemref idref="0596006969_custom_value_types-id001"/>
+<itemref idref="0596006969_any_type_mappings"/>
+<itemref idref="0596006969_all_types"/>
+<itemref idref="0596006969_standard_criteria"/>
+<itemref idref="0596006969_the_expression_factory"/>
+<itemref idref="0596006969_hibernate_sql_dialects"/>
+<itemref idref="0596006969_getting_fluent_in_the_local_sql"/>
+<itemref idref="0596006969_about_the_author"/>
+<itemref idref="0596006969_colophon"/>
+<itemref idref="0596006969_bvdidx"/></spine>
+<guide><reference href="default_cover.xhtml" title="Cover" type="cover" /></guide>
+</package>

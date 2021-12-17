@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_sorting"><a id="sorting"/><h3 class="docSection1Title">9.3. Sorting</h3><p class="docText">It should come as no surprise that you can use a SQL-style "<a id="idx-CHP-9-0313"/>order by"clause to control the order in which your output appears. I've alluded to this several times in earlier chapters, and it works just like you'd expect. You can use any property of the objects being returned to establish the sort order, and you can list multiple properties to establish sub-sorts within results for which the first property values are the same.</p><a id="how_do_i_do_that-id029"/><h4 id="title-ID0EIMBG" class="docSection2Title">9.1.1. How do I do that?</h4><p class="docText">Sorting is very simple: you list the values that you want to use to sort the results. As usual, where SQL uses columns, HQL uses properties. For <a class="docLink" href="#addition_to_trackhbmxml_that_sorts_the_r">Example 9-13</a>, let's update the query in <a class="docLink" href="0596006969_selecting_properties_and_pieces.xhtml#selecting_multiple_properties_from_an_ob">Example 9-10</a> so that it displays the results in reverse alphabetical order.</p><a id="addition_to_trackhbmxml_that_sorts_the_r"/><h5 id="title-ID0EXMBG" class="docExampleTitle">Example 9-13. Addition to Track.hbm.xml that sorts the results backwards by title</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;query name="com.oreilly.hh.tracksNoLongerThan"&gt;
+  &lt;![CDATA[
+      select track.id, track.title from com.oreilly.hh.Track as track
+      where track.playTime &lt;= :length
+      <b>order by track.title desc</b>
+    ]]&gt;
+&lt;/query&gt;
+</pre><br/>
+</td></tr></table><blockquote><p class="docText"><span class="docEmphasis">As in SQL, you specify an ascending sort using "asc" and a descending sort with "desc"</span>.</p></blockquote><p class="docText">The output from running this is as you'd expect (<a class="docLink" href="#titles_and_ids_in_reverse_alphabetical_o">Example 9-14</a>)</p><a id="titles_and_ids_in_reverse_alphabetical_o"/><h5 id="title-ID0ELNBG" class="docExampleTitle">Example 9-14. Titles and IDs in reverse alphabetical order</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>ant qtest</b>
+Buildfile: build.xml
+
+prepare:
+     [copy] Copying 1 file to /Users/jim/Documents/Work/OReilly/Hibernate/
+Examples/ch09/classes
+
+compile:
+
+qtest:
+     [java] Track: Video Killed the Radio Star [ID=1]
+     [java] Track: Test Tone 1 [ID=6]
+     [java] Track: Russian Trance [ID=0]
+     [java] Track: Never Turn Your Back on Mother Earth [ID=11]
+     [java] Track: Motherless Child [ID=12]
+     [java] Track: In a Manner of Speaking [ID=8]	
+     [java] Track: Gone [ID=10]
+</pre><br/>
+</td></tr></table></div></div></body>
+</html>

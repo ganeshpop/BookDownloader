@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1020310"/>2 Verticles: The basic processing units of Vert.x</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>What verticles are</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>How to write, configure, and deploy verticles</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011861"/>The Vert.x threading model</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011871"/>How to mix Vert.x and non-Vert.x threads</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011897"/>Put simply, a <i class="fm-italics">verticle</i> is the fundamental processing unit in Vert.x. The role of a verticle is to encapsulate a <i class="fm-italics">technical functional unit</i> for processing <a id="marker-1011902"/>events, such as exposing an HTTP API and responding to requests, providing a repository interface on top of a database, or issuing requests to a third-party system. Much like components in technologies like Enterprise JavaBeans, verticles can be deployed, and they have a life cycle.</p>
+
+  <p class="body"><a id="pgfId-1011912"/>Asynchronous programming is key to building reactive applications, since they have to scale, and verticles are fundamental in Vert.x for structuring (asynchronous) event-processing code and business logic.</p>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011918"/>2.1 Writing a verticle</h2>
+
+  <p class="body"><a id="pgfId-1011938"/><a id="marker-1011929"/>If you’re familiar with the <i class="fm-italics">actor concurrency model</i>, you will find <a id="marker-1011943"/>similarities between Vert.x verticles and actors.<a href="#pgfId-1011950">1</a> Put simply, in the actor model, autonomous entities (the actors) exclusively communicate with other entities by sending and responding to messages. The similarities between Vert.x verticles and actors is no fortuitous coincidence: verticles have private state that may be updated when receiving events, they can deploy other verticles, and they can communicate via message-passing (more on that in the next chapter). Verticles do not necessarily follow the orthodox definition of actors, but it is fair to consider Vert.x as being at least inspired by actors.</p>
+
+  <p class="body"><a id="pgfId-1011975"/>Since verticles are a key concept in Vert.x, we will look into how they work. Before that, though, we’ll write a small verticle that processes two types of events: periodic timers and HTTP requests.</p>
+
+  <h3 class="fm-head1" id="heading_id_4"><a id="pgfId-1011981"/>2.1.1 Preparing the project</h3>
+
+  <p class="body"><a id="pgfId-1011991"/><a id="marker-1011992"/>We will use a common project for all of the examples in this chapter, making use of the Gradle project descriptor in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012051"/>Listing 2.1 Gradle <code class="fm-code-in-listingcaption">build.gradle.kts</code> for the examples in chapter 2</p>
+  <pre class="programlisting">plugins {
+  java
+}
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  implementation("io.vertx:vertx-core:VERSION")                   <span class="fm-combinumeral">❶</span>
+  implementation("ch.qos.logback:logback-classic:1.2.3")          <span class="fm-combinumeral">❷</span>
+}
+
+tasks.create&lt;JavaExec&gt;("run") {                                   <span class="fm-combinumeral">❸</span>
+  main = project.properties.getOrDefault("mainClass", 
+  <span class="fm-code-continuation-arrow">➥</span> "chapter2.hello.HelloVerticle") as String
+  classpath = sourceSets["main"].runtimeClasspath
+  systemProperties["vertx.logger-delegate-factory-class-name"] = 
+  <span class="fm-code-continuation-arrow">➥</span> "io.vertx.core.logging.SLF4JLogDelegateFactory"              <span class="fm-combinumeral">❹</span>
+}
+
+java {
+  sourceCompatibility = JavaVersion.VERSION_1_8
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029824"/><span class="fm-combinumeral">❶</span> This is the Vert.x core library dependency. Replace “VERSION” with a recent release number like 3.9.0.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029845"/><span class="fm-combinumeral">❷</span> The logback-classic dependency provides the SLF4J logger API and the logback implementation.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029862"/><span class="fm-combinumeral">❸</span> This will allow you to run samples with Gradle from the command line.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029879"/><span class="fm-combinumeral">❹</span> This ensures that Vert.x itself also uses SLF4J logging.</p>
+
+  <p class="body"><a id="pgfId-1012339"/>The Gradle build is a very simple one for a Java project. Since we will have several examples to run, we won’t rely on the Gradle <code class="fm-code-in-text">application</code> plugin, but will <a id="marker-1012328"/>define our own custom <code class="fm-code-in-text">run</code> task, where we can <a id="marker-1012344"/>pass the name of the class to execute. We’ll also use it to ensure that logging is properly configured and unified to SLF4J.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012405"/>Listing 2.2 Logback configuration to reduce Netty verbosity</p>
+  <pre class="programlisting">&lt;configuration&gt;                                                        <span class="fm-combinumeral">❶</span>
+  &lt;appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender"&gt;
+    &lt;encoder&gt;
+      &lt;pattern&gt;%level [%thread] %logger{0} - %msg%n&lt;/pattern&gt;          <span class="fm-combinumeral">❷</span>
+    &lt;/encoder&gt;
+  &lt;/appender&gt;
+
+  &lt;logger name="io.netty" level="warn"/&gt;                               <span class="fm-combinumeral">❸</span>
+
+  &lt;root level="debug"&gt;
+    &lt;appender-ref ref="STDOUT"/&gt;
+  &lt;/root&gt;
+&lt;/configuration&gt;</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029572"/><span class="fm-combinumeral">❶</span> This defines an appender to send events to the console.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029593"/><span class="fm-combinumeral">❷</span> The pattern defines what the log events look like.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029610"/><span class="fm-combinumeral">❸</span> We drop Netty log events that are more verbose than warnings.</p>
+
+  <p class="fm-callout"><a id="pgfId-1012600"/><span class="fm-callout-head">Tip</span> Vert.x uses Netty, and logging in Netty is quite verbose with the default Logback configuration. We can reduce the number of log entries by creating an src/main/resources/logback.xml file and adding the configuration as in listing 2.2. To make the log samples shorter in this book, I’ve also removed event dates and shortened logger class names (<code class="fm-code-in-text1">$logger{0}</code>). Please refer to the Logback documentation to learn how to configure it (<span class="fm-hyperlink"><a href="https://logback.qos.ch/manual/index.html">https://logback .qos.ch/manual/index.html</a></span>). <a id="marker-1012612"/></p>
+
+  <h3 class="fm-head1" id="heading_id_5"><a id="pgfId-1012619"/>2.1.2 The verticle class</h3>
+
+  <p class="body"><a id="pgfId-1012629"/><a id="marker-1012630"/>The whole verticle and application fits in the following Java class.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012689"/>Listing 2.3 A sample verticle</p>
+  <pre class="programlisting">package chapter2.hello;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Vertx;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class HelloVerticle extends AbstractVerticle {
+  private final Logger logger = LoggerFactory.getLogger(HelloVerticle.class);
+  private long counter = 1;
+
+  @Override
+  public void start() {
+    vertx.setPeriodic(5000, id -&gt; {                    <span class="fm-combinumeral">❶</span>
+      logger.info("tick");
+    });
+
+    vertx.createHttpServer()
+      .requestHandler(req -&gt; {                         <span class="fm-combinumeral">❷</span>
+        logger.info("Request #{} from {}", counter++, 
+        <span class="fm-code-continuation-arrow">➥</span> req.remoteAddress().host());
+        req.response().end("Hello!");
+      })
+      .listen(8080);
+    logger.info("Open http://localhost:8080/");
+  }
+
+  public static void main(String[] args) {
+    Vertx vertx = Vertx.vertx();                       <span class="fm-combinumeral">❸</span>
+    vertx.deployVerticle(new HelloVerticle());         <span class="fm-combinumeral">❹</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029293"/><span class="fm-combinumeral">❶</span> This defines a periodic task every five seconds.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029314"/><span class="fm-combinumeral">❷</span> The HTTP server calls this handler on every request.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029331"/><span class="fm-combinumeral">❸</span> We need a global Vert.x instance.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029348"/><span class="fm-combinumeral">❹</span> This is the simplest way to deploy a verticle.</p>
+
+  <p class="body"><a id="pgfId-1012995"/>This verticle defines two event handlers: one for periodic tasks every five seconds, and one for processing HTTP requests in an HTTP server. The <code class="fm-code-in-text">main</code> method instantiates <a id="marker-1013006"/>a global Vert.x instance and deploys an instance of the verticle.</p>
+
+  <p class="body"><a id="pgfId-1013055"/>Defining a verticle in Java is typically <a id="marker-1013018"/>done by specializing the <code class="fm-code-in-text">AbstractVerticle</code> class. There is a <code class="fm-code-in-text">Verticle</code> interface that you could <a id="marker-1013044"/>in theory implement, but <code class="fm-code-in-text">AbstractVerticle</code> provides all the event processing, configuration, and execution plumbing that Vert.x users need.</p>
+
+  <p class="fm-callout"><a id="pgfId-1013074"/><span class="fm-callout-head">note</span> Since Vert.x is a library and not a framework, you can create a Vert.x instance from a <code class="fm-code-in-text1">main</code> method, or from any other class, and then deploy verticles.</p>
+
+  <p class="body"><a id="pgfId-1013128"/>The life cycle of a verticle consists of start <a id="marker-1013091"/>and stop <a id="marker-1013097"/>events. The <code class="fm-code-in-text">AbstractVerticle</code> class provides <code class="fm-code-in-text">start</code> and <code class="fm-code-in-text">stop</code> methods that can be overridden:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1013137"/>The <code class="fm-code-in-text">start</code> method typically contains setup and initialization for handlers, like setting a periodic task handler and starting an HTTP server in listing 2.3.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013160"/>The <code class="fm-code-in-text">stop</code> method is implemented when housekeeping tasks are required, such as closing open database connections.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013179"/>By default these methods do nothing. <a id="marker-1013181"/></p>
+
+  <h3 class="fm-head1" id="heading_id_6"><a id="pgfId-1013188"/>2.1.3 Running and first observations</h3>
+
+  <p class="body"><a id="pgfId-1013214"/><a id="marker-1013199"/>The application can be launched as a regular Java application <a id="marker-1013203"/>by running the <code class="fm-code-in-text">main</code> method either from an IDE or from the command line. To run it on the command line using Gradle, you can use the following command:</p>
+  <pre class="programlisting">$ ./gradlew run -PmainClass=chapter2.hello.HelloVerticle</pre>
+
+  <p class="body"><a id="pgfId-1013260"/>I am again assuming that you will run this from a Unix shell, be it under Linux, macOS, or Windows through WSL. If you run the command from a traditional Windows terminal, there is a .bat file <a id="marker-1013239"/>for Gradle, so you will need to replace <code class="fm-code-in-text">./gradlew</code> with <code class="fm-code-in-text">gradlew.bat</code>.</p>
+
+  <p class="body"><a id="pgfId-1013269"/>Once the application runs, you can perform a few HTTP requests at http://localhost:8080/ with a web browser, or by using command-line tools such as curl and HTTPie. The logs will be similar to the one shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013327"/>Listing 2.4 Sample log output when running <code class="fm-code-in-listingcaption">HelloVerticle</code></p>
+  <pre class="programlisting">INFO [vert.x-eventloop-thread-0] HelloVerticle - Open http://localhost:8080/<span class="fm-combinumeral">❶</span>
+INFO [vert.x-eventloop-thread-0] HelloVerticle - tick                       <span class="fm-combinumeral">❷</span>
+INFO [vert.x-eventloop-thread-0] HelloVerticle - 
+<span class="fm-code-continuation-arrow">➥</span> Request #1 from 0:0:0:0:0:0:0:1                                          <span class="fm-combinumeral">❸</span>
+INFO [vert.x-eventloop-thread-0] HelloVerticle - 
+<span class="fm-code-continuation-arrow">➥</span> Request #2 from 0:0:0:0:0:0:0:1
+INFO [vert.x-eventloop-thread-0] HelloVerticle - 
+<span class="fm-code-continuation-arrow">➥</span> Request #3 from 0:0:0:0:0:0:0:1
+INFO [vert.x-eventloop-thread-0] HelloVerticle - 
+<span class="fm-code-continuation-arrow">➥</span> Request #4 from 0:0:0:0:0:0:0:1
+INFO [vert.x-eventloop-thread-0] HelloVerticle - tick</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029076"/><span class="fm-combinumeral">❶</span> The HTTP server is now ready.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029097"/><span class="fm-combinumeral">❷</span> A periodic task event log</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1029114"/><span class="fm-combinumeral">❸</span> An HTTP request event log</p>
+
+  <p class="fm-callout"><a id="pgfId-1013490"/><span class="fm-callout-head">Tip</span> In some of the remaining examples, I have shortened the class definitions. I have especially removed package definitions, imports, and <code class="fm-code-in-text1">main</code> methods that are similar <a id="marker-1023645"/>to the one in listing 2.3. To see the full source code, please consult the book’s code repository.</p>
+
+  <p class="body"><a id="pgfId-1013524"/>The Logback configuration that we are using shows the name of the thread associated with an event. We can already check an important property of Vert.x verticles in log entries: event processing happens on a single event-loop thread. Both the periodic tasks and HTTP request processing happen on a thread that <a id="marker-1013513"/>appears as <code class="fm-code-in-text">vert.x -eventloop-thread-0</code> in the logs.</p>
+
+  <p class="body"><a id="pgfId-1013575"/>An obvious benefit of this design is that a verticle instance always executes event processing on the same thread, so there is no need for using thread synchronization primitives. In a multithreaded design, updating the <code class="fm-code-in-text">counter</code> field would require either a <code class="fm-code-in-text">synchronized</code> block or the use of <code class="fm-code-in-text">java.util.concurrent.AtomicLong</code>. There is no <a id="marker-1013564"/>such issue here, so a plain <code class="fm-code-in-text">long</code> field can be safely used.</p>
+
+  <p class="body"><a id="pgfId-1013633"/>Preparation <a id="marker-1013586"/>methods, such as <code class="fm-code-in-text">createHttpServer</code> or <code class="fm-code-in-text">setTimer</code>, may be called <a id="marker-1013612"/>from a non-Vert.x thread. This may happen when you’re directly using a <code class="fm-code-in-text">Vertx</code> object without a verticle, or when you’re writing unit tests. This is, however, not a problem, because the use of the <code class="fm-code-in-text">Vertx</code> class methods is thread-safe.</p>
+
+  <p class="body"><a id="pgfId-1013730"/>Figure 2.1 shows the (simplified) interactions between the verticle, the handlers, Vert.x, and the event sources. Each arrow represents a method call between the participants. For instance, <code class="fm-code-in-text">HelloVerticle</code> creates a periodic <a id="marker-1013677"/>task handler by calling <code class="fm-code-in-text">setPeriodic</code> on the <code class="fm-code-in-text">Vertx</code> object, which in turns <a id="marker-1013703"/>creates a periodic task using an internal Vert.x timer. In turn, the timer periodically calls <a id="marker-1013709"/>back the <code class="fm-code-in-text">timerHandler</code> handler in <code class="fm-code-in-text">HelloVerticle</code>.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH02_F01_Ponge.png" width="935" height="694"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1030853"/>Figure 2.1 Execution of listing 2.3</p>
+
+  <p class="body"><a id="pgfId-1013791"/>Note that I represented the calls to <code class="fm-code-in-text">requestHandler</code> and <code class="fm-code-in-text">listen</code> as being to the <code class="fm-code-in-text">Vertx</code> object as a shortcut; in reality, they are on an object that implements the <code class="fm-code-in-text">HttpServer</code> interface. The actual class <a id="marker-1013780"/>is internal to Vert.x, and since it doesn’t serve the diagram to add another participant, I merged it into <code class="fm-code-in-text">Vertx</code>. <a id="marker-1013796"/><a id="marker-1013799"/></p>
+
+  <h2 class="fm-head" id="heading_id_7"><a id="pgfId-1013805"/>2.2 More on verticles</h2>
+
+  <p class="body"><a id="pgfId-1013815"/>There are more things to know about writing and deploying verticles:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1013821"/>What happens when the event loop is being blocked?</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013835"/>How can you defer notification of life-cycle completion in the presence of asynchronous initialization work?</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013845"/>How can you deploy and undeploy verticles?</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013855"/>How can you pass configuration data?</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013865"/>We’ll cover each of these topics using very simple yet focused examples.</p>
+
+  <h3 class="fm-head1" id="heading_id_8"><a id="pgfId-1013871"/>2.2.1 Blocking and the event loop</h3>
+
+  <p class="body"><a id="pgfId-1013881"/><a id="marker-1013882"/>Handler callbacks are run from event-loop threads. It is important that code running on an event loop takes as little time as possible, so that the event-loop thread can have a higher throughput in the number of processed events. This is why no long-running or blocking I/O operations should happen on the event loop.</p>
+
+  <p class="body"><a id="pgfId-1013890"/>That being said, it may not always be easy to spot blocking code, especially when using third-party libraries. Vert.x provides a checker that detects when an event loop is being blocked for too long.</p>
+
+  <p class="body"><a id="pgfId-1013896"/>To illustrate that, let’s see what happens when we introduce an infinite loop in an event-handler callback.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013953"/>Listing 2.5 An example where the event loop is being blocked</p>
+  <pre class="programlisting">public class BlockEventLoop extends AbstractVerticle {
+
+  @Override
+  public void start() {
+    vertx.setTimer(1000, id -&gt; {
+      while (true);                <span class="fm-combinumeral">❶</span>
+    });
+  }
+
+  public static void main(String[] args) {
+    Vertx vertx = Vertx.vertx();
+    vertx.deployVerticle(new BlockEventLoop());
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028996"/><span class="fm-combinumeral">❶</span> Infinite loop!</p>
+
+  <p class="body"><a id="pgfId-1014094"/>The code in listing 2.5 defines a one-second timer, and the handler callback enters into an infinite loop.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014151"/>Listing 2.6 Log output when running listing 2.5</p>
+  <pre class="programlisting">WARN [vertx-blocked-thread-checker] BlockedThreadChecker - Thread 
+<span class="fm-code-continuation-arrow">➥</span> Thread[vert.x-eventloop-thread-0,5,main] has been blocked for 2871 
+<span class="fm-code-continuation-arrow">➥</span> ms, time limit is 2000
+WARN [vertx-blocked-thread-checker] BlockedThreadChecker - Thread 
+<span class="fm-code-continuation-arrow">➥</span> Thread[vert.x-eventloop-thread-0,5,main] has been blocked for 3871 ms, 
+<span class="fm-code-continuation-arrow">➥</span> time limit is 2000                                                      <span class="fm-combinumeral">❶</span>
+(...)
+WARN [vertx-blocked-thread-checker] BlockedThreadChecker - Thread 
+<span class="fm-code-continuation-arrow">➥</span> Thread[vert.x-eventloop-thread-0,5,main] has been blocked for 5879 
+<span class="fm-code-continuation-arrow">➥</span> ms, time limit is 2000
+io.vertx.core.VertxException: Thread blocked
+  at chapter2.blocker.BlockEventLoop.lambda$start$0(BlockEventLoop.java:11)
+  at chapter2.blocker.BlockEventLoop$$Lambda$10/152379791.handle(Unknown 
+  <span class="fm-code-continuation-arrow">➥</span> Source)
+(...)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028888"/><span class="fm-combinumeral">❶</span> The thread checker is not happy.</p>
+
+  <p class="body"><a id="pgfId-1014258"/>Listing 2.6 shows a typical log output when running the code from listing 2.5. As you can see, warnings start to appear while the event-loop thread is running the infinite loop and hence is not available for processing other events. After some iterations (five seconds by default), the warning is enriched with stack trace dumps, so you can clearly identify the culprit in your code. Note that this is only a warning. The event-loop thread checker cannot kill the handler that is taking too long to complete its task.</p>
+
+  <p class="body"><a id="pgfId-1014264"/>Of course, you sometimes will need to use blocking or long-running code, and Vert.x offers solutions to run such code without blocking the event loop. This is the subject of section 2.3.</p>
+
+  <div class="fm-sidebar-block">
+    <p class="fm-sidebar-title"><a class="calibre9" id="pgfId-1030893"/>Configuring the Vert.x blocked thread checker</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1030894"/>The time limit before the blocked thread checker complains is two seconds by default, but it can be configured to a different value. There are environments, such as embedded devices, where processing power is slower, and it is normal to increase the thread-checker threshold for them.</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1030895"/>You can use system properties to change the settings:</p>
+
+    <ul class="calibre8">
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1030897"/><code class="fm-code-in-text1">-Dvertx.options.blockedThreadCheckInterval=5000</code> changes the <a id="marker-1030896"/>interval to five seconds.</p>
+      </li>
+
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1030899"/><code class="fm-code-in-text1">-Dvertx.threadChecks=false</code> disables the <a id="marker-1030898"/>thread checker.</p>
+      </li>
+    </ul>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1030901"/>Note that this configuration is global and cannot be fine-tuned on a per-verticle basis. <a id="marker-1030900"/></p>
+  </div>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1014351"/>2.2.2 Asynchronous notification of life-cycle events</h3>
+
+  <p class="body"><a id="pgfId-1014400"/><a id="marker-1014362"/><a id="marker-1014364"/>So far we have looked at examples with <code class="fm-code-in-text">start()</code> life-cycle methods. The contract <a id="marker-1014379"/>in these methods is that a verticle has successfully completed its <code class="fm-code-in-text">start</code> life-cycle event processing unless the method throws an exception. The same applies for <code class="fm-code-in-text">stop()</code> methods.</p>
+
+  <p class="body"><a id="pgfId-1014452"/>There is, however, a problem: some of the <a id="marker-1014411"/>operations in a <code class="fm-code-in-text">start</code> or a <code class="fm-code-in-text">stop</code> method may be asynchronous, so they may complete after a call to <code class="fm-code-in-text">start()</code> or <code class="fm-code-in-text">stop()</code> has returned.</p>
+
+  <p class="body"><a id="pgfId-1014461"/>Let’s see how to properly notify the caller of deferred success or failure. A good example is starting a HTTP server, which is a non-blocking operation.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014518"/>Listing 2.7 Example of an asynchronous start life-cycle method</p>
+  <pre class="programlisting">public class SomeVerticle extends AbstractVerticle {
+
+   @Override
+  public void start(Promise&lt;Void&gt; promise) {           <span class="fm-combinumeral">❶</span>
+    vertx.createHttpServer()
+      .requestHandler(req -&gt; req.response().end("Ok"))
+      .listen(8080, ar -&gt; {
+        if (ar.succeeded()) {                          <span class="fm-combinumeral">❷</span>
+          promise.complete();                          <span class="fm-combinumeral">❸</span>
+        } else {
+          promise.fail(ar.cause());                    <span class="fm-combinumeral">❹</span>
+        }
+      });
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028609"/><span class="fm-combinumeral">❶</span> The Promise is of type void because Vert.x is only interested in the deployment completion, and there is no value to carry along.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028630"/><span class="fm-combinumeral">❷</span> The listen variant that supports an asynchronous result indicates whether the operation failed or not.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028647"/><span class="fm-combinumeral">❸</span> complete() is used to mark the <a id="marker-1028651"/>Promise as completed (when the Promise is not of type void, a value can be passed).</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028665"/><span class="fm-combinumeral">❹</span> If the listen operation fails, we mark the Promise as failed and propagate the error.</p>
+
+  <p class="body"><a id="pgfId-1014754"/>Listing 2.7 shows an example where the verticle reports an asynchronous notification when it starts. This is important because starting a HTTP server <i class="fm-italics">can</i> fail. Indeed, the TCP port may be used by another process, in which case the HTTP server cannot start, and hence the verticle has not successfully deployed. To report the asynchronous notification, we use a variant of the <code class="fm-code-in-text">listen</code> method with callback <a id="marker-1014759"/>called when the operation completes.</p>
+
+  <p class="body"><a id="pgfId-1014956"/>The <code class="fm-code-in-text">start</code> and <code class="fm-code-in-text">stop</code> methods in <code class="fm-code-in-text">AbstractVerticle</code> support variants <a id="marker-1014800"/>with an argument of type <code class="fm-code-in-text">io.vertx.core.Promise</code>. As the name <a id="marker-1014816"/>suggests, a Vert.x <code class="fm-code-in-text">Promise</code> is an adaptation of the <i class="fm-italics">futures and promises</i> model for processing asynchronous results.<a href="#pgfId-1014865">2</a> A <i class="fm-italics">promise</i> is used <a id="marker-1014883"/>to <i class="fm-italics">write</i> an asynchronous result, whereas a <i class="fm-italics">future</i> is used to <i class="fm-italics">view</i> an asynchronous result. Given a <code class="fm-code-in-text">Promise</code> object, you can <a id="marker-1014929"/>call the <code class="fm-code-in-text">future()</code> method to obtain <a id="marker-1014945"/>a future of type <code class="fm-code-in-text">io.vertx.core.Future</code>.</p>
+
+  <p class="body"><a id="pgfId-1015001"/>In listing 2.7, the <code class="fm-code-in-text">Promise</code> object is set to be completed when the verticle has successfully completed its <code class="fm-code-in-text">start</code> or <code class="fm-code-in-text">stop</code> life cycle. If an error arises, the <code class="fm-code-in-text">Promise</code> object is failed with an exception describing the error, and the verticle deployment is failed.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH02_F02_Ponge.png" width="764" height="547"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1030935"/>Figure 2.2 Sequence diagram of starting an HTTP server with a promise and a <code class="fm-code-in-figurecaption">listen</code> handler</p>
+
+  <p class="body"><a id="pgfId-1015052"/>To better understand what happens here, figure 2.2 illustrates the interactions between the verticle, the Vert.x object, and the internal Vert.x deployer object responsible for calling the <code class="fm-code-in-text">start</code> method. We can check that the deployer waits for the promise completion to know if the deployment was a success or not, even after the <a id="marker-1025182"/>call to the <code class="fm-code-in-text">start</code> method has returned. In contrast, figure 2.3 shows the interactions when not using the variant of <code class="fm-code-in-text">start</code> that accepts a <code class="fm-code-in-text">Promise</code> object. There is no way the deployer can be notified of an error.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH02_F03_Ponge.png" width="815" height="598"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1030982"/>Figure 2.3 Sequence diagram of starting an HTTP server without a promise and a <code class="fm-code-in-figurecaption">listen</code> handler</p>
+
+  <p class="fm-callout"><a id="pgfId-1015137"/><span class="fm-callout-head">Tip</span> It is a good robustness practice to use the asynchronous method variants that accept a callback to notify of errors, like the <code class="fm-code-in-text1">listen</code> method in listing 2.7. I will not always <a id="marker-1015148"/>do this in the remainder of this book if it allows me to reduce the verbosity of code samples. <a id="marker-1015154"/><a id="marker-1015157"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1015163"/>2.2.3 Deploying verticles</h3>
+
+  <p class="body"><a id="pgfId-1015186"/><a id="marker-1015174"/><a id="marker-1015176"/>So far we have been deploying verticles from a <code class="fm-code-in-text">main</code> method embedded in a single verticle class.</p>
+
+  <p class="body"><a id="pgfId-1015195"/>Verticles are always deployed (and undeployed) through the <code class="fm-code-in-text">Vertx</code> object. You can do so <a id="marker-1015206"/>from any method, but the typical way to deploy an application composed of verticles is as follows:</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1015216"/>Deploy a <code class="fm-code-in-text">main</code> verticle.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015239"/>The <code class="fm-code-in-text">main</code> verticle deploys <a class="calibre9" id="marker-1015254"/>other verticles.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015264"/>The deployed verticles may in turn deploy further verticles.</p>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1015274"/>Note that while this sounds hierarchical, Vert.x has no formal notion of parent/child verticles.</p>
+
+  <p class="body"><a id="pgfId-1015280"/>To illustrate that, let’s define some verticles.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015337"/>Listing 2.8 A sample verticle to deploy</p>
+  <pre class="programlisting">public class EmptyVerticle extends AbstractVerticle {
+  private final Logger logger = LoggerFactory.getLogger(EmptyVerticle.class);
+
+  @Override
+  public void start() {
+    logger.info("Start");    <span class="fm-combinumeral">❶</span>
+  }
+
+  @Override
+  public void stop() {
+    logger.info("Stop");
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028544"/><span class="fm-combinumeral">❶</span> We log when the verticle starts.</p>
+
+  <p class="body"><a id="pgfId-1015472"/>Listing 2.8 defines a simple verticle. It does not do anything interesting except logging when it starts and stops.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015529"/>Listing 2.9 A verticle that deploys and undeploys other verticles</p>
+  <pre class="programlisting">public class Deployer extends AbstractVerticle {
+  private final Logger logger = LoggerFactory.getLogger(Deployer.class);
+
+  @Override
+  public void start() {
+    long delay = 1000;
+    for (int i = 0; i &lt; 50; i++) {
+      vertx.setTimer(delay, id -&gt; deploy());                <span class="fm-combinumeral">❶</span>
+      delay = delay + 1000;
+    }
+  }
+
+  private void deploy() {
+    vertx.deployVerticle(new EmptyVerticle(), ar -&gt; {       <span class="fm-combinumeral">❷</span>
+      if (ar.succeeded()) {
+        String id = ar.result();
+        logger.info("Successfully deployed {}", id);
+        vertx.setTimer(5000, tid -&gt; undeployLater(id));     <span class="fm-combinumeral">❸</span>
+      } else {
+        logger.error("Error while deploying", ar.cause());
+      }
+    });
+  }
+
+  private void undeployLater(String id) {
+    vertx.undeploy(id, ar -&gt; {                              <span class="fm-combinumeral">❹</span>
+      if (ar.succeeded()) {
+        logger.info("{} was undeployed", id);
+      } else {
+        logger.error("{} could not be undeployed", id);
+      }
+    });
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028277"/><span class="fm-combinumeral">❶</span> We deploy a new instance of EmptyVerticle every second.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028298"/><span class="fm-combinumeral">❷</span> Deploying a verticle is an asynchronous operation, and there is a variant of the deploy method that supports an asynchronous result.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028315"/><span class="fm-combinumeral">❸</span> We will undeploy a verticle after five seconds.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028332"/><span class="fm-combinumeral">❹</span> Undeploying is very similar to deploying.</p>
+
+  <p class="body"><a id="pgfId-1015878"/>Listing 2.9 defines a verticle that deploys 50 instances <a id="marker-1015857"/>of the <code class="fm-code-in-text">EmptyVerticle</code> class from 2.8. The use of a timer allows us to separate each deployment by one second. The <code class="fm-code-in-text">deploy</code> method uses another <a id="marker-1015883"/>timer for undeploying a verticle five seconds after it has been deployed. Deployment assigns a unique identifier string to a verticle, which can later be used for undeploying.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015944"/>Listing 2.10 Main class to deploy the <code class="fm-code-in-listingcaption">Deployer</code> verticle</p>
+  <pre class="programlisting">public static void main(String[] args) {
+  Vertx vertx = Vertx.vertx();
+  vertx.deployVerticle(new Deployer());
+}</pre>
+
+  <p class="body"><a id="pgfId-1016036"/>Last but not least, the <code class="fm-code-in-text">Deployer</code> verticle itself can be deployed <a id="marker-1016025"/>from a <code class="fm-code-in-text">main</code> method and class, as shown in listing 2.10. Running this example yields log entries like those in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016096"/>Listing 2.11 Log excerpts of running the code in listing 2.10</p>
+  <pre class="programlisting">INFO [vert.x-eventloop-thread-1] EmptyVerticle - Start
+INFO [vert.x-eventloop-thread-0] Deployer - Successfully deployed 
+<span class="fm-code-continuation-arrow">➥</span> 05553394-b6ce-4f47-9076-2c6648d65329                            <span class="fm-combinumeral">❶</span>
+INFO [vert.x-eventloop-thread-2] EmptyVerticle - Start
+INFO [vert.x-eventloop-thread-0] Deployer - Successfully deployed 
+<span class="fm-code-continuation-arrow">➥</span> 6d920f33-f317-4964-992f-e712185fe514
+(...)
+INFO [vert.x-eventloop-thread-0] Deployer - 
+<span class="fm-code-continuation-arrow">➥</span> 8153abb7-fc64-496e-8155-75c27a93b56d was undeployed             <span class="fm-combinumeral">❷</span>
+INFO [vert.x-eventloop-thread-13] EmptyVerticle - Start
+INFO [vert.x-eventloop-thread-0] Deployer - Successfully deployed 
+<span class="fm-code-continuation-arrow">➥</span> 0f69ccd8-1344-4b70-8245-020a4815cc96
+(...)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028129"/><span class="fm-combinumeral">❶</span> A verticle has been deployed.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1028152"/><span class="fm-combinumeral">❷</span> A verticle has been undeployed.</p>
+
+  <p class="body"><a id="pgfId-1016270"/>You can see the log entries <a id="marker-1016233"/>from the <code class="fm-code-in-text">vert.x-eventloop-thread-0</code> thread; they correspond to the <code class="fm-code-in-text">Deployer</code> verticle. You can then <a id="marker-1016259"/>see life-cycle log events from <code class="fm-code-in-text">EmptyVerticle</code> instances; they use other event-loop threads.</p>
+
+  <p class="body"><a id="pgfId-1016279"/>Interestingly, we are deploying 50 verticles from <code class="fm-code-in-text">Deployer</code>, yet there are likely fewer threads than verticles appearing in the logs. By default, Vert.x creates twice the number of event-loop threads as CPU cores. If you have 8 cores, then a Vert.x application has 16 event loops. The assignment of verticles to event loops is done in a round-robin fashion.</p>
+
+  <p class="body"><a id="pgfId-1016294"/>This teaches us an interesting lesson: while a verticle always uses the same event-loop thread, the event-loop threads are being shared by multiple verticles. This design results in a predictable number of threads for running an application.</p>
+
+  <p class="fm-callout"><a id="pgfId-1016310"/><span class="fm-callout-head">Tip</span> It is possible to tweak how many event loops should be available, but it is not possible to manually allocate a given verticle to a specific event loop. This should never be a problem in practice, but in the worst case you can always plan the deployment order of verticles. <a id="marker-1016312"/><a id="marker-1016315"/></p>
+
+  <h3 class="fm-head1" id="heading_id_11"><a id="pgfId-1016321"/>2.2.4 Passing configuration data</h3>
+
+  <p class="body"><a id="pgfId-1016350"/><a id="marker-1016332"/><a id="marker-1016334"/>Application code often needs configuration data. A good example is code that connects to a database server: it typically needs a host name, a TCP port, a login, and a password. Since the values change from one deployment configuration to another, such configuration needs to be accessed <a id="marker-1016339"/>from a <i class="fm-italics">configuration</i> API.</p>
+
+  <p class="body"><a id="pgfId-1016359"/>Vert.x verticles can be passed such configuration data when they are deployed. You will see later in this book that some more advanced forms of configuration can be used, but the Vert.x core API already provides a generic API that is very useful.</p>
+
+  <p class="body"><a id="pgfId-1016410"/>Configuration needs to be passed as JSON data, using the <a id="marker-1016367"/>Vert.x JSON API materialized <a id="marker-1016373"/>by the <code class="fm-code-in-text">JsonObject</code> and <code class="fm-code-in-text">JsonArray</code> classes in <a id="marker-1016399"/>the <code class="fm-code-in-text">io.vertx.core.json</code> package.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016470"/>Listing 2.12 Passing configuration data to a verticle</p>
+  <pre class="programlisting">public class SampleVerticle extends AbstractVerticle {
+  private final Logger logger = LoggerFactory.getLogger(SampleVerticle.class);
+
+  @Override
+  public void start() {
+    logger.info("n = {}", config().getInteger("n", -1));           <span class="fm-combinumeral">❶</span>
+  }
+
+  public static void main(String[] args) {
+    Vertx vertx = Vertx.vertx();
+    for (int n = 0; n &lt; 4; n++) {
+      JsonObject conf = new JsonObject().put("n", n);              <span class="fm-combinumeral">❷</span>
+      DeploymentOptions opts = new DeploymentOptions()
+        .setConfig(conf)                                           <span class="fm-combinumeral">❸</span>
+        .setInstances(n);                                          <span class="fm-combinumeral">❹</span>
+      vertx.deployVerticle("chapter2.opts.SampleVerticle", opts);  <span class="fm-combinumeral">❺</span>
+    }
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027754"/><span class="fm-combinumeral">❶</span> config() returns the JsonObject configuration instance, and the accessor method supports optional default values. Here, if there is no “n” key in the JSON object, -1 is returned.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027775"/><span class="fm-combinumeral">❷</span> We create a JSON object and put an integer value for key “n.”</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027792"/><span class="fm-combinumeral">❸</span> The DeploymentOption allows more control on a verticle, including passing configuration data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027809"/><span class="fm-combinumeral">❹</span> We can deploy multiple instances at once.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027826"/><span class="fm-combinumeral">❺</span> Since we deploy multiple instances, we need to point to the verticle using <a id="marker-1027831"/>its fully qualified class name (FQCN) rather than using the new operator. For deploying just one instance, you can elect either an instance created with new or using a FQCN.</p>
+
+  <p class="body"><a id="pgfId-1016745"/>Listing 2.12 shows an example of deploying many verticles and passing configuration data. Running the example gives the output in listing 2.13, and you can check the different values of the configuration data. <a id="marker-1016747"/><a id="marker-1016750"/></p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016807"/>Listing 2.13 Sample execution output when running the code in listing 2.12</p>
+  <pre class="programlisting">INFO [vert.x-eventloop-thread-2] SampleVerticle - n = 2
+INFO [vert.x-eventloop-thread-5] SampleVerticle - n = 3
+INFO [vert.x-eventloop-thread-4] SampleVerticle - n = 3
+INFO [vert.x-eventloop-thread-1] SampleVerticle - n = 2
+INFO [vert.x-eventloop-thread-3] SampleVerticle - n = 3
+INFO [vert.x-eventloop-thread-0] SampleVerticle - n = 1</pre>
+
+  <h2 class="fm-head" id="heading_id_12"><a id="pgfId-1016876"/>2.3 When code needs to block</h2>
+
+  <p class="body"><a id="pgfId-1016886"/><a id="marker-1016887"/>The basic rule when running code on an event loop is that it should not block, and it should run “fast enough.” You saw earlier that, by default, Vert.x detects and warns when an event loop is being blocked for too long.</p>
+
+  <p class="body"><a id="pgfId-1016908"/>There are inevitably cases where you will have a hard time avoiding blocking code. It may happen because you are using a third-party library with another threading model, such as drivers for some networked services. Vert.x provides two options for dealing with such cases: worker verticles <a id="marker-1016897"/>and the <code class="fm-code-in-text">executeBlocking</code> operation.</p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1016917"/>2.3.1 Worker verticles</h3>
+
+  <p class="body"><a id="pgfId-1016946"/><a id="marker-1016928"/><a id="marker-1016930"/>Worker verticles are a special form of verticles that do not execute on an event loop. Instead, they execute <a id="marker-1016935"/>on <i class="fm-italics">worker threads</i>, that is, threads taken from special worker pools. You can define your own worker thread pools and deploy worker verticles to them, but in most cases you will be just fine using the default Vert.x worker pool.</p>
+
+  <p class="body"><a id="pgfId-1016955"/>A worker verticle processes events just like an event-loop verticle, except that it can take an arbitrarily long time to do so. It is important to understand two things:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1016961"/>A worker verticle is not tied to a single worker thread, so unlike an event-loop verticle, successive events may not execute on the same thread.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1016975"/>Worker verticles may only be accessed by a single worker thread at a given time.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1016985"/>To put it simply, like event-loop verticles, worker verticles are single-threaded, but unlike event-loop verticles, the thread may not always be the same.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017042"/>Listing 2.14 A sample worker verticle</p>
+  <pre class="programlisting">public class WorkerVerticle extends AbstractVerticle {
+  private final Logger logger = LoggerFactory.getLogger(WorkerVerticle.class);
+
+  @Override
+  public void start() {
+    vertx.setPeriodic(10_000, id -&gt; {
+      try {
+        logger.info("Zzz...");
+        Thread.sleep(8000);                               <span class="fm-combinumeral">❶</span>
+        logger.info("Up!");
+      } catch (InterruptedException e) {
+        logger.error("Woops", e);
+      }
+    });
+  }
+
+  public static void main(String[] args) {
+    Vertx vertx = Vertx.vertx();
+    DeploymentOptions opts = new DeploymentOptions()
+      .setInstances(2)
+      .setWorker(true);                                  <span class="fm-combinumeral">❷</span>
+    vertx.deployVerticle("chapter2.worker.WorkerVerticle", opts);
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027593"/><span class="fm-combinumeral">❶</span> We can block and get no warning!</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027614"/><span class="fm-combinumeral">❷</span> Making a worker verticle is a deployment options flag.</p>
+
+  <p class="body"><a id="pgfId-1017265"/>Listing 2.14 shows an example where a worker verticle is being deployed with two instances. Every 10 seconds, the code blocks for 8 seconds. Running this example produces output similar to that of listing 2.15. As you can see, different worker threads are being used for successive events.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017322"/>Listing 2.15 Sample output of running listing 2.14</p>
+  <pre class="programlisting">INFO [vert.x-worker-thread-2] WorkerVerticle - Zzz...
+INFO [vert.x-worker-thread-3] WorkerVerticle - Zzz...
+INFO [vert.x-worker-thread-3] WorkerVerticle - Up!
+INFO [vert.x-worker-thread-2] WorkerVerticle - Up!
+INFO [vert.x-worker-thread-5] WorkerVerticle - Zzz...
+INFO [vert.x-worker-thread-4] WorkerVerticle - Zzz...
+INFO [vert.x-worker-thread-4] WorkerVerticle - Up!
+INFO [vert.x-worker-thread-5] WorkerVerticle - Up!
+(...)</pre>
+
+  <p class="fm-callout"><a id="pgfId-1017419"/><span class="fm-callout-head">Warning</span> When deploying a verticle, there is an option for enabling multithreading for worker verticles, which allows multiple events to be processed concurrently by a verticle, breaking the single-threaded processing assumption. This was always considered fairly advanced usage, and many users ended up using it the wrong way and catching concurrency bugs. The feature is no longer publicly documented and may even disappear in future Vert.x releases. Users are encouraged to simply adjust worker pool sizes to match the workload, rather than enabling worker multi-threading. <a id="marker-1017421"/><a id="marker-1017424"/></p>
+
+  <h3 class="fm-head1" id="heading_id_14"><a id="pgfId-1017430"/>2.3.2 The executeBlocking operation</h3>
+
+  <p class="body"><a id="pgfId-1017447"/><a id="marker-1017441"/><a id="marker-1017443"/>Worker verticles are a sensible option for running blocking tasks, but it may not always make sense to extract blocking code into worker verticles. Doing so can lead to an explosion in the number of worker verticle classes performing small duties, and each class may not form a sensible standalone functional unit.</p>
+
+  <p class="body"><a id="pgfId-1017475"/>The other option for running blocking code <a id="marker-1017454"/>is to use the <code class="fm-code-in-text">executeBlocking</code> method from the <code class="fm-code-in-text">Vertx</code> class. This method takes some <a id="marker-1017480"/>blocking code to execute, offloads it to a worker thread, and sends the result back to the event loop as a new event, as illustrated in figure 2.4.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH02_F04_Ponge.png" width="998" height="256"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1031024"/>Figure 2.4 Interactions in an <code class="fm-code-in-figurecaption">executeBlocking</code> call</p>
+
+  <p class="body"><a id="pgfId-1017509"/>The following listing shows a sample usage.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017580"/>Listing 2.16 Using <code class="fm-code-in-listingcaption">executeBlocking</code></p>
+  <pre class="programlisting">public class Offload extends AbstractVerticle {
+  private final Logger logger = LoggerFactory.getLogger(Offload.class);
+
+  @Override
+  public void start() {
+    vertx.setPeriodic(5000, id -&gt; {
+      logger.info("Tick");
+      vertx.executeBlocking(this::blockingCode, this::resultHandler);   <span class="fm-combinumeral">❶</span>
+    });
+  }
+
+  private void blockingCode(Promise&lt;String&gt; promise) {                  <span class="fm-combinumeral">❷</span>
+    logger.info("Blocking code running");
+    try {
+      Thread.sleep(4000);
+      logger.info("Done!");
+      promise.complete("Ok!");                                          <span class="fm-combinumeral">❸</span>
+    } catch (InterruptedException e) {
+      promise.fail(e);
+    }
+  }
+
+  private void resultHandler(AsyncResult&lt;String&gt; ar) {                  <span class="fm-combinumeral">❹</span>
+    if (ar.succeeded()) {
+      logger.info("Blocking code result: {}", ar.result());
+    } else {
+      logger.error("Woops", ar.cause());
+    }
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027320"/><span class="fm-combinumeral">❶</span> executeBlocking takes two parameters: the code to run and a callback for when it has run.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027341"/><span class="fm-combinumeral">❷</span> The blocking code takes a Promise object of any type. It is used to eventually pass the result.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027358"/><span class="fm-combinumeral">❸</span> The Promise object needs to either complete or fail, marking the end of the blocking code execution.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027375"/><span class="fm-combinumeral">❹</span> Processing the result on the event loop is just another asynchronous result.</p>
+
+  <p class="body"><a id="pgfId-1017890"/>The following listing shows some sample output from running the code in listing 2.16. As you can see, the execution is offloaded to worker threads, but the result processing still happens on the event loop.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017947"/>Listing 2.17 Sample output when running listing 2.16</p>
+  <pre class="programlisting">INFO [vert.x-eventloop-thread-0] Offload - Tick
+INFO [vert.x-worker-thread-0] Offload - Blocking code running
+INFO [vert.x-worker-thread-0] Offload - Done!
+INFO [vert.x-eventloop-thread-0] Offload - Blocking code result: Ok!
+INFO [vert.x-eventloop-thread-0] Offload - Tick
+INFO [vert.x-worker-thread-1] Offload - Blocking code running
+INFO [vert.x-worker-thread-1] Offload - Done!
+INFO [vert.x-eventloop-thread-0] Offload - Blocking code result: Ok!
+INFO [vert.x-eventloop-thread-0] Offload - Tick
+INFO [vert.x-worker-thread-2] Offload - Blocking code running
+(...)</pre>
+
+  <p class="fm-callout"><a id="pgfId-1018118"/><span class="fm-callout-head">Tip</span> By default, successive <code class="fm-code-in-text1">executeBlocking</code> operations have their <a id="marker-1018067"/>results processed in the same order as the calls to <code class="fm-code-in-text1">executeBlocking</code>. There is a variant of <code class="fm-code-in-text1">executeBlocking</code> with an additional <code class="fm-code-in-text1">boolean</code> parameter, and when it’s set to <code class="fm-code-in-text1">false</code>, results are made available as event-loop events as soon as they are available, regardless of the order of the <code class="fm-code-in-text1">executeBlocking</code> calls. <a id="marker-1018123"/><a id="marker-1018126"/><a id="marker-1018128"/></p>
+
+  <h2 class="fm-head" id="heading_id_15"><a id="pgfId-1018134"/>2.4 So what is really in a verticle?</h2>
+
+  <p class="body"><a id="pgfId-1018144"/>So far you’ve seen how to write verticles, how to deploy and configure them, and how to deal with blocking code. By using informative logs in the examples, you have seen the elements of the Vert.x threading model.</p>
+
+  <p class="body"><a id="pgfId-1018150"/>Now is a good time to step back and dissect what is inside a verticle, and make sure you leave this chapter with a comprehensive understanding of how verticles work and how you can properly use them.</p>
+
+  <h3 class="fm-head1" id="heading_id_16"><a id="pgfId-1018156"/>2.4.1 Verticles and their environment</h3>
+
+  <p class="body"><a id="pgfId-1018166"/><a id="marker-1018167"/>Figure 2.5 gives an overview of the relationships between a verticle and its environment.</p>
+
+  <p class="body"><a id="pgfId-1018185"/>A verticle object is essentially the combination of two objects:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1018205"/>The Vert.x instance the verticle belongs to</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1018219"/>A dedicated context instance that allows events to be dispatched to handlers</p>
+    </li>
+  </ul>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH02_F05_Ponge.png" width="1012" height="624"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1031070"/>Figure 2.5 An event-loop verticle and its environment</p>
+
+  <p class="body"><a id="pgfId-1018300"/>The Vert.x instance exposes the core APIs for declaring <a id="marker-1018231"/>event handlers. We have used <a id="marker-1018237"/>it already in the previous code samples <a id="marker-1018243"/>with methods such as <code class="fm-code-in-text">setTimer</code>, <code class="fm-code-in-text">setPeriodic</code>, <code class="fm-code-in-text">createHttpServer</code>, <code class="fm-code-in-text">deployVerticle</code>, and so on. The Vert.x instance <a id="marker-1018289"/>is being shared by multiple verticles, and there is generally only one instance of <code class="fm-code-in-text">Vertx</code> per JVM process.</p>
+
+  <p class="body"><a id="pgfId-1018309"/>The context instance holds the access to the thread for executing handlers. Events may originate from various sources such as timers, database drivers, HTTP servers, and more. As such, they are more often than not being triggered from other threads, such as Netty accepting threads or timer threads.</p>
+
+  <p class="body"><a id="pgfId-1018315"/>Event handling in user-defined callbacks happens through the context. The context instance allows us to call the handler back on the verticle event-loop thread, hence respecting the Vert.x threading model.</p>
+
+  <p class="body"><a id="pgfId-1018321"/>The case of worker verticles is not much different, except that handlers are executed using one worker thread in a worker thread pool, as illustrated in figure 2.6. They are still verticles, just like their event-loop counterparts, and the code can assume single-threaded access. There is just no stability in which a worker thread is going to be used for processing a worker verticle’s events. <a id="marker-1018323"/></p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH02_F06_Ponge.png" width="629" height="655"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1031112"/>Figure 2.6 A worker verticle and its environment</p>
+
+  <h3 class="fm-head1" id="heading_id_17"><a id="pgfId-1018340"/>2.4.2 More on contexts</h3>
+
+  <p class="body"><a id="pgfId-1018390"/><a id="marker-1018365"/>Context objects can be accessed <a id="marker-1018369"/>using the <code class="fm-code-in-text">getOrCreateContext()</code> method from the <code class="fm-code-in-text">Vertx</code> class. While a context is almost always associated <a id="marker-1018395"/>with a verticle, it is possible to create event-loop contexts outside of a verticle. As the name of the method suggests</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1018405"/>Calling <code class="fm-code-in-text">getOrCreateContext()</code> from a context <a class="calibre9" id="marker-1018424"/>thread like that of a verticle returns the context.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1018434"/>Calling <code class="fm-code-in-text">getOrCreateContext()</code> from a non-context thread creates a new context.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1018485"/>Listing 2.18 shows an example where a global <code class="fm-code-in-text">Vertx</code> instance is being created, and two calls to <code class="fm-code-in-text">getOrCreateContext</code> are being made on the JVM process main thread. Each call <a id="marker-1018474"/>is followed by a call to <code class="fm-code-in-text">runOnContext</code>, which allows us to run a block of code on the context thread.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018545"/>Listing 2.18 Creating contexts without a verticle</p>
+  <pre class="programlisting">Vertx vertx = Vertx.vertx();
+
+vertx.getOrCreateContext()
+  .runOnContext(v -&gt; logger.info("ABC"));    <span class="fm-combinumeral">❶</span>
+
+vertx.getOrCreateContext()
+  .runOnContext(v -&gt; logger.info("123"));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027244"/><span class="fm-combinumeral">❷</span> The lambda is executed on a Vert.x context thread.</p>
+
+  <p class="body"><a id="pgfId-1018644"/>As you can see in the next listing, each context gets assigned to an event loop.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018701"/>Listing 2.19 Sample output of running listing 2.18</p>
+  <pre class="programlisting">INFO [vert.x-eventloop-thread-1] ThreadsAndContexts - 123
+INFO [vert.x-eventloop-thread-0] ThreadsAndContexts - ABC</pre>
+
+  <p class="body"><a id="pgfId-1018762"/>Context objects support more operations, such as holding context-wide arbitrary key/value data and declaring exception handlers. The following listing shows an example where a <code class="fm-code-in-text">foo</code> key holds string <code class="fm-code-in-text">bar</code>, and an exception handler is declared to catch and process exceptions while a handler is executed on the event-loop thread.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018822"/>Listing 2.20 Using context data and exception handling</p>
+  <pre class="programlisting">Vertx vertx = Vertx.vertx();
+Context ctx = vertx.getOrCreateContext();
+ctx.put("foo", "bar");
+
+ctx.exceptionHandler(t -&gt; {
+  if ("Tada".equals(t.getMessage())) {
+    logger.info("Got a _Tada_ exception");
+  } else {
+    logger.error("Woops", t);
+  }
+});
+
+ctx.runOnContext(v -&gt; {
+  throw new RuntimeException("Tada");
+});
+
+ctx.runOnContext(v -&gt; {
+  logger.info("foo = {}", (String) ctx.get("foo"));
+});</pre>
+
+  <p class="body"><a id="pgfId-1018966"/>Context data may be useful when event processing is spread across multiple classes. It is otherwise much simpler (and faster!) to use class fields.</p>
+
+  <p class="body"><a id="pgfId-1018972"/>Exception handlers are important when event processing may throw exceptions. By default, exceptions are simply logged by Vert.x, but overriding a context exception handler is useful when performing custom actions to deal with errors.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019029"/>Listing 2.21 Sample output of running listing 2.20</p>
+  <pre class="programlisting">INFO [vert.x-eventloop-thread-0] ThreadsAndContexts - Got a _Tada_ exception
+INFO [vert.x-eventloop-thread-0] ThreadsAndContexts - foo = bar</pre>
+
+  <p class="body"><a id="pgfId-1019074"/>Running the code in listing 2.20 produces output similar to that of listing 2.21. <a id="marker-1019076"/></p>
+
+  <h3 class="fm-head1" id="heading_id_18"><a id="pgfId-1019083"/>2.4.3 Bridging Vert.x and non-Vert.x threading models</h3>
+
+  <p class="body"><a id="pgfId-1019093"/><a id="marker-1019094"/>You will probably not have to deal with Vert.x contexts when writing Vert.x applications. Still, there is one case where it makes the most sense: when you have to use third-party code that has its own threading model, and you want to make it work properly with Vert.x.</p>
+
+  <p class="body"><a id="pgfId-1019102"/>The code in the next listing shows an example where a non-Vert.x thread is being created. By passing a context obtained from a verticle, we are able to execute some code back on the event loop from some code running on a non-Vert.x thread.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019159"/>Listing 2.22 Mixing different threading models</p>
+  <pre class="programlisting">public class MixedThreading extends AbstractVerticle {
+  private final Logger logger = LoggerFactory.getLogger(MixedThreading.class);
+
+  @Override
+  public void start() {
+    Context context = vertx.getOrCreateContext();     <span class="fm-combinumeral">❶</span>
+    new Thread(() -&gt; {
+      try {
+        run(context);
+      } catch (InterruptedException e) {
+        logger.error("Woops", e);
+      }
+    }).start();                                       <span class="fm-combinumeral">❷</span>
+  }
+
+  private void run(Context context) throws InterruptedException {
+    CountDownLatch latch = new CountDownLatch(1);
+    logger.info("I am in a non-Vert.x thread");
+    context.runOnContext(v -&gt; {                       <span class="fm-combinumeral">❸</span>
+      logger.info("I am on the event-loop");
+      vertx.setTimer(1000, id -&gt; {
+        logger.info("This is the final countdown");
+        latch.countDown();
+      });
+    });
+    logger.info("Waiting on the countdown latch...");
+    latch.await();
+    logger.info("Bye!");
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027024"/><span class="fm-combinumeral">❶</span> We get the context of the verticle because start is running on an event-loop thread.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027041"/><span class="fm-combinumeral">❷</span> We start a plain Java thread.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1027065"/><span class="fm-combinumeral">❸</span> runOnContext ensures we run some code back on the verticle event-loop thread.</p>
+
+  <p class="body"><a id="pgfId-1019440"/>The logs in the following listing show that.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019497"/>Listing 2.23 Sample output when running listing 2.22</p>
+  <pre class="programlisting">INFO [Thread-3] MixedThreading - I am in a non-Vert.x thread
+INFO [Thread-3] MixedThreading - Waiting on the countdown latch...
+INFO [vert.x-eventloop-thread-0] MixedThreading - I am on the event-loop
+INFO [vert.x-eventloop-thread-0] MixedThreading - This is the final countdown
+INFO [Thread-3] MixedThreading - Bye!</pre>
+
+  <p class="body"><a id="pgfId-1019560"/>You can use the technique of having a verticle context and issuing calls to <code class="fm-code-in-text">runOnContext</code> whenever you <a id="marker-1019571"/>need to integrate non-Vert.x threading models into your applications.</p>
+
+  <p class="fm-callout"><a id="pgfId-1019591"/><span class="fm-callout-head">Tip</span> This example shows another important property of contexts: they are propagated when defining handlers. Indeed, the block of code run with <code class="fm-code-in-text1">runOnContext</code> sets a timer handler <a id="marker-1019602"/>after one second. You can see that the handler is executed with the same context as the one that was used to define it.</p>
+
+  <p class="body"><a id="pgfId-1019612"/>The next chapter discusses the event bus, the privileged way verticles can communicate with each other and articulate event processing in a Vert.x application. <a id="marker-1019614"/></p>
+
+  <h2 class="fm-head" id="heading_id_19"><a id="pgfId-1019621"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1019631"/>Verticles are the core component for asynchronous event processing in Vert.x applications.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1019645"/>Event-loop verticles process asynchronous I/O events and should be free of blocking and long-running operations.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1019655"/>Worker verticles can be used to process blocking I/O and long-running operations.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1019665"/>It is possible to mix code with both Vert.x and non-Vert.x threads by using event-loop contexts.</p>
+    </li>
+  </ul>
+  <hr class="calibre12"/>
+
+  <p class="fm-footnote"><span class="footnotenumber">1.</span><a id="pgfId-1011950"/>For more on the actor concurrency model, see the 1973 article by Carl Hewitt, Peter Bishop, and Richard Steiger that introduced the model: “A universal modular ACTOR formalism for artificial intelligence,” in Proceedings of the 3rd international joint conference on Artificial intelligence (IJCAI’73), p. 235-245 (Morgan Kaufmann, 1973).</p>
+
+  <p class="fm-footnote"><span class="footnotenumber">2.</span><a id="pgfId-1014865"/>The paper that introduced the concept of promises and futures was B. Liskov and L. Shrira, “Promises: linguistic support for efficient asynchronous procedure <a id="marker-1014855"/>calls in distributed systems,” in R.L. Wexelblat, ed., Proceedings of the ACM SIGPLAN 1988 conference on Programming language design and implementation (PLDI’88), p. 260-267 (ACM, 1988).</p>
+</div></body>
+</html>

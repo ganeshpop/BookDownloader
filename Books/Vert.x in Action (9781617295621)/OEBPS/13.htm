@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1120523"/>13 Final notes: Container-native Vert.x</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>Efficiently building container images with Jib</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>Configuring Vert.x clustering to work in a Kubernetes cluster</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011861"/>Deploying Vert.x services to a Kubernetes cluster</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011871"/>Using Skaffold and Minikube for local development</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011881"/>Exposing health checks and metrics</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011891"/>By now you should have a solid understanding of what a reactive application is, and how Vert.x can help you build scalable, resource-efficient, and resilient services. In this chapter we’ll discuss some of the main concerns related to deploying and operating a Vert.x application in a Kubernetes cluster container environment. You will learn how to prepare Vert.x services to work well in Kubernetes and how to use efficient tools to package container images and run them locally. You will also learn how to expose health checks and metrics to better integrate services in a container environment.</p>
+
+  <p class="body"><a id="pgfId-1011897"/>This chapter is optional, given that the core objectives of the book are about teaching yourself reactive concepts and practices. Still, Kubernetes is a popular deployment target, and it is worth learning how to make Vert.x applications first-class citizens in such environments.</p>
+
+  <p class="body"><a id="pgfId-1011955"/>In this chapter I’ll assume you have a basic understanding of containers, Docker, and Kubernetes, which are covered in depth in other books such as Marko Lukša’s <i class="fm-italics">Kubernetes in Action</i>, second edition (Manning, 2020) and <i class="fm-italics">Docker in Action</i>, second edition, by Jeff Nickoloff and Stephen Kuenzli (Manning, 2019). If you don’t know much about those topics, you should still be able to understand and run the examples in this chapter, and you’ll learn some Kubernetes basics along the way, but I <a id="marker-1011924"/>won’t spend time explaining the core concepts of Kubernetes, such as <i class="fm-italics">pods</i> and <i class="fm-italics">services</i>, or describe the subtleties of the <code class="fm-code-in-text">kubectl</code> command-line tool.</p>
+
+  <div class="fm-sidebar-block">
+    <p class="fm-sidebar-title"><a class="calibre9" id="pgfId-1177612"/>Tool versions</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1177613"/>The chapter was written and tested with the following tool versions:</p>
+
+    <ul class="calibre8">
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1177614"/>Minikube 1.11.0</p>
+      </li>
+
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1177615"/>Skaffold 1.11.0</p>
+      </li>
+
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1177616"/>k9s 0.20.5 (optional)</p>
+      </li>
+
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1177617"/>Dive 0.9.2 (optional)</p>
+      </li>
+    </ul>
+  </div>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1012024"/>13.1 Heat sensors in a cloud</h2>
+
+  <p class="body"><a id="pgfId-1012041"/><a id="marker-1012035"/><a id="marker-1012037"/>In this final chapter, we’ll go back to a use case based on heat sensors, as it will be simpler than working with the 10k steps challenge application.</p>
+
+  <p class="body"><a id="pgfId-1012046"/>In this scenario, heat sensors regularly publish temperature updates, and an API can be used to retrieve the latest temperatures from all sensors, and also to identify sensors where the temperature is abnormal. The application is based on three microservices that you can find in the source code Git repository and that are illustrated in figure 13.1.</p>
+
+  <p class="body"><a id="pgfId-1012062"/>Here is what each services does:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012082"/><code class="fm-code-in-text">heat-sensor-service</code>--Represents a heat sensor <a class="calibre9" id="marker-1012099"/>that publishes temperature updates over the Vert.x event bus. It exposes an HTTP API to fetch the current temperature.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012109"/><code class="fm-code-in-text">sensor-gateway</code>--Collects temperature <a class="calibre9" id="marker-1012122"/>updates from all heat sensor services over the Vert.x event bus. It exposes an HTTP API for retrieving the latest temperature values.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012132"/><code class="fm-code-in-text">heat-api</code>--An HTTP API for retrieving <a class="calibre9" id="marker-1012145"/>the latest temperature values and for detecting the sensors where temperatures are not within expected bounds.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012155"/>The heat sensor service needs to be scaled to simulate multiple sensors, whereas the sensor gateway and API services work fine with just one instance of each. That being said, the latter two do not share state, so they can also be scaled to multiple instances if the workload requires it.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH13_F01_Ponge.png" width="1049" height="678"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1178499"/>Figure 13.1 Use case overview</p>
+
+  <p class="body"><a id="pgfId-1012161"/>The heat API is the only service meant to be exposed outside the cluster. The sensor gateway is a cluster-internal service. The heat sensor services should just be deployed as instances inside the cluster, but they do not require a load balancer. The Vert.x cluster manager uses Hazelcast.</p>
+
+  <p class="body"><a id="pgfId-1012167"/>Let’s quickly see the noteworthy code portions in these service implementations.</p>
+
+  <h3 class="fm-head1" id="heading_id_4"><a id="pgfId-1012173"/>13.1.1 Heat sensor service</h3>
+
+  <p class="body"><a id="pgfId-1012212"/><a id="marker-1012184"/><a id="marker-1012186"/>The heat sensor service is based on the code found in the early chapters of this book, especially that of chapter 3. The <code class="fm-code-in-text">update</code> method called from <a id="marker-1012201"/>a timer set in the <code class="fm-code-in-text">scheduleNextUpdate</code> method has been <a id="marker-1012217"/>updated as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012278"/>Listing 13.1 The new <code class="fm-code-in-listingcaption">update</code> method</p>
+  <pre class="programlisting">private void update(long tid) {
+  temp = temp + (delta() / 10);
+  vertx.eventBus().publish(targetDestination, makeJsonPayload());    <span class="fm-combinumeral">❶</span>
+  logger.info("{} new temperature is {}", id, temp);
+  scheduleNextUpdate();
+}
+
+private JsonObject makeJsonPayload() {                               <span class="fm-combinumeral">❷</span>
+  return new JsonObject()
+    .put("id", id)
+    .put("timestamp", System.currentTimeMillis())
+    .put("temp", temp);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1177386"/><span class="fm-combinumeral">❶</span> Publish to the event bus.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1177413"/><span class="fm-combinumeral">❷</span> Prepare a JSON temperature update payload.</p>
+
+  <p class="body"><a id="pgfId-1012449"/>We still have the same logic, and we publish a JSON temperature update document to the event bus. We’ve also introduced the <code class="fm-code-in-text">makeJsonPayload</code> method, as it is also <a id="marker-1012460"/>used for the HTTP endpoint, as shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012521"/>Listing 13.2 Getting heat sensor data over HTTP</p>
+  <pre class="programlisting">private void handleRequest(RoutingContext ctx) {
+  ctx.response()
+    .putHeader("Content-Type", "application/json")
+    .end(makeJsonPayload().encode());                <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1177317"/><span class="fm-combinumeral">❶</span> Send JSON data</p>
+
+  <p class="body"><a id="pgfId-1012633"/>Finally we get the service configuration from environment <a id="marker-1012612"/>variables in the <code class="fm-code-in-text">HeatSensor</code> verticle’s <code class="fm-code-in-text">start</code> method, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012693"/>Listing 13.3 Getting the sensor configuration from environment variables</p>
+  <pre class="programlisting">Map&lt;String, String&gt; env = System.getenv();                                <span class="fm-combinumeral">❶</span>
+int httpPort = Integer.parseInt(env.getOrDefault("HTTP_PORT", "8080"));   <span class="fm-combinumeral">❷</span>
+targetDestination = env.getOrDefault("EB_UPDATE_DESTINATION", 
+<span class="fm-code-continuation-arrow">➥</span> "heatsensor.updates");                                                 <span class="fm-combinumeral">❸</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1177083"/><span class="fm-combinumeral">❶</span> Access the environment variables.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1177104"/><span class="fm-combinumeral">❷</span> Get the HTTP port.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1177121"/><span class="fm-combinumeral">❸</span> Get the event-bus destination.</p>
+
+  <p class="body"><a id="pgfId-1012836"/>Environment variables are great because they are easy to override when running the service. Since they are exposed as a Java <code class="fm-code-in-text">Map</code>, we can take advantage <a id="marker-1012825"/>of the <code class="fm-code-in-text">getOrDefault</code> method to have default values.</p>
+
+  <p class="body"><a id="pgfId-1012874"/>Vert.x also provides the <code class="fm-code-in-text">vertx-config</code> module (not covered in this book) if you need <a id="marker-1012856"/>more advanced configuration, like combining files, environment variables, and distributed registries. You can learn more about it in the Vert.x website documentation (<span class="fm-hyperlink"><a href="https://vertx.io/docs/">https://vertx.io/docs/</a></span>). For most cases, however, parsing a few environment <a id="marker-1012863"/>variables using the Java <code class="fm-code-in-text">System</code> class is much simpler. <a id="marker-1012879"/><a id="marker-1012882"/></p>
+
+  <h3 class="fm-head1" id="heading_id_5"><a id="pgfId-1012888"/>13.1.2 Sensor gateway</h3>
+
+  <p class="body"><a id="pgfId-1012911"/><a id="marker-1012899"/><a id="marker-1012901"/>The sensor gateway collects temperature updates from the heat sensor services over Vert.x event-bus communications. First, it fetches configuration from environment variables, as shown in listing 13.3, because it needs an HTTP port number and an event bus destination to listen to. The <code class="fm-code-in-text">start</code> method sets an <a id="marker-1012916"/>event-bus consumer, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012977"/>Listing 13.4 Gateway event-bus consumer</p>
+  <pre class="programlisting">vertx.eventBus().&lt;JsonObject&gt;consumer(targetDestination, message -&gt; {   <span class="fm-combinumeral">❶</span>
+  JsonObject json = message.body();
+  String id = json.getString("id");
+  data.put(id, json);                                                   <span class="fm-combinumeral">❷</span>
+  logger.info("Received an update from sensor {}", id);
+});</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176926"/><span class="fm-combinumeral">❶</span> Register a handler.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176947"/><span class="fm-combinumeral">❷</span> Put it in a map.</p>
+
+  <p class="body"><a id="pgfId-1013110"/>Each incoming JSON update is put in a <code class="fm-code-in-text">data</code> field, which is a <code class="fm-code-in-text">HashMap&lt;String,</code> <code class="fm-code-in-text">JsonObject&gt;</code>, to store the last update of each sensor.</p>
+
+  <p class="body"><a id="pgfId-1013119"/>The HTTP API exposes the collected sensor data over the <code class="fm-code-in-text">/data</code> endpoint, which is handled by the following code.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013185"/>Listing 13.5 Gateway data requests HTTP handler</p>
+  <pre class="programlisting">private void handleRequest(RoutingContext ctx) {
+  JsonArray entries = new JsonArray();
+  for (String key : data.keySet()) {                            <span class="fm-combinumeral">❶</span>
+    entries.add(data.get(key));
+  }
+  JsonObject payload = new JsonObject().put("data", entries);   <span class="fm-combinumeral">❷</span>
+  ctx.response()
+    .putHeader("Content-Type", "application/json")
+    .end(payload.encode());
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176796"/><span class="fm-combinumeral">❶</span> Collect entries in a JSON array.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176817"/><span class="fm-combinumeral">❷</span> Put the array in a JSON document and send it.</p>
+
+  <p class="body"><a id="pgfId-1013326"/>This method prepares a JSON response by assembling all collected data into an array, which is then wrapped in a JSON document. <a id="marker-1013328"/><a id="marker-1013331"/></p>
+
+  <h3 class="fm-head1" id="heading_id_6"><a id="pgfId-1013337"/>13.1.3 Heat API</h3>
+
+  <p class="body"><a id="pgfId-1013354"/><a id="marker-1013348"/><a id="marker-1013350"/>This service provides all sensor data, or just the data for services where temperatures are outside an expected correct value range. To do so, it makes HTTP requests to the sensor gateway.</p>
+
+  <p class="body"><a id="pgfId-1013359"/>The configuration is again provided through environment variables, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013416"/>Listing 13.6 Heat API configuration environment variables</p>
+  <pre class="programlisting">Map&lt;String, String&gt; env = System.getenv();
+int httpPort = Integer.parseInt(env.getOrDefault("HTTP_PORT", "8080"));
+String gatewayHost = env.getOrDefault("GATEWAY_HOST", "sensor-gateway");     <span class="fm-combinumeral">❶</span>
+int gatewayPort = Integer.parseInt(env.getOrDefault("GATEWAY_PORT", "8080"));<span class="fm-combinumeral">❷</span>
+lowLimit = Double.parseDouble(env.getOrDefault("LOW_TEMP", "10.0"));         <span class="fm-combinumeral">❸</span>
+highLimit = Double.parseDouble(env.getOrDefault("HIGH_TEMP", "30.0"));       <span class="fm-combinumeral">❹</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176569"/><span class="fm-combinumeral">❶</span> The sensor gateway address</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176590"/><span class="fm-combinumeral">❷</span> The sensor gateway port number</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176607"/><span class="fm-combinumeral">❸</span> The correct temperature lower bound</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176624"/><span class="fm-combinumeral">❹</span> The correct temperature higher bound</p>
+
+  <p class="body"><a id="pgfId-1013577"/>The service resolves the sensor gateway address as well as the correct temperature range using environment variables. As you will see later, we can override the values when deploying the service to a cluster.</p>
+
+  <p class="body"><a id="pgfId-1013583"/>The <code class="fm-code-in-text">start</code> method configures the <a id="marker-1013594"/>web client to make HTTP requests to the sensor gateway, and it also uses a Vert.x web router to expose API endpoints.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013655"/>Listing 13.7 Heat API web client and routes</p>
+  <pre class="programlisting">webClient = WebClient.create(vertx, new WebClientOptions()
+  .setDefaultHost(gatewayHost)                              <span class="fm-combinumeral">❶</span>
+  .setDefaultPort(gatewayPort));
+
+Router router = Router.router(vertx);                       <span class="fm-combinumeral">❷</span>
+router.get("/all").handler(this::fetchAllData);
+router.get("/warnings").handler(this::sensorsOverLimits);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176413"/><span class="fm-combinumeral">❶</span> Prebind the web client host and port for requests.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176434"/><span class="fm-combinumeral">❷</span> The router that exposes the API endpoints</p>
+
+  <p class="body"><a id="pgfId-1013777"/>Data is fetched from the sensor gateway with HTTP <code class="fm-code-in-text">GET</code> requests, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013843"/>Listing 13.8 Fetching sensor data</p>
+  <pre class="programlisting">private void fetchData(RoutingContext routingContext, 
+<span class="fm-code-continuation-arrow">➥</span> Consumer&lt;HttpResponse&lt;JsonObject&gt;&gt; action) {
+  webClient.get("/data")                                    <span class="fm-combinumeral">❶</span>
+    .as(BodyCodec.jsonObject())
+    .expect(ResponsePredicate.SC_OK)
+    .timeout(5000)
+    .send(ar -&gt; {
+      if (ar.succeeded()) {
+        action.accept(ar.result());                         <span class="fm-combinumeral">❷</span>
+      } else {
+        routingContext.fail(500);                           <span class="fm-combinumeral">❸</span>
+        logger.error("Could not fetch data", ar.cause());
+      }
+    });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176173"/><span class="fm-combinumeral">❶</span> Make a request to /data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176194"/><span class="fm-combinumeral">❷</span> Call the action handler.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1176211"/><span class="fm-combinumeral">❸</span> Handle errors.</p>
+
+  <p class="body"><a id="pgfId-1014030"/>The <code class="fm-code-in-text">fetchData</code> method is generic, with a custom <a id="marker-1014041"/>action given as the second parameter, so the two HTTP endpoints that we are exposing can reuse the request logic.</p>
+
+  <p class="body"><a id="pgfId-1014064"/>The implementation <a id="marker-1014053"/>of the <code class="fm-code-in-text">fetchAllData</code> method is shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014124"/>Listing 13.9 Fetching all sensor data</p>
+  <pre class="programlisting">private void fetchAllData(RoutingContext routingContext) {
+  fetchData(routingContext, resp -&gt; {
+    routingContext.response()
+      .putHeader("Content-Type", "application/json")
+      .end(resp.body().encode());
+  });
+}</pre>
+
+  <p class="body"><a id="pgfId-1014199"/>This method doesn’t do anything special besides completing the HTTP request with the JSON data.</p>
+
+  <p class="body"><a id="pgfId-1014205"/>The <code class="fm-code-in-text">sensorsOverLimits</code> method shown next <a id="marker-1014216"/>is more interesting, as it filters the data.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014277"/>Listing 13.10 Filtering out-of-range sensor data</p>
+  <pre class="programlisting">private void sensorsOverLimits(RoutingContext routingContext) {
+  Predicate&lt;JsonObject&gt; abnormalValue = json -&gt; {
+    Double temperature = json.getDouble("temp");
+    return (temperature &lt;= lowLimit) || (highLimit &lt;= temperature);
+  };
+  fetchData(routingContext, resp -&gt; {
+    JsonObject data = resp.body();
+    JsonArray warnings = new JsonArray();      <span class="fm-combinumeral">❶</span>
+    data.getJsonArray("data").stream()         <span class="fm-combinumeral">❷</span>
+      .map(JsonObject.class::cast)             <span class="fm-combinumeral">❸</span>
+      .filter(abnormalValue)                   <span class="fm-combinumeral">❹</span>
+      .forEach(warnings::add);                 <span class="fm-combinumeral">❺</span>
+    data.put("data", warnings);                <span class="fm-combinumeral">❻</span>
+    routingContext.response()
+      .putHeader("Content-Type", "application/json")
+      .end(data.encode());
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175809"/><span class="fm-combinumeral">❶</span> An array to collect over-limit data</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175830"/><span class="fm-combinumeral">❷</span> Use a Java stream to filter entries.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175847"/><span class="fm-combinumeral">❸</span> Cast from Object to JsonObject.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175864"/><span class="fm-combinumeral">❹</span> Filter based on temperature values.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175881"/><span class="fm-combinumeral">❺</span> Add to the array.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175898"/><span class="fm-combinumeral">❻</span> Assemble the final JSON response.</p>
+
+  <p class="body"><a id="pgfId-1014576"/>The <code class="fm-code-in-text">sensorsOverLimits</code> method keeps only <a id="marker-1014565"/>the entries where the temperature is not within the expected range. To do so, we take a functional processing approach using Java collection streams, and then return the response. Note that the <code class="fm-code-in-text">data</code> array in the response JSON document may be empty if all sensor values are correct.</p>
+
+  <p class="body"><a id="pgfId-1014585"/>Now that you have seen the main interesting points in the three service implementations, we can move on to the topic of actually deploying them in a Kubernetes cluster. <a id="marker-1014587"/><a id="marker-1014590"/></p>
+
+  <h3 class="fm-head1" id="heading_id_7"><a id="pgfId-1014596"/>13.1.4 Deploying to a local cluster</h3>
+
+  <p class="body"><a id="pgfId-1014613"/><a id="marker-1014607"/><a id="marker-1014609"/>There are many ways to run a local Kubernetes cluster. Docker Desktop embeds Kubernetes, so it may be all you need to run Kubernetes, if you have it running on your machine.</p>
+
+  <p class="body"><a id="pgfId-1016945"/>Minikube is another reliable option offered by the Kubernetes project (<span class="fm-hyperlink"><a href="https://minikube.sigs.k8s.io/docs/">https:// minikube.sigs.k8s.io/docs/</a></span>). It deploys a small virtual machine on Windows, macOS, or Linux, which makes it perfect for creating disposable clusters for development. If anything goes wrong, you can easily destroy a cluster and start anew.</p>
+
+  <p class="body"><a id="pgfId-1016968"/>Another benefit of Minikube is that it offers environment variables for Docker daemons, so you can have your locally built container images available right inside the cluster. In other Kubernetes configurations, you would have to push images to private or public registries, which can slow the development feedback loop, especially when pushing a few hundred megabytes to public registries over a slow internet connection.</p>
+
+  <p class="body"><a id="pgfId-1016974"/>I am assuming that you will use Minikube here, but feel free to use any other option.</p>
+
+  <p class="fm-callout"><a id="pgfId-1016990"/><span class="fm-callout-head">Tip</span> If you have never used Kubernetes before, welcome! Although you will not become a Kubernetes expert by reading this section, running the commands should still give you an idea of what it is all about. The main concepts behind Kubernetes are quite simple, once you go beyond the vast ecosystem and terminology.</p>
+
+  <p class="body"><a id="pgfId-1016996"/>The following listing shows how to create a cluster with four CPUs and 8 GB of memory.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017053"/>Listing 13.11 Creating a Minikube cluster</p>
+  <pre class="programlisting">$ minikube start --cpus=4 --memory=8G --addons ingress       <span class="fm-combinumeral">❶</span>
+  minikube v1.9.2 on Darwin 10.15.4
+  MINIKUBE_ACTIVE_DOCKERD=minikube
+  Automatically selected the hyperkit driver. Other choices: 
+  <span class="fm-code-continuation-arrow">➥</span> docker, virtualbox
+  Starting control plane node m01 in cluster minikube
+  Creating hyperkit VM (CPUs=4, Memory=8192MB, Disk=20000MB) ...
+  Preparing Kubernetes v1.14.0 on Docker 19.03.8 ...
+  Enabling addons: default-storageclass, ingress, storage-provisioner
+  Done! kubectl is now configured to use "minikube"</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175741"/><span class="fm-combinumeral">❶</span> Enable the ingress add-on.</p>
+
+  <p class="body"><a id="pgfId-1017166"/>The flags and the output will differ based on your operating system and software versions. You may need to adjust these by looking at the current Minikube documentation (which may have been updated by the time you read this chapter). I allocated four CPUs and 8 GB of memory because this is comfortable on my laptop, but you could be fine with one CPU and less RAM.</p>
+
+  <p class="body"><a id="pgfId-1017185"/>You can access a web dashboard <a id="marker-1017174"/>by running the <code class="fm-code-in-text">minikube dashboard</code> command. Using the Minikube dashboard, you can look at the various Kubernetes resources and even perform some (limited) operations, such as scaling a service up and down or looking into logs.</p>
+
+  <p class="body"><a id="pgfId-1017194"/>There is another dashboard that I find particularly efficient and can recommend that you try: K9s (<span class="fm-hyperlink"><a href="https://k9scli.io">https://k9scli.io</a></span>). It works as a command-line tool, and it can very quickly move between Kubernetes resources, access pod logs, update replica counts, and so on.</p>
+
+  <p class="body"><a id="pgfId-1017253"/>Kubernetes has a command-line tool called <code class="fm-code-in-text">kubectl</code> that you <a id="marker-1017212"/>can use to perform any actions: deploying services, collecting logs, configuring DNS, and more. <code class="fm-code-in-text">kubectl</code> is the Swiss army knife of Kubernetes. We could use <code class="fm-code-in-text">kubectl</code> to apply the Kubernetes resource definitions found in each service’s <code class="fm-code-in-text">k8s/</code> folder. I will later describe the resources in the <code class="fm-code-in-text">k8s/</code> folders. If you are new to Kubernetes, all you need to know right now is that these files tell Kubernetes how to deploy the three services in this chapter.</p>
+
+  <p class="body"><a id="pgfId-1017262"/>There is a better tool for improving your local Kubernetes development experience called Skaffold (<span class="fm-hyperlink"><a href="https://skaffold.dev">https://skaffold.dev</a></span>). Instead of using Gradle (or Maven) to build the services and package them, and then using <code class="fm-code-in-text">kubectl</code> to deploy to Kubernetes, Skaffold is able to do it all for us, avoiding unnecessary builds using caching, performing deployments, aggregating all logs, and cleaning everything on exit.</p>
+
+  <p class="body"><a id="pgfId-1017278"/>You first need to download and install Skaffold on your machine. Skaffold works out of the box with Minikube, so no additional configuration is needed. All it needs is a skaffold.yaml resource descriptor, as shown in the following listing (and is included at the root of the chapter13 folder in the Git repository).</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017344"/>Listing 13.12 Skaffold configuration</p>
+  <pre class="programlisting">apiVersion: skaffold/v1
+kind: Config
+metadata:
+  name: chapter13
+build:
+  artifacts:
+    - image: vertx-in-action/heat-sensor-service     <span class="fm-combinumeral">❶</span>
+      jib:
+        type: gradle
+        project: heat-sensor-service                 <span class="fm-combinumeral">❷</span>
+      context: .
+    - image: vertx-in-action/sensor-gateway
+      jib:
+        type: gradle
+        project: sensor-gateway
+      context: .
+    - image: vertx-in-action/heat-api
+      jib:
+        type: gradle
+        project: heat-api
+      context: .
+deploy:
+  kubectl:
+    manifests:
+      - "**/k8s/*.yaml"                              <span class="fm-combinumeral">❸</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175532"/><span class="fm-combinumeral">❶</span> Name of a container image to produce</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175549"/><span class="fm-combinumeral">❷</span> Project containing the source code</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175566"/><span class="fm-combinumeral">❸</span> Also apply YAML files.</p>
+
+  <p class="body"><a id="pgfId-1017597"/>From the chapter13 folder, you can run <code class="fm-code-in-text">skaffold dev</code>, and it will <a id="marker-1017608"/>build the projects, deploy container images, expose logs, and watch for file changes. Figure 13.2 shows a screenshot of Skaffold running.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH13_F02_Ponge.png" width="957" height="611"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1178544"/>Figure 13.2 Screenshot of Skaffold running services</p>
+
+  <p class="body"><a id="pgfId-1017628"/>Congratulations, you now have the services running in your (local) cluster!</p>
+
+  <p class="body"><a id="pgfId-1017648"/>You don’t have to use Skaffold, but for a good local development experience, this is a tool you can rely on. It hides some of the complexity of the <code class="fm-code-in-text">kubectl</code> command-line interface, and it bridges the gap between project build tools (such as Gradle or Maven) and the Kubernetes environment.</p>
+
+  <p class="body"><a id="pgfId-1017663"/>The following listing shows a few commands that check on the services deployed in a cluster.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017720"/>Listing 13.13 Checking the exposed services</p>
+  <pre class="programlisting">$ minikube tunnel                            <span class="fm-combinumeral">❶</span>
+$ kubectl get services                       <span class="fm-combinumeral">❷</span>
+NAME                 TYPE          CLUSTER-IP    EXTERNAL-IP   PORT(S)           AGE
+heat-api             LoadBalancer  10.103.127.60 10.103.127.60 8080:31673/TCP    102s
+heat-sensor-service  ClusterIP     None          &lt;none&gt;        8080/TCP,5701/TCP 102s
+kubernetes           ClusterIP     10.96.0.1     &lt;none&gt;        443/TCP            42m
+sensor-gateway       ClusterIP     10.108.31.235 &lt;none&gt;        8080/TCP,5701/TCP 102s</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175364"/><span class="fm-combinumeral">❶</span> Network tunnel, run in a separate terminal</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175385"/><span class="fm-combinumeral">❷</span> Get the services.</p>
+
+  <p class="body"><a id="pgfId-1017865"/>The <code class="fm-code-in-text">minikube tunnel</code> command is important <a id="marker-1017854"/>for accessing <code class="fm-code-in-text">LoadBalancer</code> services, and it should be run in a separate <a id="marker-1017870"/>terminal. Note that it will likely require you to enter your password, as the command needs to adjust your current network settings.</p>
+
+  <p class="body"><a id="pgfId-1017896"/>You can alternatively use the following Minikube command to obtain a URL for a <code class="fm-code-in-text">LoadBalancer</code> service without <code class="fm-code-in-text">minikube tunnel</code>:</p>
+  <pre class="programlisting">$ minikube service heat-api --url
+http://192.168.64.12:31673</pre>
+
+  <p class="fm-callout"><a id="pgfId-1017935"/><span class="fm-callout-head">Tip</span> The IP addresses for the services will be different on your machine. They will also change as you delete and create new services, so don’t make any assumptions about IP addresses in Kubernetes.</p>
+
+  <p class="body"><a id="pgfId-1017980"/>This works because <a id="marker-1017943"/>Minikube also exposes <code class="fm-code-in-text">LoadBalancer</code> services as <code class="fm-code-in-text">NodePort</code> on the Minikube <a id="marker-1017969"/>instance IP address. Both methods are equivalent when using Minikube, but the one using <code class="fm-code-in-text">minikube tunnel</code> is closer to what you would get with a production cluster, since the service is accessed via a cluster-external IP address.</p>
+
+  <p class="body"><a id="pgfId-1017989"/>Now that you have a way to access the heat API service, you can make a few requests.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018046"/>Listing 13.14 Interacting with the heat API service</p>
+  <pre class="programlisting">$ http 10.103.127.60:8080/all           <span class="fm-combinumeral">❶</span>
+HTTP/1.1 200 OK
+Content-Type: application/json
+content-length: 402
+
+&lt;JSON DATA&gt;
+
+$ http 10.103.127.60:8080/warnings      <span class="fm-combinumeral">❷</span>
+HTTP/1.1 200 OK
+Content-Type: application/json
+content-length: 11
+
+&lt;JSON DATA&gt;</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175242"/><span class="fm-combinumeral">❶</span> Get all data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175263"/><span class="fm-combinumeral">❷</span> Get out-of-range sensor data.</p>
+
+  <p class="body"><a id="pgfId-1018202"/>You can also access the sensor gateway using port forwarding, as shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018259"/>Listing 13.15 Interacting with the sensor gateway</p>
+  <pre class="programlisting">$ kubectl port-forward services/sensor-gateway 8080     <span class="fm-combinumeral">❶</span>
+$ http :8080/data                                       <span class="fm-combinumeral">❷</span>
+HTTP/1.1 200 OK
+Content-Type: application/json
+content-length: 400
+
+&lt;JSON data&gt;</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175096"/><span class="fm-combinumeral">❶</span> Port forward from a service to a local port (run in a separate terminal).</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1175117"/><span class="fm-combinumeral">❷</span> Call the service.</p>
+
+  <p class="body"><a id="pgfId-1018409"/>The <code class="fm-code-in-text">kubectl port-forward</code> command must be run <a id="marker-1018392"/>in another terminal, and as long as it is running, the local port 8080 forwards to the sensor gateway service inside the cluster. This is very convenient for accessing anything that is running in the cluster without <a id="marker-1018398"/>being exposed as a <code class="fm-code-in-text">LoadBalancer</code> service.</p>
+
+  <p class="body"><a id="pgfId-1018418"/>Finally, we can make a DNS query to see how the heat sensor headless services are resolved. The following listing uses a third-party image that contains the <code class="fm-code-in-text">dig</code> tool, which can be used <a id="marker-1018429"/>to make DNS requests.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018490"/>Listing 13.16 DNS query to discover the headless heat sensor services</p>
+  <pre class="programlisting">$ kubectl run --image tutum/dnsutils dns -it --rm -- bash               <span class="fm-combinumeral">❶</span>
+root@dns:/# dig +short heat-sensor-service.default.svc.cluster.local    <span class="fm-combinumeral">❷</span>
+172.17.0.8
+172.17.0.12
+172.17.0.11
+172.17.0.9
+root@dns:/#</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174973"/><span class="fm-combinumeral">❶</span> An image with dig installed</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174994"/><span class="fm-combinumeral">❷</span> Run a DNS query.</p>
+
+  <p class="body"><a id="pgfId-1018613"/>Now if we increase the number of replicas, as in the following listing, we can see that the DNS reflects the change.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018670"/>Listing 13.17 Increasing the number of heat sensor service replicas</p>
+  <pre class="programlisting">$ kubectl scale deployment/heat-sensor-service --replicas 5     <span class="fm-combinumeral">❶</span>
+$ kubectl run --image tutum/dnsutils dns -it --rm -- bash
+root@dns:/# dig +short heat-sensor-service.default.svc.cluster.local
+172.17.0.11
+172.17.0.12
+172.17.0.8
+172.17.0.13
+172.17.0.9
+root@dns:/#</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174904"/><span class="fm-combinumeral">❶</span> Scale to five replicas.</p>
+
+  <p class="body"><a id="pgfId-1018783"/>Also, if we make HTTP requests like in listing 13.14, we can see that we have data from five sensors.</p>
+
+  <p class="body"><a id="pgfId-1018789"/>Now that we have deployed the services and interacted with them, let’s look at how deployment in Kubernetes works for Vert.x services. <a id="marker-1018791"/><a id="marker-1018794"/><a id="marker-1018796"/><a id="marker-1018798"/></p>
+
+  <h2 class="fm-head" id="heading_id_8"><a id="pgfId-1018804"/>13.2 Making the services work in Kubernetes</h2>
+
+  <p class="body"><a id="pgfId-1018827"/><a id="marker-1018815"/><a id="marker-1018817"/>Making a service <i class="fm-italics">work</i> in Kubernetes is fairly transparent for the most part, especially when it has been designed to be agnostic of the target runtime environment. Whether it runs in a container, in a virtual machine, or on bare-metal should never be an issue. Still, there are some aspects where adaptation and configuration need to be done due to how Kubernetes works.</p>
+
+  <p class="body"><a id="pgfId-1018836"/>In our case, the only major adaptation that has to be made is configuring the cluster manager so instances can discover themselves and messages can be sent across the distributed event bus. The rest is just a matter of building container images of the services and writing Kubernetes resource descriptors to deploy the services.</p>
+
+  <p class="body"><a id="pgfId-1018842"/>Let’s start by talking about building container images.</p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1018848"/>13.2.1 Building container images</h3>
+
+  <p class="body"><a id="pgfId-1018877"/><a id="marker-1018859"/><a id="marker-1018861"/>There are many ways to build a container image, which technically <a id="marker-1018866"/>is based on the <i class="fm-italics">OCI Image Format</i> (OCIIF; <span class="fm-hyperlink"><a href="https://github.com/opencontainers/image-spec">https://github.com/opencontainers/image-spec</a></span>). The most basic way to build such an image <a id="marker-1021535"/>is to write a <code class="fm-code-in-text">Dockerfile</code> and use the <code class="fm-code-in-text">docker</code> <code class="fm-code-in-text">build</code> command to build an image. Note that <code class="fm-code-in-text">Dockerfile</code> descriptors can be <a id="marker-1021571"/>used by other tools such as Podman (<span class="fm-hyperlink"><a href="https://podman.io/">https://podman.io/</a></span>) or Buildah (<span class="fm-hyperlink"><a href="https://github.com/containers/buildah">https://github.com/containers/buildah</a></span>), so you don’t actually need Docker to build container images.</p>
+
+  <p class="body"><a id="pgfId-1026006"/>You could thus choose a base image with Java, and then copy a self-contained executable Jar file to be run. While this approach is simple and works just fine, it means that for every change in the source code, you need to build a new image layer of the size of the Jar file that includes all dependencies such as Vert.x, Netty, and more. The compiled classes of a service typically weigh a few kilobytes, while a self-contained Jar file weighs a few megabytes.</p>
+
+  <p class="body"><a id="pgfId-1026012"/>Alternatively, you can either craft a <code class="fm-code-in-text">Dockerfile</code> with multiple <a id="marker-1026023"/>stages and layers, or you can use a tool like Jib to automatically do the equivalent for you (<span class="fm-hyperlink"><a href="https://github.com/GoogleContainerTools/jib">https://github.com/GoogleContainerTools/jib</a></span>). As shown in figure 13.3, Jib assembles different layers to make a container image.</p>
+
+  <p class="body"><a id="pgfId-1029302"/>Project dependencies are put just above the base image; they are typically bigger than the application code and resources, and they also tend not to change very often, except when upgrading versions and adding new dependencies. When a project has snapshot dependencies, they appear as a layer on top of the fixed-version dependencies, because newer snapshots appear frequently. The resources and class files change more often, and they are typically light on disk use, so they end up on top. This clever layering approach does not just save disk space; it also improves build time, since layers can often be reused.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH13_F03_Ponge.png" width="853" height="684"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1178586"/>Figure 13.3 Container image layers with Jib</p>
+
+  <p class="body"><a id="pgfId-1029322"/>Jib offers Maven and Gradle plugins, and it builds container images by deriving information from a project. Jib is also great because it is purely written in Java and it does not need Docker to build images, so you can produce container images without any third-party tools. It can also publish container images to registries and Docker daemons, which is useful in development.</p>
+
+  <p class="body"><a id="pgfId-1029328"/>Once the Jib plugin has been applied, all you need is a few configuration elements, as in the following listing for a Gradle build (the Maven version is equivalent, albeit done in XML).</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1029385"/>Listing 13.18 Configuring the Jib Gradle plugin</p>
+  <pre class="programlisting">jib {
+  from {
+    image = "adoptopenjdk/openjdk11:ubi-minimal-jre"     <span class="fm-combinumeral">❶</span>
+  }
+  to {
+    image = "vertx-in-action/heat-sensor"                <span class="fm-combinumeral">❷</span>
+    tags = setOf("v1", "latest")                         <span class="fm-combinumeral">❸</span>
+  }
+  container {
+    mainClass = "chapter13.sensor.HeatSensor"            <span class="fm-combinumeral">❹</span>
+    jvmFlags = listOf("-noverify", 
+    <span class="fm-code-continuation-arrow">➥</span> "-Djava.security.egd=file:/dev/./urandom")        <span class="fm-combinumeral">❺</span>
+    ports = listOf("8080", "5701")                       <span class="fm-combinumeral">❻</span>
+    user = "nobody:nobody"                               <span class="fm-combinumeral">❼</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174450"/><span class="fm-combinumeral">❶</span> Base image</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174471"/><span class="fm-combinumeral">❷</span> Image name</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174488"/><span class="fm-combinumeral">❸</span> Image tags</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174505"/><span class="fm-combinumeral">❹</span> Main class to run</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174522"/><span class="fm-combinumeral">❺</span> JVM tuning flags</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174539"/><span class="fm-combinumeral">❻</span> Ports to be exposed by the container</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174556"/><span class="fm-combinumeral">❼</span> Run as this user.</p>
+
+  <p class="body"><a id="pgfId-1029701"/>The base image comes from the AdoptOpenJDK project, which publishes many builds of OpenJDK (<span class="fm-hyperlink"><a href="https://adoptopenjdk.net">https://adoptopenjdk.net</a></span>). Here we are using OpenJDK 11 as a <i class="fm-italics">Java Runtime Environment</i> (JRE) rather than <a id="marker-1029678"/><a id="marker-1029681"/>a full <i class="fm-italics">Java Development Kit</i> (JDK). This saves disk space, as we just need a runtime, and a JDK image is bigger than a JRE image. The <code class="fm-code-in-text">ubi-minimal</code> part is because we use an AdoptOpenJDK build variant based on the Red Hat Universal Base Image, where the “minimal” variant minimizes the embedded dependencies.</p>
+
+  <p class="body"><a id="pgfId-1029726"/>Jib needs to know the main class to execute as well as the ports to be exposed outside the container. In the case of the heat sensor and sensor gateway services, we need to expose port 8080 for the HTTP service and port 5701 for the Vert.x clustering with Hazelcast. The JVM tuning is limited to disabling the JVM bytecode verifier so it boots marginally faster, and also using /dev/urandom for random number generation (the default /dev/random pseudo-file may block when a container starts and there isn’t enough entropy). Finally, we run as user <code class="fm-code-in-text">nobody</code> in group <code class="fm-code-in-text">nobody</code> to ensure the process runs as an unprivileged user inside the container.</p>
+
+  <p class="body"><a id="pgfId-1029735"/>You can build an image and inspect it as shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1029792"/>Listing 13.19 Building a service container image to a Docker daemon</p>
+  <pre class="programlisting">$ ./gradlew :heat-sensor-service:jibDockerBuild               <span class="fm-combinumeral">❶</span>
+(...)
+
+$ docker image inspect vertx-in-action/heat-sensor:latest     <span class="fm-combinumeral">❷</span>
+(...)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174326"/><span class="fm-combinumeral">❶</span> Build a container image for the heat sensor service and push it to a local Docker daemon.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174347"/><span class="fm-combinumeral">❷</span> Inspect the container image.</p>
+
+  <p class="body"><a id="pgfId-1029902"/>All three services’ container images build the same way. The only configuration difference is that the heat API service only exposes port 8080, since it does not need a cluster manager.</p>
+
+  <p class="fm-callout"><a id="pgfId-1032702"/><span class="fm-callout-head">Tip</span> You can use a tool like Dive (<span class="fm-hyperlink"><a href="https://github.com/wagoodman/dive">https://github.com/wagoodman/dive</a></span>) if you are curious about the content of the different layers produced to prepare the container images of the three services.</p>
+
+  <p class="body"><a id="pgfId-1032725"/>Speaking of clustering, there is configuration work to be done!<a id="marker-1032727"/><a id="marker-1032730"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1032736"/>13.2.2 Clustering and Kubernetes</h3>
+
+  <p class="body"><a id="pgfId-1032753"/><a id="marker-1032747"/><a id="marker-1032749"/>Both Hazelcast and Infinispan, which you used in chapter 3, by default use multicast communications to discover nodes. This is great for local testing and many bare-metal server deployments, but multicast communications are not possible in a Kubernetes cluster. If you run the containers as is on Kubernetes, the heat sensor services and sensor gateway instances will not be able to communicate over the event bus.</p>
+
+  <p class="body"><a id="pgfId-1032758"/>These cluster managers can, of course, be configured to perform service discovery in Kubernetes. We will briefly cover the case of Hazelcast, where two discovery modes are possible:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1032764"/>Hazelcast can connect to the Kubernetes API to listen for and discover pods matching a request, such as a desired label and value.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1032778"/>Hazelcast can periodically make DNS queries to discover all pods for a given Kubernetes (headless) service.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1032788"/>The DNS approach is more limited.</p>
+
+  <p class="body"><a id="pgfId-1032794"/>Instead, let’s use the Kubernetes API and configure Hazelcast to use it. By default, the Hazelcast Vert.x cluster manager reads configuration from a cluster.xml resource. The following listing shows the relevant configuration excerpt of the heat-sensor-service/ src/main/resource/cluster.xml file.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1032851"/>Listing 13.20 Kubernetes configuration for Hazelcast discovery</p>
+  <pre class="programlisting">(...)
+&lt;join&gt;
+  &lt;multicast enabled="false"/&gt;                                              <span class="fm-combinumeral">❶</span>
+  &lt;tcp-ip enabled="false" /&gt;
+  &lt;discovery-strategies&gt;
+    &lt;discovery-strategy enabled="true"
+     class="com.hazelcast.kubernetes.HazelcastKubernetesDiscoveryStrategy"&gt; <span class="fm-combinumeral">❷</span>
+      &lt;properties&gt;
+        &lt;property name="service-label-name"&gt;vertx-in-action&lt;/property&gt;      <span class="fm-combinumeral">❸</span>
+        &lt;property name="service-label-value"&gt;chapter13&lt;/property&gt;           <span class="fm-combinumeral">❹</span>
+      &lt;/properties&gt;
+    &lt;/discovery-strategy&gt;
+  &lt;/discovery-strategies&gt;
+&lt;/join&gt;
+(...)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174067"/><span class="fm-combinumeral">❶</span> Disable multicast communications.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174084"/><span class="fm-combinumeral">❷</span> Enable the Kubernetes discovery strategy.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174101"/><span class="fm-combinumeral">❸</span> Match services with the label vertx-in-action.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1174118"/><span class="fm-combinumeral">❹</span> Match services with the value chapter13 for label vertx-in-action.</p>
+
+  <p class="body"><a id="pgfId-1033089"/>We disable the default discovery mechanism and enable the Kubernetes ones. Here Hazelcast forms <a id="marker-1033068"/>clusters of pods that belong to a service where a <code class="fm-code-in-text">vertx-in-action</code> label is defined with the value <code class="fm-code-in-text">chapter13</code>. Since we opened port 5701, the pods will be able to connect. Note that the configuration is the same for the sensor gateway.</p>
+
+  <p class="body"><a id="pgfId-1033119"/>Since Hazelcast needs to read from the Kubernetes API, we need to ensure that we have permissions <a id="marker-1033100"/><a id="marker-1033103"/>using the Kubernetes role-based access control (RBAC). To do so, we need to apply <a id="marker-1033108"/>the <code class="fm-code-in-text">ClusterRoleBinding</code> resource of the following listing and the k8s/rbac.yaml file.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1033179"/>Listing 13.21 RBAC to grant view access to the Kubernetes API</p>
+  <pre class="programlisting">apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding                   <span class="fm-combinumeral">❶</span>
+metadata:
+  name: default-cluster
+roleRef:
+  apiGroup: rbac.authorization.k8s.io      <span class="fm-combinumeral">❷</span>
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173941"/><span class="fm-combinumeral">❶</span> Resource type</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173962"/><span class="fm-combinumeral">❷</span> View role reference</p>
+
+  <p class="body"><a id="pgfId-1033332"/>The last thing we need to do is ensure that the heat sensor and gateway services run with clustering enabled. In both cases the code is similar. The following listing shows the <code class="fm-code-in-text">main</code> method for the <a id="marker-1033343"/>heat sensor service.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1033404"/>Listing 13.22 Enabling clustering for the heat sensor service</p>
+  <pre class="programlisting">public static void main(String[] args) throws UnknownHostException {
+  String ipv4 = InetAddress.getLocalHost().getHostAddress();         <span class="fm-combinumeral">❶</span>
+  VertxOptions options = new VertxOptions()
+    .setEventBusOptions(new EventBusOptions()                        <span class="fm-combinumeral">❷</span>
+      .setHost(ipv4)                                                 <span class="fm-combinumeral">❸</span>
+      .setClusterPublicHost(ipv4));                                  <span class="fm-combinumeral">❹</span>
+  Vertx.clusteredVertx(options, ar -&gt; {                              <span class="fm-combinumeral">❺</span>
+    if (ar.succeeded()) {
+      ar.result().deployVerticle(new HeatSensor());
+    } else {
+      logger.error("Could not start", ar.cause());
+    }
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173533"/><span class="fm-combinumeral">❶</span> Get the IPv4 address of the host.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173554"/><span class="fm-combinumeral">❷</span> Customize the event-bus options.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173578"/><span class="fm-combinumeral">❸</span> Set the host address.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173595"/><span class="fm-combinumeral">❹</span> Set the host that other nodes need to talk to.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173612"/><span class="fm-combinumeral">❺</span> Start Vert.x in cluster mode.</p>
+
+  <p class="body"><a id="pgfId-1033648"/>We start a clustered Vert.x context and pass options to customize the event-bus configuration. In most cases you don’t need to do any extra tuning here, but in the context of Kubernetes, clustering will <a id="marker-1033637"/>likely resolve to <code class="fm-code-in-text">localhost</code> rather the actual host IPv4 address. This is why we first resolve the IPv4 address and then set the event-bus configuration host to that address, so the other nodes can talk to it.</p>
+
+  <p class="fm-callout"><a id="pgfId-1033667"/><span class="fm-callout-head">Tip</span> The event-bus network configuration performed in listing 13.22 will be done automatically in future Vert.x releases. I show it here because it can help you troubleshoot distributed event-bus configuration issues in contexts other than Kubernetes. <a id="marker-1033669"/><a id="marker-1033672"/></p>
+
+  <h3 class="fm-head1" id="heading_id_11"><a id="pgfId-1033678"/>13.2.3 Kubernetes deployment and service resources</h3>
+
+  <p class="body"><a id="pgfId-1033695"/><a id="marker-1033689"/><a id="marker-1033691"/>Now that you know how to put your services into containers and how to make sure Vert.x clustering works in Kubernetes, we need to discuss resource descriptors. Indeed, Kubernetes needs some descriptors to deploy container images to pods and expose services.</p>
+
+  <p class="body"><a id="pgfId-1033700"/>Let’s start with the heat sensor service’s <i class="fm-italics">deployment descriptor,</i> shown <a id="marker-1033711"/>in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1033772"/>Listing 13.23 Heat sensor service deployment descriptor</p>
+  <pre class="programlisting">apiVersion: apps/v1
+kind: Deployment                                                <span class="fm-combinumeral">❶</span>
+metadata:
+  labels:
+    app: heat-sensor-service
+  name: heat-sensor-service                                     <span class="fm-combinumeral">❷</span>
+spec:
+  selector:
+    matchLabels:
+      app: heat-sensor-service
+  replicas: 4                                                   <span class="fm-combinumeral">❸</span>
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:                                              <span class="fm-combinumeral">❹</span>
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: heat-sensor-service
+    spec:
+      containers:
+        - image: vertx-in-action/heat-sensor-service:latest     <span class="fm-combinumeral">❺</span>
+          name: heat-sensor-service</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173101"/><span class="fm-combinumeral">❶</span> This is a deployment resource.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173122"/><span class="fm-combinumeral">❷</span> Name of the deployment</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173139"/><span class="fm-combinumeral">❸</span> Deploy four instances by default.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173163"/><span class="fm-combinumeral">❹</span> Rolling update configuration for Hazelcast</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1173180"/><span class="fm-combinumeral">❺</span> Container image to deploy</p>
+
+  <p class="body"><a id="pgfId-1034105"/>This deployment descriptor by default deploys four pods of the <code class="fm-code-in-text">vertx-in-action/ heat-sensor-service</code> container image. Deploying pods is a good first step, but we also <a id="marker-1034074"/>need a <i class="fm-italics">service definition</i> that maps to these pods. This is especially important for Hazelcast: remember that these instances discover themselves through Kubernetes services with the label <code class="fm-code-in-text">vertx-in-action</code> and value <code class="fm-code-in-text">chapter13</code>.</p>
+
+  <p class="body"><a id="pgfId-1034152"/>Kubernetes performs <i class="fm-italics">rolling updates</i> when a deployment <a id="marker-1170165"/>is updated by progressively replacing pods of the older configuration with pods of the newer configuration. It is best to set <a id="marker-1170167"/>the values of <code class="fm-code-in-text">maxSurge</code> and <code class="fm-code-in-text">maxUnavailable</code> to <code class="fm-code-in-text">1</code>. When you do so, Kubernetes replaces <a id="marker-1170168"/>pods one after the other, so the cluster state is smoothly transferred to the new pods. You can avoid this configuration and let Kubernetes be more aggressive when rolling updates, but the cluster state may be inconsistent for some time.</p>
+
+  <p class="body"><a id="pgfId-1034180"/>The following listing <a id="marker-1034169"/>shows the <i class="fm-italics">service resource definition</i>.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1034240"/>Listing 13.24 Heat sensor service definition</p>
+  <pre class="programlisting">apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: heat-sensor-service
+    vertx-in-action: chapter13     <span class="fm-combinumeral">❶</span>
+  name: heat-sensor-service
+spec:
+  clusterIP: None                  <span class="fm-combinumeral">❷</span>
+  selector:
+    app: heat-sensor-service       <span class="fm-combinumeral">❸</span>
+  ports:                           <span class="fm-combinumeral">❹</span>
+    - name: http
+      port: 8080
+    - name: hazelcast
+      port: 5701</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172853"/><span class="fm-combinumeral">❶</span> Label used for Hazelcast discovery</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172874"/><span class="fm-combinumeral">❷</span> We want a “headless” service.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172891"/><span class="fm-combinumeral">❸</span> Matches pods with this label/value pair</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172908"/><span class="fm-combinumeral">❹</span> The ports to expose</p>
+
+  <p class="body"><a id="pgfId-1034461"/>The service descriptor exposes a <i class="fm-italics">headless</i> service, which is to <a id="marker-1034472"/>say that there is no load balancing among the pods. Because each service is a sensor, they cannot be taken one for the other. Headless services can instead be discovered using DNS queries that return the list of all pods. You saw in listing 13.16 how headless services could be discovered using DNS queries.</p>
+
+  <p class="body"><a id="pgfId-1034482"/>The deployment descriptor for the sensor gateway is nearly identical to that of the heat sensor service, as you can see in the next listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1034539"/>Listing 13.25 Sensor gateway deployment descriptor</p>
+  <pre class="programlisting">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: sensor-gateway
+  name: sensor-gateway
+spec:
+  selector:
+    matchLabels:
+      app: sensor-gateway
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: sensor-gateway
+    spec:
+      containers:
+        - image: vertx-in-action/sensor-gateway:latest        <span class="fm-combinumeral">❶</span>
+          name: sensor-gateway</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172790"/><span class="fm-combinumeral">❶</span> Container image</p>
+
+  <p class="body"><a id="pgfId-1034736"/>Aside from the names, you can note that we did not specify the replica count, which by default is 1. The service definition is shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1034793"/>Listing 13.26 Sensor gateway service definition</p>
+  <pre class="programlisting">apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: sensor-gateway
+    vertx-in-action: chapter13
+  name: sensor-gateway
+spec:
+  type: ClusterIP          <span class="fm-combinumeral">❶</span>
+  selector:
+    app: sensor-gateway
+  ports:
+    - name: http
+      port: 8080
+    - name: hazelcast
+      port: 5701</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172729"/><span class="fm-combinumeral">❶</span> Cluster-internal load balancing</p>
+
+  <p class="body"><a id="pgfId-1034948"/>Now we expose a service that does load balancing. If we start further pods, the traffic will be load balanced between them. A <code class="fm-code-in-text">ClusterIP</code> service is load <a id="marker-1034959"/>balanced, but it is not exposed outside the cluster.</p>
+
+  <p class="body"><a id="pgfId-1034982"/>The heat API deployment is very similar to the deployments we’ve already done, except that there is configuration to pass through environment variables. The following listing shows the interesting portion <a id="marker-1165159"/>of the descriptor in the <code class="fm-code-in-text">spec.template.spec .containers</code> section.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1035042"/>Listing 13.27 Heat API deployment excerpt</p>
+  <pre class="programlisting">spec:
+  containers:
+    - image: vertx-in-action/heat-api:latest
+      name: heat-api
+      env:                                   <span class="fm-combinumeral">❶</span>
+        - name: LOW_TEMP                     <span class="fm-combinumeral">❷</span>
+          value: "12.0"
+        - name: HIGH_TEMP
+          value: "32.0"
+        - name: GATEWAY_HOST
+          valueFrom:
+            configMapKeyRef:                 <span class="fm-combinumeral">❸</span>
+              name: sensor-gateway-config
+              key: gateway_hostname
+        - name: GATEWAY_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: sensor-gateway-config
+              key: gateway_port</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172513"/><span class="fm-combinumeral">❶</span> Define environment variables.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172534"/><span class="fm-combinumeral">❷</span> Override the LOW_TEMP environment value.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172551"/><span class="fm-combinumeral">❸</span> Get a value from a ConfigMap resource.</p>
+
+  <p class="body"><a id="pgfId-1035275"/>Environment variables can be either passed directly by value, as for <code class="fm-code-in-text">LOW_TEMP</code>, or passed through the indirection of a <code class="fm-code-in-text">ConfigMap</code> resource, as in the <a id="marker-1035280"/>following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1035341"/>Listing 13.28 Configuration map example</p>
+  <pre class="programlisting">apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sensor-gateway-config                                   <span class="fm-combinumeral">❶</span>
+data:
+  gateway_hostname: sensor-gateway.default.svc.cluster.local    <span class="fm-combinumeral">❷</span>
+  gateway_port: "8080"</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172375"/><span class="fm-combinumeral">❶</span> Name of the ConfigMap resource</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172396"/><span class="fm-combinumeral">❷</span> Value for the gateway_hostname key</p>
+
+  <p class="body"><a id="pgfId-1035527"/>By passing environment variables through a <code class="fm-code-in-text">ConfigMap</code>, we can change configuration without having to update the heat API deployment descriptor. Note the <a id="marker-1035476"/>value of <code class="fm-code-in-text">gateway _hostname</code>: this is the name used to resolve the service with DNS inside the Kubernetes cluster. Here <code class="fm-code-in-text">default</code> is the Kubernetes namespace, <code class="fm-code-in-text">svc</code> designates a service resource, and <code class="fm-code-in-text">cluster.local</code> resolves to the <code class="fm-code-in-text">cluster.local</code> domain name (remember that <a id="marker-1035532"/>we are using a local development cluster).</p>
+
+  <p class="body"><a id="pgfId-1035542"/>Finally, the following listing shows how to expose the heat sensor API as an externally load-balanced service.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1035599"/>Listing 13.29 Heat API service definition</p>
+  <pre class="programlisting">apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: heat-api
+  name: heat-api
+spec:
+  type: LoadBalancer       <span class="fm-combinumeral">❶</span>
+  selector:
+    app: heat-api
+  ports:
+    - name: http
+      port: 8080</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172314"/><span class="fm-combinumeral">❶</span> Load balance externally.</p>
+
+  <p class="body"><a id="pgfId-1035758"/>A <code class="fm-code-in-text">LoadBalancer</code> service is exposed <a id="marker-1035747"/>outside the cluster. It can also be mapped to a host name using an <i class="fm-italics">Ingress</i>, but this is not something that we will cover.<a href="#pgfId-1035764">1</a></p>
+
+  <p class="body"><a id="pgfId-1035786"/>We have now covered deploying the services to Kubernetes, so you may think that we are done. Sure, the services work great in Kubernetes as-is, but we can make the integration even better!<a id="marker-1035788"/><a id="marker-1035791"/><a id="marker-1035793"/><a id="marker-1035795"/></p>
+
+  <h2 class="fm-head" id="heading_id_12"><a id="pgfId-1035801"/>13.3 First-class Kubernetes citizens</h2>
+
+  <p class="body"><a id="pgfId-1035818"/><a id="marker-1035812"/><a id="marker-1035814"/>As you have seen, the services that we deployed work fine in Kubernetes. That being said, we can make them first-class Kubernetes citizens by doing two things:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1035823"/>Exposing health and readiness checks</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1035837"/>Exposing metrics</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1035847"/>This is important to ensure that a cluster knows how services behave, so that it can restart services or scale them up and down.</p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1035853"/>13.3.1 Health checks</h3>
+
+  <p class="body"><a id="pgfId-1035870"/><a id="marker-1035864"/><a id="marker-1035866"/>When Kubernetes starts a pod, it assumes that it can serve requests on the exposed ports, and that the application is running fine as long as the process is running. If a process crashes, Kubernetes will restart its pod. Also, if a process consumes too much memory, Kubernetes will kill it and restart its pod.</p>
+
+  <p class="body"><a id="pgfId-1035875"/>We can do better by having a process <i class="fm-italics">inform</i> Kubernetes about how it is doing. There are two important concepts in health checking:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1035890"/><i class="fm-italics1">Liveness checks</i> allow a service <a class="calibre9" id="marker-1035907"/>to report if it is working correctly, or if it is failing and needs to be restarted.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1035917"/><i class="fm-italics1">Readiness checks</i> allow a service <a class="calibre9" id="marker-1035930"/>to report that it is ready to accept traffic.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1035940"/>Liveness checks are important because a process may be working, yet be stuck with a fatal error, or be stuck in, say, an infinite loop. Liveness probes can be based on files, TCP ports, and HTTP endpoints. When probes fail beyond a threshold, Kubernetes restarts the pod.</p>
+
+  <p class="body"><a id="pgfId-1035946"/>The heat sensor service and sensor gateway can provide simple health-check reporting using HTTP. As long as the HTTP endpoint is responding, that means the service is operating. The following listing shows how to add health-check capability to these services.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1036003"/>Listing 13.30 Simple HTTP health-check probe</p>
+  <pre class="programlisting">// In the verticle start method:
+router.get("/health").handler(this::healthCheck);                          <span class="fm-combinumeral">❶</span>
+
+// (...)
+private final JsonObject okStatus = new JsonObject().put("status", "UP");  <span class="fm-combinumeral">❷</span>
+
+private void healthCheck(RoutingContext ctx) {                             <span class="fm-combinumeral">❸</span>
+  logger.info("Health check");
+  ctx.response()
+    .putHeader("Content-Type", "application/json")
+    .end(okStatus.encode());
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172110"/><span class="fm-combinumeral">❶</span> Add a route for a health check.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172131"/><span class="fm-combinumeral">❷</span> JSON payload to say the service is up</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1172148"/><span class="fm-combinumeral">❸</span> Vert.x web handler for health checks</p>
+
+  <p class="body"><a id="pgfId-1036202"/>With HTTP probes, Kubernetes is interested in the HTTP status code of the response: 200 means the check succeeded, and anything else means that there is a problem. It is a loose convention to return a JSON document with a <code class="fm-code-in-text">status</code> field and the value <code class="fm-code-in-text">UP</code> or <code class="fm-code-in-text">DOWN</code>. Additional data can be in the document, such as messages from various checks being done. This data is mostly useful when logged for diagnosis purposes.</p>
+
+  <p class="body"><a id="pgfId-1036211"/>We then have to let Kubernetes know about the probe, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1036268"/>Listing 13.31 Heat sensor service liveness probe</p>
+  <pre class="programlisting"># (...)
+spec:
+  containers:
+    - image: vertx-in-action/heat-sensor-service:latest
+      name: heat-sensor-service
+      livenessProbe:                  <span class="fm-combinumeral">❶</span>
+        httpGet:                      <span class="fm-combinumeral">❷</span>
+          path: /health
+          port: 8080
+        initialDelaySeconds: 15       <span class="fm-combinumeral">❸</span>
+        periodSeconds: 15             <span class="fm-combinumeral">❹</span>
+        timeoutSeconds: 5             <span class="fm-combinumeral">❺</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171797"/><span class="fm-combinumeral">❶</span> Define a liveness probe.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171818"/><span class="fm-combinumeral">❷</span> Specify the HTTP endpoint.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171835"/><span class="fm-combinumeral">❸</span> Initial delay before doing checks</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171852"/><span class="fm-combinumeral">❹</span> Interval between checks</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171869"/><span class="fm-combinumeral">❺</span> Check timeout</p>
+
+  <p class="body"><a id="pgfId-1036487"/>Here the liveness checks start after 15 seconds, happen every 15 seconds, and time out after 5 seconds. We can check this by looking at the logs of one of the heat sensor service pods.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1036544"/>Listing 13.32 Health checks in logs</p>
+  <pre class="programlisting">$ kubectl logs -f heat-sensor-service-6944f78b84-2tpnx | grep 
+<span class="fm-code-continuation-arrow">➥</span> 'Health check'                                               <span class="fm-combinumeral">❶</span>
+2020-05-02 17:27:54,218 INFO [vert.x-eventloop-thread-1] 
+<span class="fm-code-continuation-arrow">➥</span> chapter13.sensor.HeatSensor - Health check
+2020-05-02 17:28:09,182 INFO [vert.x-eventloop-thread-1] 
+<span class="fm-code-continuation-arrow">➥</span> chapter13.sensor.HeatSensor - Health check
+2020-05-02 17:28:24,181 INFO [vert.x-eventloop-thread-1] 
+<span class="fm-code-continuation-arrow">➥</span> chapter13.sensor.HeatSensor - Health check
+2020-05-02 17:28:39,182 INFO [vert.x-eventloop-thread-1] 
+<span class="fm-code-continuation-arrow">➥</span> chapter13.sensor.HeatSensor - Health check</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171695"/><span class="fm-combinumeral">❶</span> The pod name will be different on your machine.</p>
+
+  <p class="body"><a id="pgfId-1036646"/>To get a pod name and check the logs, you can look <a id="marker-1036635"/>at the output of <code class="fm-code-in-text">kubectl logs</code>. Here we see that the checks indeed happen every 15 seconds.</p>
+
+  <p class="body"><a id="pgfId-1036655"/>The case of the heat API is more interesting, as we can define both liveness and readiness checks. The API needs the sensor gateway, so its readiness depends on that of the gateway. First, we have to define two routes for liveness and readiness checks, as shown in the next listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1036712"/>Listing 13.33 Health-check routes of the heat API service</p>
+  <pre class="programlisting">router.get("/health/ready").handler(this::readinessCheck);     <span class="fm-combinumeral">❶</span>
+router.get("/health/live").handler(this::livenessCheck);       <span class="fm-combinumeral">❷</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171582"/><span class="fm-combinumeral">❶</span> Readiness check</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171603"/><span class="fm-combinumeral">❷</span> Liveness check</p>
+
+  <p class="body"><a id="pgfId-1036805"/>The implementation of the <code class="fm-code-in-text">livenessCheck</code> method is identical <a id="marker-1036816"/>to that of listing 13.30: if the service responds, it is alive. There is no condition under which the service would respond yet be in a state where a restart would be required. The service can, however, be unable to accept traffic because the sensor gateway is not available, which will be reported by the following readiness check.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1036877"/>Listing 13.34 Readiness check of the heat API service</p>
+  <pre class="programlisting">private void readinessCheck(RoutingContext ctx) {
+  webClient.get("/health")                                       <span class="fm-combinumeral">❶</span>
+    .expect(ResponsePredicate.SC_OK)
+    .timeout(5000)
+    .send(ar -&gt; {
+      if (ar.succeeded()) {
+        logger.info("Readiness check complete");
+        ctx.response().setStatusCode(200)                        <span class="fm-combinumeral">❷</span>
+          .putHeader("Content-Type", "application/json")
+          .end(okStatus.encode());
+      } else {
+        logger.error("Readiness check failed", ar.cause());
+        ctx.response().setStatusCode(503)                        <span class="fm-combinumeral">❸</span>
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject()
+            .put("status", "DOWN")
+            .put("reason", ar.cause().getMessage()).encode());   <span class="fm-combinumeral">❹</span>
+      }
+    });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171300"/><span class="fm-combinumeral">❶</span> Make a request to the sensor gateway.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171321"/><span class="fm-combinumeral">❷</span> Send a 200 status.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171338"/><span class="fm-combinumeral">❸</span> Report a failure.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171355"/><span class="fm-combinumeral">❹</span> Give the error message in the report.</p>
+
+  <p class="body"><a id="pgfId-1037122"/>To perform a readiness check, we make a request to the sensor gateway health-check endpoint. We could actually make any other request that allows us to know if the service is available. We then respond to the readiness check with either an HTTP 200 or 503.</p>
+
+  <p class="body"><a id="pgfId-1037128"/>The configuration in the deployment resource is shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1037185"/>Listing 13.35 Configuring health checks for the heat API service</p>
+  <pre class="programlisting"># (...)
+spec:
+  containers:
+    - image: vertx-in-action/heat-api:latest
+      name: heat-api
+      # (...)
+      livenessProbe:
+        httpGet:
+          path: /health/live
+          port: 8080
+        initialDelaySeconds: 1
+        periodSeconds: 15
+        timeoutSeconds: 5
+      readinessProbe:           <span class="fm-combinumeral">❶</span>
+        httpGet:
+          path: /health/ready
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        timeoutSeconds: 5</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171234"/><span class="fm-combinumeral">❶</span> Define a readiness probe.</p>
+
+  <p class="body"><a id="pgfId-1037377"/>As you can see, a readiness probe is configured very much like a liveness probe. We have <a id="marker-1037366"/>defined <code class="fm-code-in-text">initialDelaySeconds</code> to be five seconds; this is because the initial Hazelcast discovery takes a few seconds, so the sensor gateway hasn’t deployed its verticle before this has been completed.</p>
+
+  <p class="body"><a id="pgfId-1037386"/>We can check the effect by taking down all instances of the sensor gateway, as shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1037443"/>Listing 13.36 Scaling down the sensor gateway to 0 replicas</p>
+  <pre class="programlisting">$ kubectl scale deployment/sensor-gateway --replicas 0     <span class="fm-combinumeral">❶</span>
+deployment.extensions/sensor-gateway scaled
+$ kubectl get pods                                         <span class="fm-combinumeral">❷</span>
+NAME                                   READY   STATUS    RESTARTS   AGE
+heat-api-5dbcc84795-ccb8d              0/1     Running   0          55m
+heat-sensor-service-6946bc8f6f-2k7lv   1/1     Running   0          55m
+heat-sensor-service-6946bc8f6f-d9hd8   1/1     Running   0          55m
+heat-sensor-service-6946bc8f6f-rhdbg   1/1     Running   0          55m
+heat-sensor-service-6946bc8f6f-xd28p   1/1     Running   0          55m</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171090"/><span class="fm-combinumeral">❶</span> Scale to 0.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171111"/><span class="fm-combinumeral">❷</span> List all pods in the default namespace.</p>
+
+  <p class="body"><a id="pgfId-1037578"/>You should wait a few seconds before listing the pods, and observe that the heat API pod becomes marked as <code class="fm-code-in-text">0/1</code> ready. This is because the readiness checks have failed, so the pod will not receive traffic anymore. You can try running the following query and see an immediate error:</p>
+  <pre class="programlisting">$ http $(minikube service heat-api --url)/warnings</pre>
+
+  <p class="body"><a id="pgfId-1037607"/>Now if we scale back to one instance, we’ll get back to a working state, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1037664"/>Listing 13.37 Scaling up the sensor gateway to one replica</p>
+  <pre class="programlisting">$ kubectl scale deployment/sensor-gateway --replicas 1      <span class="fm-combinumeral">❶</span>
+deployment.extensions/sensor-gateway scaled
+$ kubectl get pods
+NAME                                   READY   STATUS    RESTARTS   AGE
+heat-api-5dbcc84795-ccb8d              1/1     Running   0          63m
+heat-sensor-service-6946bc8f6f-2k7lv   1/1     Running   0          63m
+heat-sensor-service-6946bc8f6f-d9hd8   1/1     Running   0          63m
+heat-sensor-service-6946bc8f6f-rhdbg   1/1     Running   0          63m
+heat-sensor-service-6946bc8f6f-xd28p   1/1     Running   0          63m
+sensor-gateway-6b7cd8bbcb-btl4k        1/1     Running   0          2m18s</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1171030"/><span class="fm-combinumeral">❶</span> Scale up to one instance.</p>
+
+  <p class="body"><a id="pgfId-1037783"/>You can now make successful HTTP requests again.</p>
+
+  <p class="fm-callout"><a id="pgfId-1037799"/><span class="fm-callout-head">note</span> The action you perform in a health or readiness check depends on what your service does. As a general rule, you should perform an action that has no side effect in the system. For instance, if your service needs to report a failed health check when a database connection is down, a safe action should be to perform a small SQL query. By contrast, doing a data insertion SQL query has side effects, and this is probably not how you want to check whether the database connection is working. <a id="marker-1037801"/><a id="marker-1037804"/></p>
+
+  <h3 class="fm-head1" id="heading_id_14"><a id="pgfId-1037810"/>13.3.2 Metrics</h3>
+
+  <p class="body"><a id="pgfId-1037827"/><a id="marker-1037821"/><a id="marker-1037823"/>Vert.x can be configured to report metrics on various items like event-bus communications, network communications, and more. Monitoring metrics is important, because they can be used to check how a service is doing and to trigger alerts. For instance, you can have an alert that causes Kubernetes to scale up a service when the throughput or latency of a given URL endpoint is above a threshold.</p>
+
+  <p class="body"><a id="pgfId-1037832"/>I will show you how to expose metrics from Vert.x, but the other topics, like visualization, alerting, and auto-scaling are vastly complex and are outside the scope of this book.</p>
+
+  <p class="body"><a id="pgfId-1037838"/>Vert.x exposes metrics over popular technologies such as JMX, Dropwizard, Jolokia, and Micrometer.</p>
+
+  <p class="body"><a id="pgfId-1037844"/>We will be using Micrometer and Prometheus. Micrometer (<span class="fm-hyperlink"><a href="https://micrometer.io/">https://micrometer .io/</a></span>) is interesting because it is an abstraction over metric-reporting backends such as InfluxDB and Prometheus. Prometheus is a metrics and alerting project that is popular in the Kubernetes ecosystem (<span class="fm-hyperlink"><a href="https://prometheus.io/">https://prometheus.io/</a></span>). It also works in <i class="fm-italics">pull</i> mode: Prometheus is configured to periodically collect metrics from services, so your services are not impacted by Prometheus being unavailable.</p>
+
+  <p class="body"><a id="pgfId-1037861"/>We will be adding metrics to the sensor gateway as it receives both event-bus and HTTP traffic; it is the most solicited service of the use case. To do that, we first have to add two dependencies as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1037918"/>Listing 13.38 Adding metrics support</p>
+  <pre class="programlisting">implementation("io.vertx:vertx-micrometer-metrics:$vertxVersion")           <span class="fm-combinumeral">❶</span>
+implementation("io.micrometer:micrometer-registry-prometheus:$mpromVersion")<span class="fm-combinumeral">❷</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170914"/><span class="fm-combinumeral">❶</span> Vert.x Micrometer support</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170931"/><span class="fm-combinumeral">❷</span> Micrometer support for Prometheus</p>
+
+  <p class="body"><a id="pgfId-1038024"/>The sensor gateway needs clustering and metrics when starting Vert.x from <a id="marker-1038013"/>the <code class="fm-code-in-text">main</code> method. We need to enable metrics as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1038084"/>Listing 13.39 Enabling Micrometer/Prometheus metrics</p>
+  <pre class="programlisting">VertxOptions options = new VertxOptions()
+  .setEventBusOptions(new EventBusOptions()              <span class="fm-combinumeral">❶</span>
+    .setHost(ipv4)
+    .setClusterPublicHost(ipv4))
+  .setMetricsOptions(new MicrometerMetricsOptions()      <span class="fm-combinumeral">❷</span>
+    .setPrometheusOptions(new VertxPrometheusOptions()
+      .setPublishQuantiles(true)                         <span class="fm-combinumeral">❸</span>
+      .setEnabled(true))
+    .setEnabled(true));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170723"/><span class="fm-combinumeral">❶</span> Event-bus configuration, just like before</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170744"/><span class="fm-combinumeral">❷</span> Enable Micrometer metrics with Prometheus.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170761"/><span class="fm-combinumeral">❸</span> Also publish metric quantiles.</p>
+
+  <p class="body"><a id="pgfId-1038241"/>We now have to define an HTTP endpoint for metrics to be available. The Vert.x Micrometer module offers a Vert.x web handler to make it easy, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1038298"/>Listing 13.40 Exposing a metrics endpoint over HTTP</p>
+  <pre class="programlisting">router.route("/metrics")                          <span class="fm-combinumeral">❶</span>
+  .handler(ctx -&gt; {
+    logger.info("Collecting metrics");            <span class="fm-combinumeral">❷</span>
+    ctx.next();
+  })
+  .handler(PrometheusScrapingHandler.create());   <span class="fm-combinumeral">❸</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170537"/><span class="fm-combinumeral">❶</span> Expose at the /metrics path.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170558"/><span class="fm-combinumeral">❷</span> Log requests.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170575"/><span class="fm-combinumeral">❸</span> Premade handler</p>
+
+  <p class="body"><a id="pgfId-1038437"/>It is a good idea to intercept metric requests and log them. This is useful when configuring Prometheus to check if it is collecting any metrics.</p>
+
+  <p class="body"><a id="pgfId-1038443"/>You can test the output using port forwarding.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1038500"/>Listing 13.41 Testing metric reports</p>
+  <pre class="programlisting">$ kubectl port-forward services/sensor-gateway 8080     <span class="fm-combinumeral">❶</span>
+
+$ http :8080/metrics                                    <span class="fm-combinumeral">❷</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170393"/><span class="fm-combinumeral">❶</span> Port forwarding in one terminal</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1170410"/><span class="fm-combinumeral">❷</span> Check the metrics output.</p>
+
+  <p class="body"><a id="pgfId-1038598"/>Prometheus metrics are exposed in a simple text format. As you can see when running the preceding commands, by default lots of interesting metrics are reported, like response times, open connections, and more. You can also define your own metrics using the Vert.x Micrometer module APIs and expose them just like the default ones.</p>
+
+  <p class="body"><a id="pgfId-1038604"/>You will find instructions and Kubernetes descriptors for configuring the Prometheus operator to consume metrics from the sensor gateway in the chapter13/ k8s-metrics folder of the book’s Git repository. You will also find a pointer to make a dashboard with Grafana that looks like the one in figure 13.4.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH13_F04_Ponge.png" width="998" height="724"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1178628"/>Figure 13.4 Metrics dashboard using Grafana</p>
+
+  <p class="body"><a id="pgfId-1038620"/>Grafana is a popular dashboard tool that can consume data from many sources, including Prometheus databases (<span class="fm-hyperlink"><a href="https://grafana.com/">https://grafana.com/</a></span>). All you need is to connect visualizations and queries. Fortunately, dashboards can be shared as JSON documents. Check the pointers in the Git repository if you want to reproduce the dashboard in figure 13.4. <a id="marker-1038637"/><a id="marker-1038640"/><a id="marker-1038642"/><a id="marker-1038644"/></p>
+
+  <h2 class="fm-head" id="heading_id_15"><a id="pgfId-1038650"/>13.4 The end of the beginning</h2>
+
+  <p class="body"><a id="pgfId-1038660"/>All good things come to an end, and this chapter concludes our journey toward reactive applications with Vert.x. We started this book with the fundamentals of asynchronous programming and Vert.x. Asynchronous programming is key to building scalable services, but it comes with challenges, and you saw how Vert.x helped in making this programming style simple and enjoyable. In the second part of this book we used a realistic application scenario to study the key Vert.x modules for databases, web, security, messaging, and event streaming. This allowed us to build an end-to-end reactive application made up of several microservices. By the end of the book, you saw a methodology based on a combination of load and chaos testing to ensure service resilience and responsiveness. This is important, as reactive is not just about scalability, but is also about writing services that can cope with failures. We concluded with notes on deploying Vert.x services in a Kubernetes cluster, something Vert.x is a natural fit for.</p>
+
+  <p class="body"><a id="pgfId-1038666"/>Of course, we did not cover all that’s in Vert.x, but you will easily find your way through the project’s website and documentation. The Vert.x community is welcoming, and you can get in touch over mailing lists and chat. Last but not least, most of the skills that you have learned by reading this book translate to technologies other than Vert.x. Reactive is not a technology that you pick off the shelf. A technology like Vert.x will only get you half of the way to reactive; there is a craft and mindset required in systems design to achieve solid scalability, fault resiliency, and ultimately responsiveness.</p>
+
+  <p class="body"><a id="pgfId-1038672"/>On a more personal note, I hope that you enjoyed reading this book as much as I enjoyed the experience of writing it. I’m looking forward to hearing from you in online discussions, and if we happen to attend an event together, I will be more than happy to meet you in person!</p>
+
+  <p class="body"><a id="pgfId-1038678"/>Have fun, and take care!</p>
+
+  <h2 class="fm-head" id="heading_id_16"><a id="pgfId-1038684"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1038694"/>Vert.x applications can easily be deployed to Kubernetes clusters with no need for Kubernetes-specific modules.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1038708"/>The Vert.x distributed event bus works in Kubernetes by configuring the cluster manager discovery mode.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1038718"/>It is possible to have a fast, local Kubernetes development experience using tools like Minikube, Skaffold, and Jib.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1038728"/>Exposing health checks and metrics is a good practice for operating services in a cluster.</p>
+    </li>
+  </ul>
+  <hr class="calibre12"/>
+
+  <p class="fm-footnote"><span class="footnotenumber">1.</span><a id="pgfId-1035764"/>For more on Ingresses and other Kubernetes topics, see Marko Lukša’s <i class="fm-italics">Kubernetes in Action</i>, second edition (Manning, 2020).</p>
+</div></body>
+</html>

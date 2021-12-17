@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_using_simple_criteria"><a id="using_simple_criteria"/><h3 class="docSection1Title">8.1. Using Simple Criteria</h3><p class="docText">Let's start by building a criteria query to find tracks shorter than a specified length, replacing the HQL we used in <a class="docLink" href="0596006969_better_ways_to_build_queries.xhtml#our_query_in_the_mapping_document">Example 3-9</a> and updating the code of <a class="docLink" href="0596006969_compounding_criteria.xhtml#picking_tracks_more_leniently">Example 8-10</a>.</p><a id="how_do_i_do_that-id024"/><h4 id="title-ID0E2BBG" class="docSection2Title">8.1.1. How do I do that?</h4><p class="docText">The first thing we need to figure out is how to specify the kind of object we're interested in retrieving. There is no query language involved in building criteria queries. Instead, you build up a tree of <tt>Criteria</tt> objects describing what you want. The Hibernate <tt>Session</tt> acts as a factory for these criteria, and you start, conveniently enough, by specifying the type of objects you want to retrieve.</p><p class="docText">Edit <span class="docEmphasis">QueryTest.java</span>, replacing the contents of the <tt>tracksNoLongerThan()</tt> method with those shown in <a class="docLink" href="#the_beginnings_of_a_criteria_query">Example 8-1</a>.</p><blockquote><p class="docText"><span class="docEmphasis">These examples assume the database has been set up as described in the preceding chapters. If you don't want to go through all that, download the sample code, then jump into this chapter and run the "codegen", "schema", and  "ctest" targets</span>.</p></blockquote><a id="the_beginnings_of_a_criteria_query"/><h5 id="title-ID0EWCBG" class="docExampleTitle">Example 8-1. The beginnings of a criteria query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+public static List tracksNoLongerThan(Time length, Session session)
+    throws HibernateException
+{
+    Criteria criteria = session.createCriteria(Track.class);
+    return criteria.list();
+}
+</pre><br/>
+</td></tr></table><p class="docText">The session's <tt>createCriteria()</tt> method builds a criteria query that will return instances of the persistent class you supply as an argument. Easy enough. If you run the example at this point, of course, you'll see all the tracks in the database, since we haven't gotten around to expressing any actual <span class="docEmphasis">criteria</span> to limit our results yet (<a class="docLink" href="#our_fledgling_criteria_query_returns_all">Example 8-2</a>).<a id="idx-CHP-8-0292"/></p><a id="our_fledgling_criteria_query_returns_all"/><h5 id="title-ID0ELDBG" class="docExampleTitle">Example 8-2. Our fledgling criteria query returns all tracks</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% ant qtest
+...
+qtest:
+     [java] Track: "Russian Trance" (PPK) 00:03:30, from Compact Disc
+     [java] Track: "Video Killed the Radio Star" (The Buggles) 00:03:49, from VHS
+Videocassette Tape
+     [java] Track: "Gravity's Angel" (Laurie Anderson) 00:06:06, from Compact Disc
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35, from Compact Disc
+     [java] Track: "Adagio for Strings (ATB Remix)" (ATB, William Orbit, Samuel
+Barber) 00:07:39, from Compact Disc
+     [java] Track: "The World '99" (Ferry Corsten, Pulp Victim) 00:07:05, from
+Digital Audio Stream
+     [java] Track: "Test Tone 1" 00:00:10
+     [java]   Comment: Pink noise to test equalization
+</pre><br/>
+</td></tr></table><p class="docText">OK, easy enough. How about picking the tracks we want? Also easy! Add a new import statement at the top of the file:</p><pre>
+	import net.sf.hibernate.<a id="idx-CHP-8-0293"/>expression.*;
+</pre><br/>
+<p class="docText">Then just add one more line to the method, as in <a class="docLink" href="#the_criteria_query_that_fully_replaces_t">Example 8-3</a>.</p><a id="the_criteria_query_that_fully_replaces_t"/><h5 id="title-ID0EBEBG" class="docExampleTitle">Example 8-3. The criteria query that fully replaces the HQL version from <a class="docLink" href="0596006969_harnessing_hibernate.xhtml#harnessing_hibernate">Chapter 3</a></h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+public static List tracksNoLongerThan(Time length, Session session)
+    throws HibernateException
+{
+    Criteria criteria = session.createCriteria(Track.class);
+    <b>criteria.add(<a id="idx-CHP-8-0294"/>Expression.le("playTime", length));</b>
+    return criteria.list();
+}
+</pre><br/>
+</td></tr></table><p class="docText">The <tt>Expression</tt> class acts as a factory for obtaining <tt>Criterion</tt> instances that can specify different kinds of constraints on your query. Its <tt>le()</tt> method creates a criterion that constrains a property to be less than or equal to a specified value. In this case we want the <tt>Track's playTime</tt> property to be no greater than the value passed in to the method. We add this to our set of desired criteria.</p><blockquote><p class="docText"><span class="docEmphasis">Just like HQL, expressions are always in terms of object properties, not table columns</span>.</p></blockquote><p class="docText">We'll look at some other <tt>Criterion</tt> types available through <tt>Expression</tt> in the next section. <a class="docLink" href="0596006969_standard_criteria.xhtml#standard_criteria">Appendix B</a> lists them all, and you can create your own implementations of the <tt>Criterion</tt> interface if you've got something new you want to support.</p><p class="docText">Running the query this time gives us just the tracks that are no more than  seven minutes long, as requested by the <tt>main()</tt> method (<a class="docLink" href="#results_of_our_complete_simple_criteria_">Example 8-4</a>).</p><a id="results_of_our_complete_simple_criteria_"/><h5 id="title-ID0ECGBG" class="docExampleTitle">Example 8-4. Results of our complete simple criteria query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>ant qtest</b>
+...
+qtest:
+     [java] Track: "Russian Trance" (PPK) 00:03:30, from Compact Disc
+     [java] Track: "Video Killed the Radio Star" (The Buggles) 00:03:49, from VHS
+Videocassette Tape
+     [java] Track: "Gravity's Angel" (Laurie Anderson) 00:06:06, from Compact Disc
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35, from Compact Disc
+     [java] Track: "Test Tone 1" 00:00:10
+     [java]   Comment: Pink noise to test equalization
+</pre><br/>
+</td></tr></table><p class="docText">A surprising number of the queries used to retrieve objects in real applications are very simple, and criteria queries are an extremely natural and compact  way of expressing them in Java. Our new <tt>tracksNoLongerThan()</tt> method is actually shorter than it was in<a class="docLink" href="0596006969_compounding_criteria.xhtml#picking_tracks_more_leniently">Example 8-10</a>, and that version required a separate query (<a class="docLink" href="0596006969_better_ways_to_build_queries.xhtml#our_query_in_the_mapping_document">Example 3-9</a>) to be added to the mapping document as well! Both approaches lead to the same patterns of underlying database access, so they are equally efficient at runtime.</p><p class="docText">In fact, you can make the code even more compact. The <tt>add()</tt> and <tt>createCriteria()</tt> methods return the <tt>Criteria</tt> instance, so you can continue to manipulate it in the same Java statement. Taking advantage of that, we can boil the method down to the version in <a class="docLink" href="#an_even_more_compact_version_of_our_crit">Example 8-5</a>.</p><a id="an_even_more_compact_version_of_our_crit"/><h5 id="title-ID0EKHBG" class="docExampleTitle">Example 8-5. An even more compact version of our criteria query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+public static List tracksNoLongerThan(Time length, Session session)
+    throws HibernateException
+{
+    <b>return session.createCriteria(Track.class).
+        add(Expression.le("playTime", length)).list();</b>
+}
+</pre><br/>
+</td></tr></table><p class="docText">The style you choose is a trade-off between space and readability (although some people may find the compact, run-on version even more readable). Even though this is marked as an experimental API, it already looks extremely useful, and I expect to adopt it in many places.</p><a id="what_abouthellip-id010"/><h4 id="title-ID0EVHBG" class="docSection2Title">8.1.2. What about…</h4><p class="docText">…<a id="idx-CHP-8-0295"/>Sorting the list of results, or retrieving a subset of all matching objects? Like the <tt>Query</tt> interface, the <tt>Criteria</tt> interface lets you limit the number of results you get back (and choose where to start) by calling <tt>setMaxResults()</tt> and <tt>setFirstResult()</tt>. It also lets you control the order in which they're returned (which you'd do using an <tt>order by</tt> clause in an HQL query), as shown in <a class="docLink" href="#sorting_the_results_by_title">Example 8-6</a>.</p><a id="sorting_the_results_by_title"/><h5 id="title-ID0EUIBG" class="docExampleTitle">Example 8-6. Sorting the results by title</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+public static List tracksNoLongerThan(Time length, Session session)
+    throws HibernateException
+{
+    Criteria criteria = session.createCriteria(Track.class);
+    criteria.add(Expression.le("playTime", length));
+    criteria.addOrder(Order.asc("title"));
+    return criteria.list();
+}
+</pre><br/>
+</td></tr></table><p class="docText">The <tt>Order</tt> class is just a way of representing orderings. It has two static factory methods, <tt>asc()</tt> and <tt>desc()</tt>, for creating ascending or descending orderings respectively. Each takes the name of the property to be sorted. The results of running this version are in <a class="docLink" href="#the_sorted_results">Example 8-7</a>.</p><a id="the_sorted_results"/><h5 id="title-ID0EJJBG" class="docExampleTitle">Example 8-7. The sorted results</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>ant qtest</b>
+...
+qtest:
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35, from Compact Disc
+     [java] Track: "Gravity's Angel" (Laurie Anderson) 00:06:06, from Compact Disc
+     [java] Track: "Russian Trance" (PPK) 00:03:30, from Compact Disc
+     [java] Track: "Test Tone 1" 00:00:10
+     [java]   Comment: Pink noise to test equalization
+     [java] Track:"Video Killed the Radio Star" (The Buggles) 00:03:49, from VHS
+Videocassette Tape
+</pre><br/>
+</td></tr></table><p class="docText">You can add more than one <tt>Order</tt> to the <tt>Criteria</tt>, and it will sort by each of them in turn (the first gets priority, and then if there are any results with the same value for that property, the second ordering is applied to them, and so on).<a id="idx-CHP-8-0296"/></p></div></div></body>
+</html>

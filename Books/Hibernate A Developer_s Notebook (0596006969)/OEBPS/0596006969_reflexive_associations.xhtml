@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_reflexive_associations"><a id="reflexive_associations"/><h3 class="docSection1Title">5.5. Reflexive Associations</h3><p class="docText">It's also possible for objects and tables to have associations back to themselves. This supports persistent recursive data structures like trees, in which nodes link to other nodes. Tracing through a database table storing such relationships using a SQL query interface is a major chore. Luckily, once it's mapped to Java objects, the process is much more readable and natural.<a id="idx-CHP-5-0223"/></p><p class="docText">One way we might use a <a id="idx-CHP-5-0224"/>reflexive link in our music database is to allow alternate names for artists. This is useful more often than you might expect, because it makes it very easy to let the user find either "The Smiths" or "Smiths, The" depending on how they're thinking of the group, with little code, and in a language-independent way.</p><blockquote><p class="docText"><span class="docEmphasis">I mean human language here, English versus Spanish or something else. Put the links in the data rather than trying to write tricky code to guess when an artist name should be permuted</span>.</p></blockquote><a id="how_do_i_do_that-id018"/><h4 id="title-ID0EFQAG" class="docSection2Title">5.1.1. How do I do that?</h4><p class="docText">All that's needed is to add another field to the <tt>Artist</tt> mapping in <span class="docEmphasis">Artist.hbm.xml</span>, establishing a link back to <tt>Artist</tt>. <a class="docLink" href="#supporting_a_reflexive_association_in_th">Example 5-13</a> shows one option.</p><a id="supporting_a_reflexive_association_in_th"/><h5 id="title-ID0EXQAG" class="docExampleTitle">Example 5-13. Supporting a reflexive association in the Artist class</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;many-to-one name="actualArtist" class="com.oreilly.hh.Artist"&gt;
+  &lt;meta attribute="use-in-tostring"&gt;true&lt;/meta&gt;
+&lt;/many-to-one&gt;
+</pre><br/>
+</td></tr></table><p class="docText">This gives us an <tt>actualArtist</tt> property that we can set to the <tt>id</tt> of the "definitive" <tt>Artist</tt> record when we're setting up an alternate name. For example, our "The Smiths" record might have <tt>id 5</tt>, and its <tt>actualArtist</tt><a id="be"/> field would be <tt>null</tt> since it is definitive. Then we can create an "alias" <tt>Artist</tt><a id="the"/> record with the name "Smiths, The" at any time, and set the <tt>actualArtist</tt> field in that record to point to record <tt>5</tt>.<a id="idx-CHP-5-0225"/></p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText"><a id="of"/>This kind of <a id="idx-CHP-5-0226"/>reflexive link is one instance where a column containing a foreign key can't be named the same as the key column to which it is a link. We are associating a row in <tt>ARTIST</tt> with another row in <tt>ARTIST</tt>, and of course the table already has a column named <tt>ARTIST_ID</tt>.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">Why is this association set up as many-to-one? There might be many alias records that point to one particular definitive <tt>Artist</tt>. So each nickname needs to store the <tt>id</tt> of the actual artist record for which it is an alternative name. This is, in the language of data modeling, a many-to one relationship.</p><p class="docText">Code that looks up artists just needs to check the <tt>actualArtist</tt> property before returning. If it's <tt>null</tt>, all is well. Otherwise it should return the record indicated by <tt>actualArtist</tt>. <a class="docLink" href="#artist_lookup_method_supporting_resoluti">Example 5-14</a> shows how we could extend the <tt>getArtist()</tt> method in <tt>CreateTest</tt> to support this new feature (additions are in bold). Notice that the <tt>Artist</tt> constructor gets a new argument for setting <tt>actualArtist</tt>.</p><a id="artist_lookup_method_supporting_resoluti"/><h5 id="title-ID0EVTAG" class="docExampleTitle">Example 5-14. Artist lookup method supporting resolution of alternate names</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+public static Artist getArtist(String name, boolean create,
+                               Session session)
+    throws HibernateException
+{
+    Query query = session.getNamedQuery(
+                      "com.oreilly.hh.artistByName");
+    query.setString("name", name);
+    Artist found = (Artist)query.uniqueResult();
+    if (found == null &amp;&amp; create) {
+        found = new Artist(name, null, new HashSet());
+        session.save(found);
+    }
+    <b>if (found != null &amp;&amp; found.getActualArtist() != null) {
+        return found.getActualArtist();
+    }</b>
+    return found;
+}
+</pre><br/>
+</td></tr></table><p class="docText">Hopefully this chapter has given you a feel for the rich and powerful ways you can use associations and collections in Hibernate. As should be obvious from the way you can nest and combine these capabilities, there are far more variations than we can hope to cover in a book like this.</p><p class="docText">The good news is that Hibernate seems well equipped to handle almost any kind of relationship your application might need, and it can even do the drudge work of building the data classes and database schema for you. This works much more effectively and deeply than I ever expected it would when I started creating these examples.</p></div></div></body>
+</html>

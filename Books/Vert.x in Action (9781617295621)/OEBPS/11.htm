@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1023108"/>11 End-to-end real-time reactive event processing</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>Combining RxJava operators and Vert.x clients to support advanced processing</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>Using RxJava operators to perform content enrichment and aggregate data processing on top of event streams</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011861"/>Extending the Vert.x event bus to web applications to unify backend and frontend communication models</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011871"/>Managing state in a stream-processing setting</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011881"/>In this chapter we’ll explore advanced reactive stream processing, where application state is subject to live changes based on events. By performing transformations and aggregations on events, we will compute live statistics about what is happening in the larger 10k steps application. You will also see how event streams can impact real-time web applications by unifying Java and JavaScript code under the Vert.x event-bus umbrella.</p>
+
+  <p class="body"><a id="pgfId-1011887"/>This chapter starts by looking at advanced stream processing with RxJava operators and Vert.x clients. We’ll then discuss the topic of real-time web applications connected over the event bus, and we’ll finish with techniques for properly dealing with state (and especially <i class="fm-italics">initial</i> state) in a context of continuous events.</p>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011902"/>11.1 Advanced stream data processing with Kafka and RxJava</h2>
+
+  <p class="body"><a id="pgfId-1011932"/><a id="marker-1011913"/>In previous chapters we used RxJava operators to process events of all kinds: HTTP requests, AMQP messages, and Kafka records. RxJava is a versatile library for <i class="fm-italics">reactive programming</i>, and it is especially well suited for processing event streams with the <code class="fm-code-in-text">Flowable</code> type for back-pressured streams<a id="marker-1011937"/>. Kafka provides solid middleware for event streaming, while Vert.x provides a rich ecosystem of reactive clients that connect to other services, databases, or messaging systems.</p>
+
+  <p class="body"><a id="pgfId-1011947"/>The <i class="fm-italics">event stats</i> service is <a id="marker-1011958"/>an event-driven reactive service that consumes Kafka records and produces some statistics as other Kafka records. We will look at how we can use RxJava operators to efficiently address three common operations on event streams:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1011968"/>Enriching data</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1011982"/>Aggregating data over time windows</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1011992"/>Aggregating data by grouping elements using a key or a function</p>
+    </li>
+  </ul>
+
+  <h3 class="fm-head1" id="heading_id_4"><a id="pgfId-1012002"/>11.1.1 Enriching daily device updates to generate user updates</h3>
+
+  <p class="body"><a id="pgfId-1012022"/><a id="marker-1012013"/>The <code class="fm-code-in-text">daily.step.updates</code> Kafka topic is populated <a id="marker-1012027"/>with records sent from the activity service. The records contain three entries: the device identifier, a timestamp of when the record was produced, and a number of steps.</p>
+
+  <p class="body"><a id="pgfId-1012063"/>Whenever a device update is processed by the activity service, it stores the update to a PostgreSQL database and then produces a Kafka record with the number of steps on the current day for the corresponding device. For instance, when device <code class="fm-code-in-text">abc</code> receives an update of, say, 300 steps recorded at 11:25, it sends a Kafka record to <code class="fm-code-in-text">daily.step .updates</code> with the number of steps for the day corresponding to device <code class="fm-code-in-text">abc</code>.</p>
+
+  <p class="body"><a id="pgfId-1012088"/>The event stats service consumes these events to enrich them with user data, so other services can be updated in real time about the number of steps recorded on the current day for any user. To do that, we take the records from the <code class="fm-code-in-text">daily.step.updates</code> Kafka topic, and add the data from the user API: user name, email, city, and whether the data shall be public. The enriched data is then sent as records to the <code class="fm-code-in-text">event-stats.user-activity.updates</code> topic. The steps for <a id="marker-1030936"/>enriching data are illustrated in figure 11.1.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH11_F01_Ponge.png" width="1049" height="435"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1038293"/>Figure 11.1 Enriching device updates with user data</p>
+
+  <p class="fm-callout"><a id="pgfId-1012159"/><span class="fm-callout-head">Tip</span> This is an implementation technique for the <i class="fm-italics">content enricher</i> messaging <a id="marker-1012148"/>pattern in the seminal <i class="fm-italics">Enterprise Integration Patterns</i> book by Gregor Hohpe and Bobby Woolf (Addison-Wesley Professional, 2003).</p>
+
+  <p class="body"><a id="pgfId-1012168"/>For each incoming Kafka record, we do the following:</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1012174"/>Make a request to the user profile API to determine who the device belongs to.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012188"/>Make another request to the user profile API to get all the data from the user, and merge it with the incoming record data.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012215"/>Write the enriched <a class="calibre9" id="marker-1012204"/>record to the <code class="fm-code-in-text">event-stats.user-activity.updates</code> Kafka topic, and commit it.</p>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1012224"/>The following listing shows the corresponding RxJava pipeline.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012281"/>Listing 11.1 RxJava pipeline for generating user updates</p>
+  <pre class="programlisting">KafkaConsumer.&lt;String, JsonObject&gt;create(vertx, 
+<span class="fm-code-continuation-arrow">➥</span> KafkaConfig.consumer("event-stats-user-activity-updates"))
+  .subscribe("daily.step.updates")                              <span class="fm-combinumeral">❶</span>
+  .toFlowable()
+  .flatMapSingle(this::addDeviceOwner)                          <span class="fm-combinumeral">❷</span>
+  .flatMapSingle(this::addOwnerData)                            <span class="fm-combinumeral">❸</span>
+  .flatMapCompletable(this::publishUserActivityUpdate)          <span class="fm-combinumeral">❹</span>
+  .doOnError(err -&gt; logger.error("Woops", err))
+  .retryWhen(this::retryLater)
+  .subscribe();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037256"/><span class="fm-combinumeral">❶</span> Subscribe to the source Kafka topic.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037277"/><span class="fm-combinumeral">❷</span> Get who owns the device from the record.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037294"/><span class="fm-combinumeral">❸</span> Fetch the user data and merge it with the record.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037311"/><span class="fm-combinumeral">❹</span> Commit to the target Kafka topic.</p>
+
+  <p class="body"><a id="pgfId-1012483"/>The RxJava pipeline composes <a id="marker-1012462"/>asynchronous operations with <code class="fm-code-in-text">flatMapSingle</code> and <code class="fm-code-in-text">flatMapCompletable</code>. This is because doing <a id="marker-1012488"/>an HTTP request produces a (single) result, whereas committing a Kafka record is an operation with no return value (hence it is completable). You can also see the common error handling logic from earlier chapters with a delayed re-subscription.</p>
+
+  <p class="body"><a id="pgfId-1012511"/>The next listing shows the <a id="marker-1012500"/>implementation of the <code class="fm-code-in-text">addDeviceOwner</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012571"/>Listing 11.2 Adding a device owner</p>
+  <pre class="programlisting">private Single&lt;JsonObject&gt; addDeviceOwner(KafkaConsumerRecord&lt;String, 
+<span class="fm-code-continuation-arrow">➥</span> JsonObject&gt; record) {
+  JsonObject data = record.value();                                    <span class="fm-combinumeral">❶</span>
+  return webClient
+    .get(3000, "localhost", "/owns/" + data.getString("deviceId"))     <span class="fm-combinumeral">❷</span>
+    .as(BodyCodec.jsonObject())
+    .rxSend()
+    .map(HttpResponse::body)                                           <span class="fm-combinumeral">❸</span>
+    .map(data::mergeIn);                                               <span class="fm-combinumeral">❹</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036937"/><span class="fm-combinumeral">❶</span> This is the incoming Kafka record.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036958"/><span class="fm-combinumeral">❷</span> Make an HTTP request to the user profile API.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036975"/><span class="fm-combinumeral">❸</span> Extract the HTTP response body (a JsonObject).</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036992"/><span class="fm-combinumeral">❹</span> Return the JSON data merge.</p>
+
+  <p class="body"><a id="pgfId-1012750"/>This method makes an HTTP request whose result is a JSON object, and it returns the merge of the source Kafka record’s JSON data with the request result data.</p>
+
+  <p class="body"><a id="pgfId-1012756"/>Once this is done, we know who the device of the record belongs to, so we can chain with another request to get the user data from the user profile API, as shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012813"/>Listing 11.3 Adding owner data</p>
+  <pre class="programlisting">private Single&lt;JsonObject&gt; addOwnerData(JsonObject data) {
+  String username = data.getString("username");              <span class="fm-combinumeral">❶</span>
+  return webClient
+    .get(3000, "localhost", "/" + username)                  <span class="fm-combinumeral">❷</span>
+    .as(BodyCodec.jsonObject())
+    .rxSend()
+    .map(HttpResponse::body)
+    .map(data::mergeIn);                                     <span class="fm-combinumeral">❸</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036714"/><span class="fm-combinumeral">❶</span> This is the data returned by addDeviceOwner.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036735"/><span class="fm-combinumeral">❷</span> Make the HTTP request.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036752"/><span class="fm-combinumeral">❸</span> Merge the data.</p>
+
+  <p class="body"><a id="pgfId-1012983"/>This method follows the <a id="marker-1012972"/>same pattern as <code class="fm-code-in-text">addDeviceOwner</code>, as it takes the result from the previous operation as a parameter, makes an HTTP request to the user profile API, and then returns merged data.</p>
+
+  <p class="body"><a id="pgfId-1012992"/>The last operation is that of the <code class="fm-code-in-text">publishActivityUpdate</code> method, shown in the <a id="marker-1013003"/>following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013064"/>Listing 11.4 Publishing a user activity update Kafka record</p>
+  <pre class="programlisting">private CompletableSource publishUserActivityUpdate(JsonObject data) {
+  return producer.rxWrite(                                               <span class="fm-combinumeral">❶</span>
+    KafkaProducerRecord.create("event-stats.user-activity.updates", 
+    <span class="fm-code-continuation-arrow">➥</span> data.getString("username"), data));
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036610"/><span class="fm-combinumeral">❶</span> Write the Kafka record.</p>
+
+  <p class="body"><a id="pgfId-1013160"/>The implementation writes <a id="marker-1013149"/>the Kafka record to the target <code class="fm-code-in-text">event-stats.user-activity .updates</code> topic. <a id="marker-1013165"/></p>
+
+  <h3 class="fm-head1" id="heading_id_5"><a id="pgfId-1013172"/>11.1.2 Computing device-update ingestion throughput using time-window aggregates</h3>
+
+  <p class="body"><a id="pgfId-1013192"/><a id="marker-1013183"/>The ingestion service receives the incoming device updates from HTTP and AMQP, and then publishes them to the <code class="fm-code-in-text">incoming.steps</code> Kafka topic<a id="marker-1013197"/>. The ingestion throughput is typical of a dashboard metric, where the value is frequently updated with the number of device updates ingested per second. This is a good indicator of the stress level on the larger application, as every update triggers further events that are processed by other microservices.</p>
+
+  <p class="body"><a id="pgfId-1013207"/>To compute the ingestion throughput, we need to listen for records on the <code class="fm-code-in-text">incoming.steps</code> topic, aggregate records over a fixed time window, and count how many records have been received. This is illustrated in figure 11.2.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH11_F02_Ponge.png" width="955" height="423"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1038335"/>Figure 11.2 Throughput computation from ingestion records</p>
+
+  <p class="body"><a id="pgfId-1013259"/>The following listing shows the RxJava pipeline for computing the throughput and publishing <a id="marker-1013248"/>the results to the <code class="fm-code-in-text">event-stats.throughput</code> Kafka topic.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013319"/>Listing 11.5 RxJava pipeline for computing ingestion throughput</p>
+  <pre class="programlisting">KafkaConsumer.&lt;String, JsonObject&gt;create(vertx, 
+<span class="fm-code-continuation-arrow">➥</span> KafkaConfig.consumer("event-stats-throughput"))
+  .subscribe("incoming.steps")                               <span class="fm-combinumeral">❶</span>
+  .toFlowable()
+  .buffer(5, TimeUnit.SECONDS, RxHelper.scheduler(vertx))    <span class="fm-combinumeral">❷</span>
+  .flatMapCompletable(this::publishThroughput)               <span class="fm-combinumeral">❸</span>
+  .doOnError(err -&gt; logger.error("Woops", err))
+  .retryWhen(this::retryLater)
+  .subscribe();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036409"/><span class="fm-combinumeral">❶</span> Subscribe to the source Kafka topic.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036430"/><span class="fm-combinumeral">❷</span> Buffer records in windows of five seconds</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036447"/><span class="fm-combinumeral">❸</span> Compute and publish the throughput.</p>
+
+  <p class="body"><a id="pgfId-1013518"/>The <code class="fm-code-in-text">buffer</code> operator is one of <a id="marker-1013481"/>several aggregation operators that you can use in RxJava. It aggregates events for a time period and then passes the result as a <code class="fm-code-in-text">List</code>. You can see that we pass a Vert.x scheduler from <a id="marker-1013497"/>the <code class="fm-code-in-text">RxHelper</code> class; this is because <code class="fm-code-in-text">buffer</code> delays event processing and by default will call the next operators on an RxJava-specific thread. The Vert.x scheduler ensures that operators are instead called from the original Vert.x context so as to preserve the Vert.x threading model.</p>
+
+  <p class="body"><a id="pgfId-1013549"/>Once <code class="fm-code-in-text">buffer</code> has aggregated all Kafka records over the last <a id="marker-1013538"/>five seconds, the <code class="fm-code-in-text">publishThroughput</code> method computes and publishes the throughput as shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013609"/>Listing 11.6 Publish the ingestion throughput</p>
+  <pre class="programlisting">private CompletableSource publishThroughput(List&lt;KafkaConsumerRecord&lt;String, 
+<span class="fm-code-continuation-arrow">➥</span> JsonObject&gt;&gt; records) {
+  KafkaProducerRecord&lt;String, JsonObject&gt; record = 
+<span class="fm-code-continuation-arrow">➥</span> KafkaProducerRecord.create("event-stats.throughput",
+    new JsonObject()                                             <span class="fm-combinumeral">❶</span>
+      .put("seconds", 5)
+      .put("count", records.size())
+      .put("throughput", (((double) records.size()) / 5.0d)));   <span class="fm-combinumeral">❷</span>
+  return producer.rxWrite(record);                               <span class="fm-combinumeral">❸</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036186"/><span class="fm-combinumeral">❶</span> Payload as a JSON object</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036207"/><span class="fm-combinumeral">❷</span> Compute the throughput.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036224"/><span class="fm-combinumeral">❸</span> Write the Kafka record.</p>
+
+  <p class="body"><a id="pgfId-1013760"/>Given the <code class="fm-code-in-text">records</code> list, we can easily compute a throughput and publish a new record. We take care to indicate the number of records and time window size in seconds, so that event consumers have all the information and not just the raw result. <a id="marker-1013771"/></p>
+
+  <h3 class="fm-head1" id="heading_id_6"><a id="pgfId-1013778"/>11.1.3 Computing per-city trends using aggregation discriminants and time windows</h3>
+
+  <p class="body"><a id="pgfId-1013798"/><a id="marker-1013789"/>Let’s now look at another form of data aggregation based on RxJava operators by computing per-city trends. More specifically, we’ll compute periodically how many steps have been recorded in each city on the current day. To do that, we can reuse the events published to the <code class="fm-code-in-text">event-stats.user-activity.updates</code> Kafka topic <a id="marker-1013803"/>by the very same event stats service, since they contain the number of steps a user has recorded today, along with other data, including the city.</p>
+
+  <p class="body"><a id="pgfId-1013826"/>We could reuse <a id="marker-1013815"/>the <code class="fm-code-in-text">buffer</code> operator, as in listing 11.5, and then iterate over the list of records. For each record, we could update a hash table entry where the key would be the city and the value would be the number of steps. We could then publish an update for each city based on the values in the hash table.</p>
+
+  <p class="body"><a id="pgfId-1013848"/>We can, however, write a more idiomatic RxJava processing pipeline thanks <a id="marker-1013837"/>to the <code class="fm-code-in-text">groupBy</code> operator, as shown in the following listing and figure 11.3.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013908"/>Listing 11.7 RxJava pipeline to compute per-city trends</p>
+  <pre class="programlisting">KafkaConsumer.&lt;String, JsonObject&gt;create(vertx, 
+<span class="fm-code-continuation-arrow">➥</span> KafkaConfig.consumer("event-stats-city-trends"))
+  .subscribe("event-stats.user-activity.updates")
+  .toFlowable()
+  .groupBy(this::city)                                               <span class="fm-combinumeral">❶</span>
+  .flatMap(group -&gt; 
+  <span class="fm-code-continuation-arrow">➥</span> group.buffer(5, TimeUnit.SECONDS, RxHelper.scheduler(vertx)))   <span class="fm-combinumeral">❷</span>
+  .flatMapCompletable(this::publishCityTrendUpdate)                  <span class="fm-combinumeral">❸</span>
+  .doOnError(err -&gt; logger.error("Woops", err))
+  .retryWhen(this::retryLater)
+  .subscribe();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035968"/><span class="fm-combinumeral">❶</span> Group by city.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035989"/><span class="fm-combinumeral">❷</span> Buffer by windows of five seconds.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036006"/><span class="fm-combinumeral">❸</span> Publish a Kafka record.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH11_F03_Ponge.png" width="1131" height="557"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1038377"/>Figure 11.3 Computing per-city trends from user activity records</p>
+
+  <p class="body"><a id="pgfId-1014152"/>As events enter <a id="marker-1014091"/>the pipeline, the <code class="fm-code-in-text">groupBy</code> operator dispatches them to <i class="fm-italics">groups</i> based on the city values found in the records (the <i class="fm-italics">discriminant</i>). You can think of <code class="fm-code-in-text">groupBy</code> as the equivalent of <code class="fm-code-in-text">GROUP BY</code> in an SQL statement. The filtering function <code class="fm-code-in-text">city</code> is shown in the next listing and extracts the city value from the Kafka record.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014212"/>Listing 11.8 Filter based on the city value</p>
+  <pre class="programlisting">private String city(KafkaConsumerRecord&lt;String, JsonObject&gt; record) {
+  return record.value().getString("city");
+}</pre>
+
+  <p class="body"><a id="pgfId-1014353"/>The <code class="fm-code-in-text">groupBy</code> operator in listing 11.7 returns a <code class="fm-code-in-text">Flowable</code> of <code class="fm-code-in-text">GroupedFlowable</code> of Kafka records<a id="marker-1014294"/>. Each <code class="fm-code-in-text">GroupedFlowable</code> is a flowable that <a id="marker-1014310"/>is dedicated to the grouped <a id="marker-1014316"/>records of a city, as dispatched by <code class="fm-code-in-text">groupBy</code> using the <code class="fm-code-in-text">city</code> function. For each <a id="marker-1014342"/>group, the <code class="fm-code-in-text">flatMap</code> operator is then used to group events in time windows of five seconds, meaning that per-city steps are updated every five seconds.</p>
+
+  <p class="body"><a id="pgfId-1014362"/>Finally, the <code class="fm-code-in-text">publishCityTrendUpdate</code> method prepares a <a id="marker-1028175"/>new record with updated stats for each city, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014434"/>Listing 11.9 Publishing per-city stats</p>
+  <pre class="programlisting">private CompletableSource 
+<span class="fm-code-continuation-arrow">➥</span> publishCityTrendUpdate(List&lt;KafkaConsumerRecord&lt;String, 
+<span class="fm-code-continuation-arrow">➥</span> JsonObject&gt;&gt; records) {
+  if (records.size() &gt; 0) {                                       <span class="fm-combinumeral">❶</span>
+    String city = city(records.get(0));                           <span class="fm-combinumeral">❷</span>
+    Long stepsCount = records.stream()
+      .map(record -&gt; record.value().getLong("stepsCount"))        <span class="fm-combinumeral">❸</span>
+      .reduce(0L, Long::sum);                                     <span class="fm-combinumeral">❹</span>
+    KafkaProducerRecord&lt;String, JsonObject&gt; record = 
+    <span class="fm-code-continuation-arrow">➥</span> KafkaProducerRecord.create("event-stats.city-trend.updates", 
+    <span class="fm-code-continuation-arrow">➥</span> city, new JsonObject()
+      .put("timestamp", LocalDateTime.now().toString())
+      .put("seconds", 5)
+      .put("city", city)
+      .put("stepsCount", stepsCount)
+      .put("updates", records.size()));
+    return producer.rxWrite(record);                              <span class="fm-combinumeral">❺</span>
+  } else {
+    return Completable.complete();                                <span class="fm-combinumeral">❻</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035512"/><span class="fm-combinumeral">❶</span> Check if records have been received in the time window.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035533"/><span class="fm-combinumeral">❷</span> All records have the same city, so the first one identifies it.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035550"/><span class="fm-combinumeral">❸</span> Extract the step counts.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035567"/><span class="fm-combinumeral">❹</span> Compute the sum.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035584"/><span class="fm-combinumeral">❺</span> Write the Kafka record.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035601"/><span class="fm-combinumeral">❻</span> If there was no record, just report a completed operation.</p>
+
+  <p class="body"><a id="pgfId-1014743"/>The <code class="fm-code-in-text">publishCityTrendUpdate</code> method receives a <a id="marker-1014716"/>list of Kafka records for a given city and from a time window. We first have to check if there is a record, because otherwise there is nothing to do. With records, we can use Java streams to compute the sum with a <code class="fm-code-in-text">reduce</code> operator and then prepare a Kafka record with several entries: a timestamp, the time window duration in seconds, the city, how many steps have been recorded, and how many updates were observed during the time window. Once this <a id="marker-1014732"/>is done, we write the record to the <code class="fm-code-in-text">event-stats.city-trend.updates</code> Kafka topic.</p>
+
+  <p class="body"><a id="pgfId-1014752"/>Now that we’ve looked at performing advanced event-streaming processing with RxJava and Vert.x, let’s see how we can propagate events to reactive web applications. <a id="marker-1014754"/><a id="marker-1014757"/></p>
+
+  <h2 class="fm-head" id="heading_id_7"><a id="pgfId-1014763"/>11.2 Real-time reactive web applications</h2>
+
+  <p class="body"><a id="pgfId-1014773"/><a id="marker-1014774"/>As specified in chapter 7, the dashboard web application consumes events from the stats service and displays the following:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1014782"/>Ingestion throughput</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1014796"/>Rankings of public users</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014806"/>Per-city trends</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1014816"/>This application is updated live, as soon as new data is received, which makes for a nice case of end-to-end integration between backend services and web browsers. The application is a microservice, as illustrated in figure 11.4.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH11_F04_Ponge.png" width="1131" height="321"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1038426"/>Figure 11.4 Reactive web application overview</p>
+
+  <p class="body"><a id="pgfId-1014832"/>The dashboard service is made of two parts:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1014852"/>A Vue.js application</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014866"/>A Vert.x service that does the following:</p>
+
+      <ul class="calibre10">
+        <li class="fm-list-bullet2"><a class="calibre9" id="pgfId-1014876"/>Serves the Vue.js resources</li>
+
+        <li class="fm-list-bullet2"><a class="calibre9" id="pgfId-1014894"/>Connects to Kafka and forwards updates to the Vert.x event bus</li>
+
+        <li class="fm-list-bullet2"><a class="calibre9" id="pgfId-1014904"/>Bridges between the connected web browsers and the Vert.x event bus</li>
+      </ul>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1014914"/>Let’s start with the forwarding from Kafka to the event bus.</p>
+
+  <h3 class="fm-head1" id="heading_id_8"><a id="pgfId-1014920"/>11.2.1 Forwarding Kafka records to the Vert.x event bus</h3>
+
+  <p class="body"><a id="pgfId-1014962"/><a id="marker-1014931"/>Both throughput and city <a id="marker-1014935"/>trend updates are directly <a id="marker-1014941"/>forwarded to the Vue.js application code. These are the records received on the <code class="fm-code-in-text">event-stats.throughput</code> and <code class="fm-code-in-text">event-stats.city-trend.updates</code> Kafka topics.</p>
+
+  <p class="body"><a id="pgfId-1014971"/>In <code class="fm-code-in-text">DashboardWebAppVerticle</code>, we put <a id="marker-1014982"/>in place the RxJava pipelines, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015043"/>Listing 11.10 RxJava pipelines to forward throughput and city trend updates</p>
+  <pre class="programlisting">KafkaConsumer.&lt;String, JsonObject&gt;create(vertx, 
+<span class="fm-code-continuation-arrow">➥</span> KafkaConfig.consumerConfig("dashboard-webapp-throughput"))
+  .subscribe("event-stats.throughput")                           <span class="fm-combinumeral">❶</span>
+  .toFlowable()
+  .subscribe(record -&gt; 
+  <span class="fm-code-continuation-arrow">➥</span> forwardKafkaRecord(record, "client.updates.throughput"));   <span class="fm-combinumeral">❷</span>
+
+KafkaConsumer.&lt;String, JsonObject&gt;create(vertx, 
+<span class="fm-code-continuation-arrow">➥</span> KafkaConfig.consumerConfig("dashboard-webapp-city-trend"))
+  .subscribe("event-stats.city-trend.updates")
+  .toFlowable()
+  .subscribe(record -&gt; forwardKafkaRecord(record, 
+  <span class="fm-code-continuation-arrow">➥</span> "client.updates.city-trend"));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035380"/><span class="fm-combinumeral">❶</span> Subscribe to the Kafka topic.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035401"/><span class="fm-combinumeral">❷</span> Forward to the event bus.</p>
+
+  <p class="body"><a id="pgfId-1015206"/>These two RxJava pipelines <a id="marker-1015179"/>have no complicated <a id="marker-1015185"/>logic, as they forward to the <code class="fm-code-in-text">client .updates.throughput</code> and <code class="fm-code-in-text">client.updates.city-trend</code> event bus destinations.</p>
+
+  <p class="body"><a id="pgfId-1015228"/>The next listing shows the implementation <a id="marker-1015217"/>of the <code class="fm-code-in-text">forwardKafkaRecord</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015288"/>Listing 11.11 Forwarding a Kafka record to the event bus</p>
+  <pre class="programlisting">private void forwardKafkaRecord(KafkaConsumerRecord&lt;String, JsonObject&gt; 
+<span class="fm-code-continuation-arrow">➥</span> record, String destination) {
+  vertx.eventBus().publish(destination, record.value());      <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035319"/><span class="fm-combinumeral">❶</span> Publish to the event bus.</p>
+
+  <p class="body"><a id="pgfId-1015365"/>Since the Kafka record values are of type <code class="fm-code-in-text">JsonObject</code>, there is no data <a id="marker-1015376"/>conversion to perform to publish them to the Vert.x event bus. <a id="marker-1015382"/></p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1015389"/>11.2.2 Bridging the event bus and web applications</h3>
+
+  <p class="body"><a id="pgfId-1015399"/><a id="marker-1015400"/>The dashboard web application starts an HTTP server, as shown in the following excerpt.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015459"/>Listing 11.12 Dashboard service HTTP server</p>
+  <pre class="programlisting">Router router = Router.router(vertx);                             <span class="fm-combinumeral">❶</span>
+// (...) RxJava pipelines to forward Kafka records
+
+// (...) Event bus bridge setup                                   <span class="fm-combinumeral">❷</span>
+
+router.route().handler(StaticHandler.create("webroot/assets"));   <span class="fm-combinumeral">❸</span>
+router.get("/*").handler(ctx -&gt; ctx.reroute("/index.html"));      <span class="fm-combinumeral">❹</span>
+
+return vertx.createHttpServer()                                   <span class="fm-combinumeral">❺</span>
+  .requestHandler(router)
+  .rxListen(HTTP_PORT)
+  .ignoreElement();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034965"/><span class="fm-combinumeral">❶</span> A Vert.x web router to dispatch HTTP requests</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034986"/><span class="fm-combinumeral">❷</span> See listing 11.13.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035006"/><span class="fm-combinumeral">❸</span> Serve static files from the webroot/assets resource folder.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035023"/><span class="fm-combinumeral">❹</span> Redirect traffic on /* to /index.html.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035040"/><span class="fm-combinumeral">❺</span> Start the HTTP server.</p>
+
+  <p class="body"><a id="pgfId-1015675"/>Listing 11.12 shows an HTTP server for serving static files. This is only an excerpt: we now need to see how the Vert.x event bus can be connected to web applications.</p>
+
+  <p class="body"><a id="pgfId-1017528"/>Vert.x offers an event-bus integration using the SockJS library (<span class="fm-hyperlink"><a href="https://github.com/sockjs">https://github.com/ sockjs</a></span>). SockJS is an emulation library for the WebSocket protocol (<span class="fm-hyperlink"><a href="https://tools.ietf.org/html/rfc6455">https://tools.ietf .org/html/rfc6455</a></span>), which allows browsers and servers to communicate in both directions on top of a persistent connection. The Vert.x core APIs offer support for WebSockets, but SockJS is interesting because not every browser in the market properly supports WebSockets, and some HTTP proxies and load balancers may reject WebSocket connections. SockJS uses WebSockets whenever it can, and it falls back to other mechanisms such as long polling over HTTP, AJAX, JSONP, or iframe.</p>
+
+  <p class="body"><a id="pgfId-1017552"/>The Vert.x web module offers a handler for SockJS connections that bridge the event bus, so the same programming model can be used from the server side (in Vert.x) and the client side (in JavaScript). The following listing shows how to configure it.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017609"/>Listing 11.13 Configuring the SockJS event-bus bridge</p>
+  <pre class="programlisting">SockJSHandler sockJSHandler = SockJSHandler.create(vertx);       <span class="fm-combinumeral">❶</span>
+SockJSBridgeOptions bridgeOptions = new SockJSBridgeOptions()
+  .addInboundPermitted(new PermittedOptions()
+  <span class="fm-code-continuation-arrow">➥</span> .setAddressRegex("client.updates.*"))                       <span class="fm-combinumeral">❷</span>
+  .addOutboundPermitted(new PermittedOptions()
+  <span class="fm-code-continuation-arrow">➥</span> .setAddressRegex("client.updates.*"));                      <span class="fm-combinumeral">❸</span>
+sockJSHandler.bridge(bridgeOptions);                             <span class="fm-combinumeral">❹</span>
+router.route("/eventbus/*").handler(sockJSHandler);              <span class="fm-combinumeral">❺</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034629"/><span class="fm-combinumeral">❶</span> SockJS handler</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034650"/><span class="fm-combinumeral">❷</span> Accept inbound event-bus messages from destinations that start with client.updates.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034667"/><span class="fm-combinumeral">❸</span> Accept outbound event-bus messages to destinations that start with client.updates.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034684"/><span class="fm-combinumeral">❹</span> Install the bridge.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034704"/><span class="fm-combinumeral">❺</span> SockJS clients endpoint</p>
+
+  <p class="body"><a id="pgfId-1017823"/>The bridge relies on a handler for SockJS client connections, with a set of permissions to allow only certain event-bus destinations to be bridged. It is indeed important to limit the events that flow between the connected web applications and backend, both for security and performance reasons. In this case, I decided that only the destinations <a id="marker-1017812"/>starting with <code class="fm-code-in-text">client.updates</code> will be available.</p>
+
+  <p class="body"><a id="pgfId-1017854"/>On the web application side, the Vert.x project offers the <code class="fm-code-in-text">vertx3-eventbus-client</code> library, which can be <a id="marker-1017843"/>downloaded manually or by using a tool like <code class="fm-code-in-text">npm</code> (the Node package manager). With this library we can connect to the event bus, as outlined in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017914"/>Listing 11.14 Using the JavaScript SockJS event-bus client</p>
+  <pre class="programlisting">import EventBus from 'vertx3-eventbus-client'              <span class="fm-combinumeral">❶</span>
+
+const eventBus = new EventBus("/eventbus")                 <span class="fm-combinumeral">❷</span>
+eventBus.enableReconnect(true)                             <span class="fm-combinumeral">❸</span>
+
+eventBus.onopen = () =&gt; {                                  <span class="fm-combinumeral">❹</span>
+  eventBus.registerHandler("a.b.c", (err, message) =&gt; {    <span class="fm-combinumeral">❺</span>
+    console.log(`Received: ${message.body}`)
+  })
+
+  eventBus.publish("d.e.f", {                              <span class="fm-combinumeral">❻</span>
+    book: "Vert.x in Action",
+    comment: "A great book!"
+  })
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034217"/><span class="fm-combinumeral">❶</span> Import the JavaScript module.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034238"/><span class="fm-combinumeral">❷</span> Connect to the event-bus endpoint.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034255"/><span class="fm-combinumeral">❸</span> Automatically reconnect when the connection is lost.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034272"/><span class="fm-combinumeral">❹</span> Called when the connection to the event bus has been established</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034289"/><span class="fm-combinumeral">❺</span> Register an event-bus destination handler.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034306"/><span class="fm-combinumeral">❻</span> Publish a message to the event bus.</p>
+
+  <p class="body"><a id="pgfId-1018170"/>The full code for using the Vert.x event bus in a Vue.js component is in the part2-steps-challenge/dashboard-webapp/src/App.vue file from the source code repository. As you can see, we have the same programming model in the JavaScript code; we can register event-bus handlers and publish messages, just like we would in Vert.x code. <a id="marker-1034212"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1018179"/>11.2.3 From Kafka to live web application updates</h3>
+
+  <p class="body"><a id="pgfId-1018189"/><a id="marker-1018190"/>The dashboard uses Vue.js, just like the public web application service that you saw earlier. The whole application essentially fits in the App.vue component, which can be found in the project source code. The component data model is made of three entries, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018249"/>Listing 11.15 Data model of the Vue.js component</p>
+  <pre class="programlisting">data() {
+  return {
+    throughput: 0,        <span class="fm-combinumeral">❶</span>
+    cityTrendData: {},    <span class="fm-combinumeral">❷</span>
+    publicRanking: []     <span class="fm-combinumeral">❸</span>
+  }
+},</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034051"/><span class="fm-combinumeral">❶</span> Current throughput</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034068"/><span class="fm-combinumeral">❷</span> City trend data</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034085"/><span class="fm-combinumeral">❸</span> Public rankings</p>
+
+  <p class="body"><a id="pgfId-1018394"/>These entries are updated when events are received from the Vert.x event bus. To do that, we use the Vue.js <code class="fm-code-in-text">mounted</code> life-cycle callback to connect <a id="marker-1018405"/>to the event bus, and then register handlers as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018466"/>Listing 11.16 Event-bus handlers in the Vue.js component</p>
+  <pre class="programlisting">mounted() {
+  eventBus.onopen = () =&gt; {
+    eventBus.registerHandler("client.updates.throughput", (err, message) =&gt; {<span class="fm-combinumeral">❶</span>
+      this.throughput = message.body.throughput                              <span class="fm-combinumeral">❷</span>
+    })
+    eventBus.registerHandler("client.updates.city-trend", (err, message) =&gt; {
+      const data = message.body
+      data.moment = moment(data.timestamp)
+      this.$set(this.cityTrendData, message.body.city, data)
+    })
+    eventBus.registerHandler("client.updates.publicRanking", (err, message) 
+    <span class="fm-code-continuation-arrow">➥</span> =&gt; {
+      this.publicRanking = message.body
+    })
+  }
+},</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033915"/><span class="fm-combinumeral">❶</span> Subscribe to throughput updates.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033936"/><span class="fm-combinumeral">❷</span> Update the model.</p>
+
+  <p class="body"><a id="pgfId-1018637"/>The handlers update the model based on what is received from the event bus. Since Vue.js is a reactive web application framework, the interface is updated when the data model changes. For instance, when the value of <code class="fm-code-in-text">throughput</code> changes, so does the value displayed by the HTML template in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018703"/>Listing 11.17 Throughput Vue.js HTML template</p>
+  <pre class="programlisting">(...)
+&lt;h4&gt;
+  &lt;span class="badge badge-pill badge-dark"&gt;{{ throughput }}&lt;/span&gt;     <span class="fm-combinumeral">❶</span>
+  device updates per second
+&lt;/h4&gt;
+(...)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033855"/><span class="fm-combinumeral">❶</span> Binds to the throughput data value</p>
+
+  <p class="body"><a id="pgfId-1018798"/>The city-trends view rendering is a more elaborated template.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018855"/>Listing 11.18 City trends vue.js HTML template</p>
+  <pre class="programlisting">&lt;h4&gt;Trends&lt;/h4&gt;
+&lt;table class="table table-sm table-hover"&gt;
+  &lt;thead&gt;
+  &lt;tr&gt;
+    &lt;th scope="col"&gt;City&lt;/th&gt;
+    &lt;th scope="col"&gt;Steps&lt;/th&gt;
+  &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;transition-group name="city-trends" tag="tbody"&gt;
+    &lt;tr v-for="item in cityTrendRanking" v-bind:key="item.city"&gt;     <span class="fm-combinumeral">❶</span>
+      &lt;td scope="row"&gt;{{ item.city }}&lt;/td&gt;                          <span class="fm-combinumeral">❷</span>
+      &lt;td&gt;
+        +{{ item.stepsCount }}                                      <span class="fm-combinumeral">❸</span>
+        &lt;span class="text-secondary font-weight-lighter"&gt;
+        ({{ item.moment.format("ddd    hh:mm:ss") }})               <span class="fm-combinumeral">❹</span>
+        &lt;/span&gt;
+      &lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/transition-group&gt;
+&lt;/table&gt;</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033577"/><span class="fm-combinumeral">❶</span> Iterate over all city entries.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033598"/><span class="fm-combinumeral">❷</span> City name</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033615"/><span class="fm-combinumeral">❸</span> Step count</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033632"/><span class="fm-combinumeral">❹</span> Format the timestamp with the Moment.js library.</p>
+
+  <p class="body"><a id="pgfId-1019154"/>The template iterates over all city data and renders a table row for each city. When a city has an update, the city row is updated thanks to the <code class="fm-code-in-text">item.city</code> binding, which ensures <a id="marker-1019111"/>uniqueness in the rows <a id="marker-1019117"/>generated by the <code class="fm-code-in-text">v-for</code> loop. The <code class="fm-code-in-text">transition-group</code> tag is specific <a id="marker-1019143"/>to Vue.js and is used for animation purposes: when the data order changes, the row order changes with an animation. The loop iterates over <code class="fm-code-in-text">cityTrendRanking</code>, which is a computed <a id="marker-1019159"/>property shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019220"/>Listing 11.19 Computed ranking property</p>
+  <pre class="programlisting">computed: {
+  cityTrendRanking: function () {
+    const values = Object.values(this.cityTrendData).slice(0)
+    values.sort((a, b) =&gt; b.stepsCount - a.stepsCount)          <span class="fm-combinumeral">❶</span>
+    return values
+  }
+},</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033512"/><span class="fm-combinumeral">❶</span> Order by step count.</p>
+
+  <p class="body"><a id="pgfId-1019321"/>The <code class="fm-code-in-text">cityTrendRanking</code> computed property <a id="marker-1019332"/>ranks entries by their number of steps, so the dashboard shows cities with the most steps on top.</p>
+
+  <p class="body"><a id="pgfId-1019342"/>The throughput and city trends are updated every five seconds, with updates coming from Kafka records and JSON payloads being forwarded to the dashboard web application. This works well because updates are frequent and cover aggregated data, but as you’ll see next, things are more complicated for the users’ ranking. <a id="marker-1019344"/><a id="marker-1019347"/></p>
+
+  <h2 class="fm-head" id="heading_id_11"><a id="pgfId-1019353"/>11.3 Streams and state</h2>
+
+  <p class="body"><a id="pgfId-1019379"/><a id="marker-1019364"/>The dashboard web application shows a live ranking of users based on the number of steps they have taken over the last 24 hours. Users can be ranked based on the updates produced by the event <a id="marker-1019368"/>stats service and sent to the <code class="fm-code-in-text">event-stats.user-activity .updates</code> Kafka topic.</p>
+
+  <h3 class="fm-head1" id="heading_id_12"><a id="pgfId-1019388"/>11.3.1 A stream of updates</h3>
+
+  <p class="body"><a id="pgfId-1019408"/><a id="marker-1019399"/>Each record sent to <code class="fm-code-in-text">event-stats.user-activity.updates</code> contains the <a id="marker-1019413"/>latest number of steps for a given user. The dashboard service can observe these events, update its state to keep track of how many steps a given user has taken, and update the global ranking accordingly. The problem here is that we need some state to start with, because when it starts (or restarts!), the dashboard service doesn’t know about the earlier updates.</p>
+
+  <p class="body"><a id="pgfId-1019423"/>We could configure the Kafka subscriber to restart from the beginning of the stream, but it could potentially span several days’ or even weeks’ worth of data. Replaying all records when the dashboard service starts would in theory allow us to compute an accurate ranking, but this would be a costly operation. Also, we would need to wait until all the records have been processed before sending updates to the connected web applications, because this would create a lot of traffic on the event bus.</p>
+
+  <p class="body"><a id="pgfId-1019452"/>Another solution is to start by asking the activity service what the current day rankings are, which is a straightforward SQL query built into the service. We’ll call this <a id="marker-1019431"/>the <i class="fm-italics">hydration</i> phase. We can then update the rankings as we receive updates from the <code class="fm-code-in-text">event-stats.user-activity.updates</code> Kafka topic. <a id="marker-1019457"/></p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1019464"/>11.3.2 Hydrating the ranking state</h3>
+
+  <p class="body"><a id="pgfId-1019489"/><a id="marker-1019475"/><a id="marker-1019477"/><a id="marker-1019479"/>The dashboard service maintains a <code class="fm-code-in-text">publicRanking</code> field, which is a map <a id="marker-1019494"/>where keys are user names and values are the latest user update entries as JSON data. When the service starts, this collection is empty, so the first step is to fill it with data.</p>
+
+  <p class="body"><a id="pgfId-1019543"/>To do that<a id="marker-1019506"/>, the <code class="fm-code-in-text">hydrate</code> method is called from <a id="marker-1019522"/>the <code class="fm-code-in-text">DashboardWebAppVerticle</code> initialization method (<code class="fm-code-in-text">rxStart</code>), right after the Kafka <a id="marker-1019548"/>consumers have been set, as in listing 11.10. This method assembles ranking data by calling the activity and user profile services, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019609"/>Listing 11.20 Implementation of the <code class="fm-code-in-listingcaption">hydrate</code> method</p>
+  <pre class="programlisting">WebClient webClient = WebClient.create(vertx);
+webClient
+  .get(3001, "localhost", "/ranking-last-24-hours")              <span class="fm-combinumeral">❶</span>
+  .as(BodyCodec.jsonArray())
+  .rxSend()
+  .delay(5, TimeUnit.SECONDS, RxHelper.scheduler(vertx))         <span class="fm-combinumeral">❷</span>
+  .retry(5)                                                      <span class="fm-combinumeral">❸</span>
+  .map(HttpResponse::body)
+  .flattenAsFlowable(Functions.identity())
+  .cast(JsonObject.class)
+  .flatMapSingle(json -&gt; whoOwnsDevice(webClient, json))         <span class="fm-combinumeral">❹</span>
+  .flatMapSingle(json -&gt; fillWithUserProfile(webClient, json))   <span class="fm-combinumeral">❺</span>
+  .subscribe(
+    this::hydrateEntryIfPublic,                                  <span class="fm-combinumeral">❻</span>
+    err -&gt; logger.error("Hydration error", err),
+    () -&gt; logger.info("Hydration completed"));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033084"/><span class="fm-combinumeral">❶</span> Activity service ranking endpoint</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033105"/><span class="fm-combinumeral">❷</span> Allow a delay when the service starts.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033122"/><span class="fm-combinumeral">❸</span> Allow five retries if the activity service is not available.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033146"/><span class="fm-combinumeral">❹</span> For each device ranking entry, find the owner.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033163"/><span class="fm-combinumeral">❺</span> Fill with the user details.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033180"/><span class="fm-combinumeral">❻</span> Track only the users who’ve opted to be public.</p>
+
+  <p class="body"><a id="pgfId-1019957"/>The implementation of the <code class="fm-code-in-text">hydrate</code> method relies on <a id="marker-1031110"/>getting a ranking of the devices over the last 24 hours. The service returns a JSON array ordered by the number of steps. We allow an arbitrary five-second delay before making the request, and allow five retries in case <a id="marker-1031112"/>the activity service is not available. Once we have <a id="marker-1031113"/>ranking data, the <code class="fm-code-in-text">whoOwnsDevice</code> method (listing 11.21) and <code class="fm-code-in-text">fillWithUserProfile</code> method (listing 11.22) correlate the pedometer-centric data with <a id="marker-1031114"/>a user. Finally, the <code class="fm-code-in-text">hydrateEntryIfPublic</code> method in listing 11.23 fills the <code class="fm-code-in-text">publicRanking</code> collection with <a id="marker-1031115"/>data from users who opted to be in public rankings.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020023"/>Listing 11.21 Finding who owns a device</p>
+  <pre class="programlisting">private Single&lt;JsonObject&gt; whoOwnsDevice(WebClient webClient, 
+<span class="fm-code-continuation-arrow">➥</span> JsonObject json) {
+  return webClient
+    .get(3000, "localhost", "/owns/" + json.getString("deviceId"))    <span class="fm-combinumeral">❶</span>
+    .as(BodyCodec.jsonObject())
+    .rxSend()
+    .retry(5)
+    .map(HttpResponse::body)
+    .map(resp -&gt; resp.mergeIn(json));                                 <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032946"/><span class="fm-combinumeral">❶</span> Request to find a device owner.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032967"/><span class="fm-combinumeral">❷</span> Merge JSON data.</p>
+
+  <p class="body"><a id="pgfId-1020186"/>The <code class="fm-code-in-text">whoOwnsDevice</code> method performs an HTTP request <a id="marker-1020169"/>to determine who owns a device, and then merges the resulting JSON data. At this point, we need to fill the remaining user data, which <a id="marker-1020175"/>is done via the <code class="fm-code-in-text">fillWithUserProfile</code> method, shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020246"/>Listing 11.22 Adding user data to the ranking data</p>
+  <pre class="programlisting">private Single&lt;JsonObject&gt; fillWithUserProfile(WebClient webClient, 
+<span class="fm-code-continuation-arrow">➥</span> JsonObject json) {
+  return webClient
+    .get(3000, "localhost", "/" + json.getString("username"))   <span class="fm-combinumeral">❶</span>
+    .as(BodyCodec.jsonObject())
+    .rxSend()
+    .retry(5)
+    .map(HttpResponse::body)
+    .map(resp -&gt; resp.mergeIn(json));                           <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032815"/><span class="fm-combinumeral">❶</span> Get user data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032836"/><span class="fm-combinumeral">❷</span> Merge JSON data.</p>
+
+  <p class="body"><a id="pgfId-1020394"/>This code is very similar <a id="marker-1020383"/>to that of the <code class="fm-code-in-text">whoOwnsDevice</code> method.</p>
+
+  <p class="body"><a id="pgfId-1020425"/>Last but not least, the <code class="fm-code-in-text">hydrateEntryIfPublic</code> method in the following <a id="marker-1020414"/>listing adds data to the <code class="fm-code-in-text">publicRanking</code> collection.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020485"/>Listing 11.23 Hydration of public user data</p>
+  <pre class="programlisting">private void hydrateEntryIfPublic(JsonObject data) {
+  if (data.getBoolean("makePublic")) {                      <span class="fm-combinumeral">❶</span>
+    data.put("timestamp", Instant.now().toString());        <span class="fm-combinumeral">❷</span>
+    publicRanking.put(data.getString("username"), data);    <span class="fm-combinumeral">❸</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032630"/><span class="fm-combinumeral">❶</span> Only store public users.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032651"/><span class="fm-combinumeral">❷</span> Insert a local timestamp for the update.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032668"/><span class="fm-combinumeral">❸</span> Store the user data.</p>
+
+  <p class="body"><a id="pgfId-1020624"/>Hydration is a process that’s started asynchronously when the verticle starts, and eventually the <code class="fm-code-in-text">publicRanking</code> collection holds accurate data. Note that at this stage we have not pushed any ranking data to the dashboard web application clients. Let’s now see what happens next. <a id="marker-1020635"/><a id="marker-1020638"/><a id="marker-1020640"/></p>
+
+  <h3 class="fm-head1" id="heading_id_14"><a id="pgfId-1020646"/>11.3.3 Periodically updating rankings from the updates stream</h3>
+
+  <p class="body"><a id="pgfId-1020663"/><a id="marker-1020657"/><a id="marker-1020659"/>The user ranking is updated every five seconds. To do so, we collect updates from users for five seconds, update the public ranking data, and push the result to the dashboard web application. We batch data over spans of five seconds to pace the dashboard refresh, but you can reduce the time window or even get rid of it if you want a more lively dashboard. The following listing shows the RxJava pipeline to manage this process.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020719"/>Listing 11.24 RxJava pipeline to update user rankings</p>
+  <pre class="programlisting">KafkaConsumer.&lt;String, JsonObject&gt;create(vertx, 
+<span class="fm-code-continuation-arrow">➥</span> KafkaConfig.consumerConfig("dashboard-webapp-ranking"))
+  .subscribe("event-stats.user-activity.updates")                <span class="fm-combinumeral">❶</span>
+  .toFlowable()
+  .filter(record -&gt; record.value().getBoolean("makePublic"))     <span class="fm-combinumeral">❷</span>
+  .buffer(5, TimeUnit.SECONDS, RxHelper.scheduler(vertx))        <span class="fm-combinumeral">❸</span>
+  .subscribe(this::updatePublicRanking);                         <span class="fm-combinumeral">❹</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032384"/><span class="fm-combinumeral">❶</span> Subscribe to the updates.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032405"/><span class="fm-combinumeral">❷</span> Keep only the public users.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032422"/><span class="fm-combinumeral">❸</span> Group events over five seconds.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032439"/><span class="fm-combinumeral">❹</span> Update rankings and push data.</p>
+
+  <p class="body"><a id="pgfId-1020902"/>The <code class="fm-code-in-text">filter</code> operator is used to keep <a id="marker-1020891"/>only Kafka records where the user data is public, and the <code class="fm-code-in-text">buffer</code> operator makes five-second windows of events.</p>
+
+  <p class="body"><a id="pgfId-1020911"/>The following listing shows the implementation of the <code class="fm-code-in-text">updatePublicRanking</code> method that processes <a id="marker-1020922"/>these event batches.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020983"/>Listing 11.25 Public ranking maintenance process</p>
+  <pre class="programlisting">private void updatePublicRanking(List&lt;KafkaConsumerRecord&lt;String, 
+<span class="fm-code-continuation-arrow">➥</span> JsonObject&gt;&gt; records) {
+  copyBetterScores(records);                                                 <span class="fm-combinumeral">❶</span>
+  pruneOldEntries();                                                         <span class="fm-combinumeral">❷</span>
+  vertx.eventBus().publish("client.updates.publicRanking", computeRanking());<span class="fm-combinumeral">❸</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032119"/><span class="fm-combinumeral">❶</span> Merge the data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032140"/><span class="fm-combinumeral">❷</span> Discard older data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032157"/><span class="fm-combinumeral">❸</span> Compute ranking and send to the event bus</p>
+
+  <p class="body"><a id="pgfId-1021116"/>The method describes the process in three steps:</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1021122"/>Use the collected data to update ranking data.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1021136"/>Discard older entries.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1021146"/>Compute a new ranking and send it to the connected web applications over the event bus.</p>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1021169"/>The next listing shows the implementation <a id="marker-1021158"/>of the <code class="fm-code-in-text">copyBetterScores</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021229"/>Listing 11.26 Updating ranking data</p>
+  <pre class="programlisting">private void copyBetterScores(List&lt;KafkaConsumerRecord&lt;String, JsonObject&gt;&gt; 
+<span class="fm-code-continuation-arrow">➥</span> records) {
+  for (KafkaConsumerRecord&lt;String, JsonObject&gt; record : records) {
+    JsonObject json = record.value();
+    long stepsCount = json.getLong("stepsCount");                          <span class="fm-combinumeral">❶</span>
+    JsonObject previousData = publicRanking.get(json.getString("username"));
+    if (previousData == null || previousData.getLong("stepsCount") &lt; 
+    <span class="fm-code-continuation-arrow">➥</span> stepsCount) {                                                       <span class="fm-combinumeral">❷</span>
+      publicRanking.put(json.getString("username"), json);
+    }
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031933"/><span class="fm-combinumeral">❶</span> Get the proposed update number of steps.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031954"/><span class="fm-combinumeral">❷</span> Update only when there are more steps.</p>
+
+  <p class="body"><a id="pgfId-1021370"/>The preceding method updates the <code class="fm-code-in-text">publicRanking</code> collection when <a id="marker-1021381"/>a collected entry has a higher step count than the previous one, because there could potentially be a conflict between a hydration process and a user update.</p>
+
+  <p class="body"><a id="pgfId-1021404"/>The next listing shows <a id="marker-1021393"/>the <code class="fm-code-in-text">pruneOldEntries</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021464"/>Listing 11.27 Pruning older data</p>
+  <pre class="programlisting">private void pruneOldEntries() {
+  Instant now = Instant.now();                                <span class="fm-combinumeral">❶</span>
+  Iterator&lt;Map.Entry&lt;String, JsonObject&gt;&gt; iterator = 
+  <span class="fm-code-continuation-arrow">➥</span> publicRanking.entrySet().iterator();
+  while (iterator.hasNext()) {                                <span class="fm-combinumeral">❷</span>
+    Map.Entry&lt;String, JsonObject&gt; entry = iterator.next();
+    Instant timestamp = 
+    <span class="fm-code-continuation-arrow">➥</span> Instant.parse(entry.getValue().getString("timestamp"));
+    if (timestamp.until(now, ChronoUnit.DAYS) &gt;= 1L) {        <span class="fm-combinumeral">❸</span>
+      iterator.remove();
+    }
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031716"/><span class="fm-combinumeral">❶</span> Get the current time.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031737"/><span class="fm-combinumeral">❷</span> Iterate over all ranking data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031754"/><span class="fm-combinumeral">❸</span> Remove entries after a day.</p>
+
+  <p class="body"><a id="pgfId-1021646"/>This method simply iterates over all ranking data entries <a id="marker-1021635"/>in the <code class="fm-code-in-text">publicRanking</code> collection and removes entries older than one day.</p>
+
+  <p class="body"><a id="pgfId-1021668"/>The ranking is produced <a id="marker-1021657"/>by the <code class="fm-code-in-text">computeRanking</code> method, shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021728"/>Listing 11.28 Computing the ranking</p>
+  <pre class="programlisting">private JsonArray computeRanking() {
+  List&lt;JsonObject&gt; ranking = publicRanking.entrySet()
+    .stream()
+    .map(Map.Entry::getValue)                          <span class="fm-combinumeral">❶</span>
+    .sorted(this::compareStepsCountInReverseOrder)     <span class="fm-combinumeral">❷</span>
+    .map(json -&gt; new JsonObject()                      <span class="fm-combinumeral">❸</span>
+      .put("username", json.getString("username"))
+      .put("stepsCount", json.getLong("stepsCount"))
+      .put("city", json.getString("city")))
+    .collect(Collectors.toList());
+  return new JsonArray(ranking);                       <span class="fm-combinumeral">❹</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031441"/><span class="fm-combinumeral">❶</span> Extract values in publicRanking.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031462"/><span class="fm-combinumeral">❷</span> Sort by decreasing step count.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031479"/><span class="fm-combinumeral">❸</span> Copy values.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031496"/><span class="fm-combinumeral">❹</span> Wrap as a JSON array.</p>
+
+  <p class="body"><a id="pgfId-1021925"/>The method sorts public ranking data and produces a JSON array, where entries are ranked in reverse order (the first value is the user with most steps over the last 24 hours, and so on).</p>
+
+  <p class="body"><a id="pgfId-1021931"/>The <code class="fm-code-in-text">compareStepsCountInReverseOrder</code> method used to compare <a id="marker-1021942"/>and sort entries is shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1022003"/>Listing 11.29 Comparing user data against their step count</p>
+  <pre class="programlisting">private int compareStepsCountInReverseOrder(JsonObject a, JsonObject b) {
+  Long first = a.getLong("stepsCount");
+  Long second = b.getLong("stepsCount");
+  return second.compareTo(first);          <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031376"/><span class="fm-combinumeral">❶</span> Delegates to compareTo in the java.lang.Long class</p>
+
+  <p class="body"><a id="pgfId-1022128"/>The comparison returns -1 when <code class="fm-code-in-text">b</code> has fewer steps than <code class="fm-code-in-text">a</code>, 0 when they are equal, and 1 when <code class="fm-code-in-text">b</code> has more steps than <code class="fm-code-in-text">a</code>.</p>
+
+  <p class="body"><a id="pgfId-1022137"/>The Vue.js template for rendering the user ranking table is shown in the next listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1022194"/>Listing 11.30 User ranking template in Vue.js</p>
+  <pre class="programlisting">&lt;h4&gt;Public ranking (last 24 hours)&lt;/h4&gt;
+&lt;table class="table table-sm table-hover"&gt;
+  &lt;thead&gt;
+  &lt;tr&gt;
+    &lt;th scope="col"&gt;Name&lt;/th&gt;
+    &lt;th scope="col"&gt;From&lt;/th&gt;
+    &lt;th scope="col"&gt;Steps&lt;/th&gt;
+  &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;transition-group name="public-ranking" tag="tbody"&gt;
+  &lt;tr v-for="item in publicRanking" v-bind:key="item.username"&gt;     <span class="fm-combinumeral">❶</span>
+    &lt;td scope="row"&gt;{{ item.username }}&lt;/td&gt;
+    &lt;td&gt;{{ item.city }}&lt;/td&gt;
+    &lt;td&gt;{{ item.stepsCount }}&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;/transition-group&gt;
+&lt;/table&gt;</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1031314"/><span class="fm-combinumeral">❶</span> Iterate over the data.</p>
+
+  <p class="body"><a id="pgfId-1022368"/>The Vue.js code for the web application receives the ranking array over the event bus <a id="marker-1022357"/>and updates the <code class="fm-code-in-text">publicRanking</code> data entry. Whenever this happens, the display is updated to reflect the changes. Just like the city trends table, entries move using an animation as their order changes.</p>
+
+  <p class="body"><a id="pgfId-1022377"/>This concludes the end-to-end stream processing, from Kafka records to reactive web applications. The next chapter focuses on resilience and fault-tolerance in reactive systems. <a id="marker-1022379"/><a id="marker-1022382"/><a id="marker-1022384"/></p>
+
+  <h2 class="fm-head" id="heading_id_15"><a id="pgfId-1022390"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1022424"/>RxJava offers advanced operators like <code class="fm-code-in-text">buffer</code> and <code class="fm-code-in-text">groupBy</code> that can be composed to perform aggregate data processing.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1022433"/>A microservice does not have to expose an HTTP API. The event stats service only consumes and produces Kafka records.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1022443"/>There are stream-processing works that can start at any point of a stream, like computing a throughput, while other works require some initial state, like maintaining a live ranking of users over the last 24 hours.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1022453"/>The Vert.x event bus can be extended to web applications using the SockJS protocol, offering the same communication model across service and web code bases.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1022463"/>Vert.x allows you to build end-to-end reactive systems, where events trigger computations in services and impact user-facing web applications.</p>
+    </li>
+  </ul>
+</div></body>
+</html>

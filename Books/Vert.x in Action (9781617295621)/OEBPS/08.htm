@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1023346"/>8 The web stack</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>The construction of an edge service and a public API</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>The Vert.x web client</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011861"/>JSON web tokens (JWT) and cross-origin resource sharing (CORS)</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011871"/>Serving and integrating a Vue.js reactive application with Vert.x</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011881"/>Testing an HTTP API with REST Assured</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011891"/>Reactive applications often use HTTP because it is such a versatile protocol, and Vert.x offers comprehensive support for web technologies. The Vert.x web stack provides many tools for building web application backends. These include advanced routing, authentication, an HTTP client, and more. This chapter will guide you through exposing an HTTP API with <i class="fm-italics">JSON web tokens</i> (JWT) for access control, making HTTP requests to other <a id="marker-1011902"/>services, and building a reactive single-page application that connects to the HTTP API.</p>
+
+  <p class="fm-callout"><a id="pgfId-1011922"/><span class="fm-callout-head">Note</span> This book does not cover the following noteworthy elements from the Vert.x web stack that are not needed to build the application in this part of the book: routing with regular expressions, cookies, server-side sessions, server-side template rendering, and cross-site request forgery protection. You can get more details about those topics in the official documentation at <span class="fm-hyperlink"><a href="https://vertx.io/">https://vertx.io/</a></span>.</p>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011929"/>8.1 Exposing a public API</h2>
+
+  <p class="body"><a id="pgfId-1011948"/><a id="marker-1011940"/><a id="marker-1011942"/><a id="marker-1011944"/>Let’s start with a reminder of what the public API service does, as illustrated in figure 8.1. This service is an edge service (or service gateway, depending on how you prefer to name it) as it exposes an HTTP API, but it essentially composes functionality found in other services. In this case, the user profile and activity services are being used. These two services are internal to the application and are not publicly exposed. They also lack any form of authentication and access control, which is something the public API cannot afford for most operations.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH08_F01_Ponge.png" width="723" height="232"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1039168"/>Figure 8.1 Public API overview</p>
+
+  <p class="body"><a id="pgfId-1011963"/>The following Vert.x modules are needed to implement the public API:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1011983"/><code class="fm-code-in-text">vertx-web</code>, to provide advanced HTTP request-processing functionality <a class="calibre9" id="marker-1012000"/></p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012007"/><code class="fm-code-in-text">vertx-web-client</code>, to issue HTTP requests to the user <a class="calibre9" id="marker-1012020"/>profile and activity services</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012030"/><code class="fm-code-in-text">vertx-auth-jwt</code>, to generate and process JSON web <a class="calibre9" id="marker-1012043"/>tokens and perform access control</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1012053"/>The complete source code of the public API service can be found in the part2-steps-challenge/public-api folder of the book’s source code repository.</p>
+
+  <p class="body"><a id="pgfId-1012059"/>We’ll start with the Vert.x web router.</p>
+
+  <h3 class="fm-head1" id="heading_id_4"><a id="pgfId-1012065"/>8.1.1 Routing HTTP requests</h3>
+
+  <p class="body"><a id="pgfId-1012084"/><a id="marker-1012076"/><a id="marker-1012078"/><a id="marker-1012080"/>Vert.x core provides a very low-level HTTP server API, where you need to pass a request handler for all types of HTTP requests. If you just use Vert.x core, you need to manually check the requested path and method. This is fine for simple cases, and it’s what we did in some earlier chapters, but it can quickly become complicated.</p>
+
+  <p class="body"><a id="pgfId-1012131"/>The <code class="fm-code-in-text">vertx-web</code> module provides a <i class="fm-italics">router</i> that can act as a Vert.x HTTP server request handler, and that manages the dispatch of HTTP requests to suitable handlers <a id="marker-1012110"/>based on request paths (e.g., <code class="fm-code-in-text">/foo</code>) and HTTP methods (e.g., <code class="fm-code-in-text">POST</code>). This is illustrated in figure 8.2.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH08_F02_Ponge.png" width="894" height="303"/><br class="calibre15"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1039210"/>Figure 8.2 Routing HTTP requests</p>
+
+  <p class="body"><a id="pgfId-1012150"/>The following listing shows how to initialize and then set up a router as an HTTP request handler.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012221"/>Listing 8.1 Initializing and using a router as an HTTP request handler</p>
+  <pre class="programlisting">Router router = Router.router(vertx);
+// (...)                               <span class="fm-combinumeral">❶</span>
+
+vertx.createHttpServer()
+  .requestHandler(router)              <span class="fm-combinumeral">❷</span>
+  .listen(8080);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038165"/><span class="fm-combinumeral">❶</span> Define routes</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038186"/><span class="fm-combinumeral">❷</span> A router is just another HTTP request handler.</p>
+
+  <p class="body"><a id="pgfId-1012359"/>The <code class="fm-code-in-text">Router</code> class provides a fluent <a id="marker-1012348"/>API to describe <i class="fm-italics">routes</i> based on HTTP methods and paths, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1012419"/>Listing 8.2 Defining routes</p>
+  <pre class="programlisting">BodyHandler bodyHandler = BodyHandler.create();               <span class="fm-combinumeral">❶</span>
+router.post().handler(bodyHandler);                           <span class="fm-combinumeral">❷</span>
+router.put().handler(bodyHandler);
+
+String prefix = "/api/v1";
+
+router.post(prefix + "/register").handler(this::register);    <span class="fm-combinumeral">❸</span>
+router.post(prefix + "/token").handler(this::token);
+// (...) defines jwtHandler, more later
+
+router.get(prefix + "/:username/:year/:month")                <span class="fm-combinumeral">❹</span>
+  .handler(jwtHandler)                                        <span class="fm-combinumeral">❺</span>
+  .handler(this::checkUser)
+  .handler(this::monthlySteps);
+// (...)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037820"/><span class="fm-combinumeral">❶</span> BodyHandler is a predefined handler that extracts HTTP request body payloads.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037841"/><span class="fm-combinumeral">❷</span> Here bodyHandler is called for all HTTP POST and PUT requests.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037858"/><span class="fm-combinumeral">❸</span> The register method handles /api/v1/register POST requests.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037875"/><span class="fm-combinumeral">❹</span> We can extract path parameters by prefixing elements with ":".</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037892"/><span class="fm-combinumeral">❺</span> Handlers can be chained.</p>
+
+  <p class="body"><a id="pgfId-1012701"/>An interesting property of the Vert.x router is that handlers can be chained. With the definitions from listing 8.2, a <code class="fm-code-in-text">POST</code> request to <code class="fm-code-in-text">/api/v1/register</code> first goes through a <code class="fm-code-in-text">BodyHandler</code> instance. This handler <a id="marker-1012684"/>is useful for easily decoding an HTTP request body payload. The next handler <a id="marker-1012690"/>is the <code class="fm-code-in-text">register</code> method.</p>
+
+  <p class="body"><a id="pgfId-1012788"/>Listing 8.2 also defines the route for <code class="fm-code-in-text">GET</code> requests to <code class="fm-code-in-text">monthlySteps</code>, where the request first goes through <code class="fm-code-in-text">jwtHandler</code>, and then <code class="fm-code-in-text">checkUser</code>, as illustrated <a id="marker-1012751"/>in figure 8.3. This is useful for decomposing an HTTP request, processing <a id="marker-1012757"/>concerns in several steps: <code class="fm-code-in-text">jwtHandler</code> checks that a valid JWT token is in the request, <code class="fm-code-in-text">checkUser</code> checks that the JWT token grants permissions to access the resource, and <code class="fm-code-in-text">monthlySteps</code> checks <a id="marker-1012793"/>how many steps a user has taken in a month.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH08_F03_Ponge.png" width="999" height="484"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1039252"/>Figure 8.3 Routing chain for the monthly steps endpoint</p>
+
+  <p class="body"><a id="pgfId-1012843"/>Note that both <code class="fm-code-in-text">checkUser</code> and <code class="fm-code-in-text">jwtHandler</code> will be discussed in section 8.2.</p>
+
+  <p class="fm-callout"><a id="pgfId-1012884"/><span class="fm-callout-head">tip</span> The <code class="fm-code-in-text1">io.vertx.ext.web.handler</code> package contains useful <a id="marker-1012873"/>utility handlers including <code class="fm-code-in-text1">BodyHandler</code>. It especially provides handlers for HTTP authentication, CORS, CSRF, favicon, HTTP sessions, static files serving, virtual hosts, and template rendering. <a id="marker-1012889"/><a id="marker-1012892"/><a id="marker-1012894"/></p>
+
+  <h3 class="fm-head1" id="heading_id_5"><a id="pgfId-1012900"/>8.1.2 Making HTTP requests</h3>
+
+  <p class="body"><a id="pgfId-1012947"/><a id="marker-1012911"/><a id="marker-1012913"/><a id="marker-1012915"/>Let’s now dive into the implementation of a handler. Since the public API service forwards requests to the user profile and activity services, we need to use the Vert.x web client to make HTTP requests. As noted previously, the Vert.x core APIs offer a low-level HTTP client, whereas <a id="marker-1012920"/>the <code class="fm-code-in-text">WebClient</code> class from <a id="marker-1012936"/>the <code class="fm-code-in-text">vertx-web-client</code> module offers a richer API.</p>
+
+  <p class="body"><a id="pgfId-1012956"/>Creating a web client instance is as simple as this:</p>
+  <pre class="programlisting">WebClient webClient = WebClient.create(vertx);</pre>
+
+  <p class="body"><a id="pgfId-1012976"/>A <code class="fm-code-in-text">WebClient</code> instance is typically stored in a private field of a verticle class, as it can be used to perform multiple concurrent HTTP requests. The whole application uses the RxJava 2 bindings, so we can take advantage of them to compose asynchronous operations. As you will see in later examples, the RxJava bindings sometimes bring additional functionality for dealing with error management.</p>
+
+  <p class="body"><a id="pgfId-1012991"/>The following listing shows the implementation of the <code class="fm-code-in-text">register</code> route handler.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013057"/>Listing 8.3 Using the Vert.x web client in a route handler</p>
+  <pre class="programlisting">private void register(RoutingContext ctx) {
+  webClient
+    .post(3000, "localhost", "/register")                       <span class="fm-combinumeral">❶</span>
+    .putHeader("Content-Type", "application/json")              <span class="fm-combinumeral">❷</span>
+    .rxSendJson(ctx.getBodyAsJson())                            <span class="fm-combinumeral">❸</span>
+    .subscribe(
+      response -&gt; sendStatusCode(ctx, response.statusCode()),   <span class="fm-combinumeral">❹</span>
+      err -&gt; sendBadGateway(ctx, err));
+}
+
+private void sendStatusCode(RoutingContext ctx, int code) {
+  ctx.response().setStatusCode(code).end();
+}
+
+private void sendBadGateway(RoutingContext ctx, Throwable err) {
+  logger.error("Woops", err);
+  ctx.fail(502);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037555"/><span class="fm-combinumeral">❶</span> Methods match the HTTP methods (GET, POST, etc.).</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037576"/><span class="fm-combinumeral">❷</span> HTTP headers can be passed.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037593"/><span class="fm-combinumeral">❸</span> This converts the request from a Vert.x Buffer to a JsonObject.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037610"/><span class="fm-combinumeral">❹</span> Subscription in RxJava triggers the request.</p>
+
+  <p class="body"><a id="pgfId-1013336"/>This example demonstrates both how to handle an HTTP request with a router, and how to use the web client. The <code class="fm-code-in-text">RoutingContext</code> class encapsulates <a id="marker-1013299"/>details about the HTTP request and provides the HTTP response object via the <code class="fm-code-in-text">response</code> method. HTTP headers can be set <a id="marker-1013315"/>in both requests and responses, and the response is sent once the <code class="fm-code-in-text">end</code> method has been called. A status code can be specified, although by default it will be <code class="fm-code-in-text">200</code> (OK).</p>
+
+  <p class="body"><a id="pgfId-1013421"/>You can see that <code class="fm-code-in-text">getBodyAsJson</code> transforms the HTTP request body to a <code class="fm-code-in-text">JsonObject</code>, while <code class="fm-code-in-text">rxSendJson</code> sends an HTTP request with a <code class="fm-code-in-text">JsonObject</code> as the body. By default, Vert.x <code class="fm-code-in-text">Buffer</code> objects carry bodies in both requests and responses, but there are helper methods to convert from or to <code class="fm-code-in-text">String</code>, <code class="fm-code-in-text">JsonObject</code>, and <code class="fm-code-in-text">JsonArray</code>.</p>
+
+  <p class="body"><a id="pgfId-1013456"/>The next listing offers another router handler method for HTTP <code class="fm-code-in-text">GET</code> requests to <code class="fm-code-in-text">/api/v1/:username</code>, where <code class="fm-code-in-text">:username</code> is a path parameter.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013516"/>Listing 8.4 Fetching and forwarding a user’s details</p>
+  <pre class="programlisting">private void fetchUser(RoutingContext ctx) {
+  webClient
+    .get(3000, "localhost", "/" + ctx.pathParam("username"))      <span class="fm-combinumeral">❶</span>
+    .as(BodyCodec.jsonObject())                                   <span class="fm-combinumeral">❷</span>
+    .rxSend()
+    .subscribe(
+      resp -&gt; forwardJsonOrStatusCode(ctx, resp),
+      err -&gt; sendBadGateway(ctx, err));
+}
+
+private void forwardJsonOrStatusCode(RoutingContext ctx, 
+<span class="fm-code-continuation-arrow">➥</span> HttpResponse&lt;JsonObject&gt; resp) {
+  if (resp.statusCode() != 200) {
+    sendStatusCode(ctx, resp.statusCode());
+  } else {
+    ctx.response()
+      .putHeader("Content-Type", "application/json")
+      .end(resp.body().encode());                                 <span class="fm-combinumeral">❸</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037332"/><span class="fm-combinumeral">❶</span> Extracts a path parameter</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037353"/><span class="fm-combinumeral">❷</span> Converts the response to a JsonObject</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037370"/><span class="fm-combinumeral">❸</span> Ends the response with some content</p>
+
+  <p class="body"><a id="pgfId-1013824"/>This example shows the <code class="fm-code-in-text">as</code> method that converts HTTP responses to a <a id="marker-1013743"/>type other than <code class="fm-code-in-text">Buffer</code> using a <code class="fm-code-in-text">BodyCodec</code>. You can also see that the HTTP response’s <code class="fm-code-in-text">end</code> method can take an argument that is the response content. It can be a <code class="fm-code-in-text">String</code> or a <code class="fm-code-in-text">Buffer</code>. While it is often the case that the response is sent in a single <code class="fm-code-in-text">end</code> method call, you can send intermediary fragments using the <code class="fm-code-in-text">write</code> method until a final <code class="fm-code-in-text">end</code> call closes the HTTP response, as shown here:<a id="marker-1013829"/><a id="marker-1013832"/><a id="marker-1013834"/><a id="marker-1013836"/><a id="marker-1013838"/><a id="marker-1013840"/></p>
+  <pre class="programlisting">response.write("hello").write(" world").end();</pre>
+
+  <h2 class="fm-head" id="heading_id_6"><a id="pgfId-1013860"/>8.2 Access control with JWT tokens</h2>
+
+  <p class="body"><a id="pgfId-1013884"/><a id="marker-1013871"/><a id="marker-1013873"/>JSON Web Token (JWT) is an open specification for securely transmitting JSON-encoded data between parties (<span class="fm-hyperlink"><a href="https://tools.ietf.org/html/rfc7519">https://tools.ietf.org/html/rfc7519</a></span>). JWT tokens are signed with either a symmetric shared secret or an asymmetric public/private key pair, so it is always possible to verify that the information that they contain has not been modified. This is very interesting, as a JWT token can be used to hold claims such as identity and authorization grants. JWT tokens can be exchanged as part of HTTP requests using the <code class="fm-code-in-text">Authorization</code> HTTP header.</p>
+
+  <p class="body"><a id="pgfId-1013893"/>Let’s look at how to use JWT tokens, what data they contain, and how to both validate and issue them with Vert.x.</p>
+
+  <p class="fm-callout"><a id="pgfId-1013909"/><span class="fm-callout-head">tip</span> JWT is only one protocol supported by Vert.x. Vert.x offers the <code class="fm-code-in-text1">vertx-auth-oauth2</code> module for OAuth2, which <a id="marker-1013920"/>is a popular protocol among public service providers like Google, GitHub, and Twitter. You will be interested in using it if your application needs to integrate with such services (such as when accessing a user’s Gmail account data), or when your application wants to grant third-party access through OAuth2.</p>
+
+  <h3 class="fm-head1" id="heading_id_7"><a id="pgfId-1013930"/>8.2.1 Using JWT tokens</h3>
+
+  <p class="body"><a id="pgfId-1013963"/><a id="marker-1013941"/><a id="marker-1013943"/>To illustrate using JWT tokens, let’s interact with the public API and authenticate as user <code class="fm-code-in-text">foo</code> with password <code class="fm-code-in-text">123</code>, and get a JWT token. The following listing shows the HTTP response.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014029"/>Listing 8.5 Getting a JWT token</p>
+  <pre class="programlisting">$ http :4000/api/v1/token username=foo password=123      <span class="fm-combinumeral">❶</span>
+HTTP/1.1 200 OK
+Content-Type: application/jwt
+content-length: 496
+
+eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkZXZpY2VJZCI6ImExYjIiLCJpYXQiOjE1NjUx
+<span class="fm-code-continuation-arrow">➥</span> Njc0NzUsImV4cCI6MTU2NTc3MjI3NSwiaXNzIjoiMTBrLXN0ZXBzLWFwaSIsInN1YiI6ImZvb
+<span class="fm-code-continuation-arrow">➥</span> yJ9.J_tn2BjMNYE6eFSHwSJ9e8DoCEUr_xMSlYAyBSy1-E_pouvDq4lp8QjG51cJoa5Gbrt1bg
+<span class="fm-code-continuation-arrow">➥</span> tDHinJsLncG1RIsGr_cz1rQw8_GlI_-GdhqFBw8dVjlsgykSf5tfaiiRwORmz7VH_AAk-935aV
+<span class="fm-code-continuation-arrow">➥</span> lxMg4mxkbOvN4YDxRLhLb4Y78TA47F__ivNsM4gLD8CHzOUmTEta_pjpZGzsErmYvzDOV6F7rO
+<span class="fm-code-continuation-arrow">➥</span> ZcRhZThJxLvR3zskrtx83iaNHTwph53bkHNOQzC66wxNMar_T4HMRWzqnrr-sFIcOwLFsWJKow
+<span class="fm-code-continuation-arrow">➥</span> c1rQuadjv-ew541YQLaVmkEcai6leZLwCfCTcsxMX9rt0AmOFg</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037265"/><span class="fm-combinumeral">❶</span> Authenticating as user foo with password 123</p>
+
+  <p class="body"><a id="pgfId-1014159"/>A JWT token has the MIME type <code class="fm-code-in-text">application/jwt</code>, which is plain text. We can pass the token to make a request as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014231"/>Listing 8.6 Using a JWT token to access a resource</p>
+  <pre class="programlisting">http :4000/api/v1/foo Authorization:'Bearer 
+eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkZXZpY2VJZCI6ImExYjIiLCJpYXQiOjE1NjUx<span class="fm-code-continuation-arrow">➥</span> Njc0NzUsImV4cCI6MTU2NTc3MjI3NSwiaXNzIjoiMTBrLXN0ZXBzLWFwaSIsInN1YiI6ImZvb
+<span class="fm-code-continuation-arrow">➥</span> yJ9.J_tn2BjMNYE6eFSHwSJ9e8DoCEUr_xMSlYAyBSy1-E_pouvDq4lp8QjG51cJoa5Gbrt1bg
+<span class="fm-code-continuation-arrow">➥</span> tDHinJsLncG1RIsGr_cz1rQw8_GlI_-GdhqFBw8dVjlsgykSf5tfaiiRwORmz7VH_AAk-935a
+<span class="fm-code-continuation-arrow">➥</span> VlxMg4mxkbOvN4YDxRLhLb4Y78TA47F__ivNsM4gLD8CHzOUmTEta_pjpZGzsErmYvzDOV6F7
+<span class="fm-code-continuation-arrow">➥</span> rOZcRhZThJxLvR3zskrtx83iaNHTwph53bkHNOQzC66wxNMar_T4HMRWzqnrr-sFIcOwLFsWJK
+<span class="fm-code-continuation-arrow">➥</span> owc1rQuadjv-ew541YQLaVmkEcai6leZLwCfCTcsxMX9rt0AmOFg'
+HTTP/1.1 200 OK                                            <span class="fm-combinumeral">❶</span>
+Content-Type: application/json
+content-length: 90
+
+{
+    "city": "Lyon",
+    "deviceId": "a1b2",
+    "email": "foo@bar.com",
+    "makePublic": true,
+    "username": "foo"
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037166"/><span class="fm-combinumeral">❶</span> We can access the resource, because we have a valid token for user foo.</p>
+
+  <p class="fm-callout"><a id="pgfId-1014413"/><span class="fm-callout-head">tip</span> The token value fits on a single line, and there is only a single space between <code class="fm-code-in-text1">Bearer</code> and the token.</p>
+
+  <p class="body"><a id="pgfId-1014470"/>The token is passed with the <code class="fm-code-in-text">Authorization</code> HTTP header, and the value <a id="marker-1014439"/>is prefixed with <code class="fm-code-in-text">Bearer</code>. Here the token allows us to access the resource <code class="fm-code-in-text">/api/v1/foo</code>, since the token was generated for user <code class="fm-code-in-text">foo</code>. If we try to do the same thing without a token, or if we try to access the resource of another user, as in the following listing, we get denied.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014536"/>Listing 8.7 Accessing a resource without a matching JWT token</p>
+  <pre class="programlisting">http :4000/api/v1/abc Authorization:'Bearer 
+eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkZXZpY2VJZCI6ImExYjIiLCJpYXQiOjE1NjUx<span class="fm-code-continuation-arrow">➥</span> Njc0NzUsImV4cCI6MTU2NTc3MjI3NSwiaXNzIjoiMTBrLXN0ZXBzLWFwaSIsInN1YiI6ImZvb
+<span class="fm-code-continuation-arrow">➥</span> yJ9.J_tn2BjMNYE6eFSHwSJ9e8DoCEUr_xMSlYAyBSy1-E_pouvDq4lp8QjG51cJoa5Gbrt1b
+<span class="fm-code-continuation-arrow">➥</span> gtDHinJsLncG1RIsGr_cz1rQw8_GlI_-GdhqFBw8dVjlsgykSf5tfaiiRwORmz7VH_AAk-935
+<span class="fm-code-continuation-arrow">➥</span> aVlxMg4mxkbOvN4YDxRLhLb4Y78TA47F__ivNsM4gLD8CHzOUmTEta_pjpZGzsErmYvzDOV6F
+<span class="fm-code-continuation-arrow">➥</span> 7rOZcRhZThJxLvR3zskrtx83iaNHTwph53bkHNOQzC66wxNMar_T4HMRWzqnrr-sFIcOwLFsW
+<span class="fm-code-continuation-arrow">➥</span> JKowc1rQuadjv-ew541YQLaVmkEcai6leZLwCfCTcsxMX9rt0AmOFg'
+HTTP/1.1 403 Forbidden                                        <span class="fm-combinumeral">❶</span>
+content-length: 0</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037070"/><span class="fm-combinumeral">❶</span> We are denied access to a resource of user abc because we passed a (valid) token for user foo. <a id="marker-1037075"/><a id="marker-1037076"/></p>
+
+  <h3 class="fm-head1" id="heading_id_8"><a id="pgfId-1014660"/>8.2.2 What is in a JWT token?</h3>
+
+  <p class="body"><a id="pgfId-1014677"/><a id="marker-1014671"/><a id="marker-1014673"/>So far so good, but what is in the token string?</p>
+
+  <p class="body"><a id="pgfId-1014695"/>If you look closely, you will see that a JWT token string is a big line with three parts, each separated <a id="marker-1014684"/>by a dot. The three parts are of the form <code class="fm-code-in-text">header.payload.signature</code>:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1014704"/><code class="fm-code-in-text">header</code> is a JSON document specifying the type of token and the signature algorithm being used.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1014743"/><code class="fm-code-in-text">payload</code> is a JSON document containing <i class="fm-italics1">claims</i>, which are JSON entries where some are part of the specification and some can be free-form.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014752"/><code class="fm-code-in-text">signature</code> is the signature of the header and payload with either a shared secret or a private key, depending on what algorithm you chose.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1014769"/>The header and payload are encoded with the <i class="fm-italics">Base64</i> algorithm. If you decode the JWT token obtained in listing 8.5, the header contains the following:</p>
+  <pre class="programlisting">{
+  "typ": "JWT",
+  "alg": "RS256"
+}</pre>
+
+  <p class="body"><a id="pgfId-1014816"/>This is what the payload contains:</p>
+  <pre class="programlisting">{
+  "deviceId": "a1b2",
+  "iat": 1565167475,
+  "exp": 1565772275,
+  "iss": "10k-steps-api",
+  "sub": "foo"
+}</pre>
+
+  <p class="body"><a id="pgfId-1014954"/>Here, <code class="fm-code-in-text">deviceId</code> is the device identifier <a id="marker-1014883"/>for user <code class="fm-code-in-text">foo</code>, <code class="fm-code-in-text">sub</code> is the <i class="fm-italics">subject</i> (user <code class="fm-code-in-text">foo</code>), <code class="fm-code-in-text">iat</code> is the date when the token was issued, <code class="fm-code-in-text">exp</code> is the token expiration date, and <code class="fm-code-in-text">iss</code> is the token issuer (our service).</p>
+
+  <p class="body"><a id="pgfId-1014963"/>The signature allows you to check that the content of both the header and payload have been signed by the issuer and have not been modified, as long as you know the public key. This makes JWT tokens a great option for authorization and access control in APIs; a token with all needed claims is self-contained and does not require you to make checks for each request against an identity management service like an LDAP/ OAuth server.</p>
+
+  <p class="body"><a id="pgfId-1014991"/>It is important to understand that anyone with a JWT token can decode its content, because <i class="fm-italics">Base64</i> is not an <a id="marker-1014980"/>encryption algorithm. You must never put sensitive data like passwords in tokens, even if they are transmitted over secure channels like HTTPS. It is also important to set token expiration dates, so that a compromised token cannot be used indefinitely. There are various strategies for dealing with JWT token expiration, like maintaining a list of compromised tokens in the backend, and combining short expiration deadlines with frequent validity extension requests from clients, where the issuer resends the token, but with an extended <code class="fm-code-in-text">exp</code> claim. <a id="marker-1014996"/><a id="marker-1014999"/></p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1015005"/>8.2.3 Handling JWT tokens with Vert.x</h3>
+
+  <p class="body"><a id="pgfId-1015022"/><a id="marker-1027580"/><a id="marker-1027581"/>The first thing we need in order to issue and check tokens is a pair of public and private RSA keys, so we can sign JWT tokens. You can generate these using the shell script in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015078"/>Listing 8.8 Generating RSA 2048 public and private keys</p>
+  <pre class="programlisting">#!/bin/bash
+openssl genrsa -out private.pem 2048
+openssl pkcs8 -topk8 -inform PEM -in private.pem -out 
+<span class="fm-code-continuation-arrow">➥</span> private_key.pem -nocrypt
+openssl rsa -in private.pem -outform PEM -pubout -out public_key.pem</pre>
+
+  <p class="body"><a id="pgfId-1015135"/>The next listing shows a helper class to read the PEM files as a string.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015192"/>Listing 8.9 Helper to read RSA keys</p>
+  <pre class="programlisting">class CryptoHelper {
+
+  static String publicKey() throws IOException {
+    return read("public_key.pem");
+  }
+
+  static String privateKey() throws IOException {
+    return read("private_key.pem");
+  }
+
+  private static String read(String file) throws IOException {
+    Path path = Paths.get("public-api", file);
+    if (!path.toFile().exists()) {                                             <span class="fm-combinumeral">❶</span>
+      path = Paths.get("..", "public-api", file);
+    }
+    return String.join("\n", Files.readAllLines(path, StandardCharsets.UTF_8));<span class="fm-combinumeral">❷</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036918"/><span class="fm-combinumeral">❶</span> This allows us to run the service from either the service folder or the application project root.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036939"/><span class="fm-combinumeral">❷</span> Joins all lines, separating them with a newline character</p>
+
+  <p class="body"><a id="pgfId-1015378"/>Note that the code in <code class="fm-code-in-text">CryptoHelper</code> uses blocking <a id="marker-1015389"/>APIs. Since this code is run once at initialization, and PEM files are small, we can afford a possible yet negligible blocking of the event loop.</p>
+
+  <p class="body"><a id="pgfId-1015399"/>We can then create a Vert.x JWT handler as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015456"/>Listing 8.10 Creating a JWT handler</p>
+  <pre class="programlisting">String publicKey = CryptoHelper.publicKey();
+String privateKey = CryptoHelper.privateKey();
+
+jwtAuth = JWTAuth.create(vertx, new JWTAuthOptions()          <span class="fm-combinumeral">❶</span>
+  .addPubSecKey(new PubSecKeyOptions()
+    .setAlgorithm("RS256")
+    .setBuffer(publicKey))
+  .addPubSecKey(new PubSecKeyOptions()
+    .setAlgorithm("RS256")
+    .setBuffer(privateKey)));
+
+JWTAuthHandler jwtHandler = JWTAuthHandler.create(jwtAuth);   <span class="fm-combinumeral">❷</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036802"/><span class="fm-combinumeral">❶</span> jwtAuth is a private field of type JWTAuth.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036823"/><span class="fm-combinumeral">❷</span> Vert.x router handler for JWT authentication</p>
+
+  <p class="body"><a id="pgfId-1015607"/>The JWT handler can be used for routes that require JWT authentication, as it decodes the <code class="fm-code-in-text">Authorization</code> header to extract JWT data.</p>
+
+  <p class="body"><a id="pgfId-1015622"/>The following listing recalls a route with the handler in its handlers chain.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015679"/>Listing 8.11 JWT handler in a route</p>
+  <pre class="programlisting">router.get(prefix + "/:username/:year/:month")
+  .handler(jwtHandler)                           <span class="fm-combinumeral">❶</span>
+  .handler(this::checkUser)
+  .handler(this::monthlySteps);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036721"/><span class="fm-combinumeral">❶</span> The JWT handler</p>
+
+  <p class="body"><a id="pgfId-1015762"/>The JWT handler supports the common authentication API from the <code class="fm-code-in-text">vertx-auth-common</code> module, which offers <a id="marker-1015773"/>a unified view across different types of authentication mechanisms like databases, OAuth, or Apache <code class="fm-code-in-text">.htdigest</code> files. The handler puts authentication data in the routing context.</p>
+
+  <p class="body"><a id="pgfId-1015783"/>The following listing shows the implementation of the <code class="fm-code-in-text">checkUser</code> method where we <a id="marker-1015794"/>check that the user in the JWT token is the same as the one in the HTTP request path.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015855"/>Listing 8.12 Checking that a valid JWT token is present</p>
+  <pre class="programlisting">private void checkUser(RoutingContext ctx) {
+  String subject = ctx.user().principal().getString("sub");    <span class="fm-combinumeral">❶</span>
+  if (!ctx.pathParam("username").equals(subject)) {            <span class="fm-combinumeral">❷</span>
+    sendStatusCode(ctx, 403);
+  } else {
+    ctx.next();                                                <span class="fm-combinumeral">❸</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036513"/><span class="fm-combinumeral">❶</span> User name from the JWT token</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036534"/><span class="fm-combinumeral">❷</span> User name specified in the HTTP request path</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036551"/><span class="fm-combinumeral">❸</span> Pass to the next handler</p>
+
+  <p class="body"><a id="pgfId-1016022"/>This provides a simple separation of concerns, as the <code class="fm-code-in-text">checkUser</code> handler focuses on access control and delegates to the next handler in the chain by calling <code class="fm-code-in-text">next</code> if access is granted, or ends the request with a 403 status code if the wrong user is trying to access a resource.</p>
+
+  <p class="body"><a id="pgfId-1016031"/>Knowing that access control is correct, the <code class="fm-code-in-text">monthlySteps</code> method in the following <a id="marker-1016042"/>listing can focus on making the request to the activity service.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016103"/>Listing 8.13 Getting monthly steps data</p>
+  <pre class="programlisting">private void monthlySteps(RoutingContext ctx) {
+  String deviceId = ctx.user().principal().getString("deviceId");     <span class="fm-combinumeral">❶</span>
+  String year = ctx.pathParam("year");
+  String month = ctx.pathParam("month");
+  webClient
+    .get(3001, "localhost", "/" + deviceId + "/" + year + "/" + month)
+    .as(BodyCodec.jsonObject())
+    .rxSend()
+    .subscribe(
+      resp -&gt; forwardJsonOrStatusCode(ctx, resp),
+      err -&gt; sendBadGateway(ctx, err));
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036446"/><span class="fm-combinumeral">❶</span> From the JWT token</p>
+
+  <p class="body"><a id="pgfId-1016234"/>The device identifier is extracted from the JWT token data and passed along to the web client request. <a id="marker-1016236"/><a id="marker-1016239"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1016245"/>8.2.4 Issuing JWT tokens with Vert.x</h3>
+
+  <p class="body"><a id="pgfId-1016262"/><a id="marker-1016256"/><a id="marker-1016258"/>Last, but not least, we need to generate JWT tokens. To do that, we need to make two requests to the user profile service: first we need to check the credentials, and then we gather profile data to prepare a token.</p>
+
+  <p class="body"><a id="pgfId-1016267"/>The following listing shows the handler for the <code class="fm-code-in-text">/api/v1/token</code> route.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016333"/>Listing 8.14 JWT token-creation router handler</p>
+  <pre class="programlisting">private void token(RoutingContext ctx) {
+  JsonObject payload = ctx.getBodyAsJson();                <span class="fm-combinumeral">❶</span>
+  String username = payload.getString("username");
+  webClient
+    .post(3000, "localhost", "/authenticate")              <span class="fm-combinumeral">❷</span>
+    .expect(ResponsePredicate.SC_SUCCESS)
+    .rxSendJson(payload)
+    .flatMap(resp -&gt; fetchUserDetails(username))           <span class="fm-combinumeral">❸</span>
+    .map(resp -&gt; resp.body().getString("deviceId"))
+    .map(deviceId -&gt; makeJwtToken(username, deviceId))     <span class="fm-combinumeral">❹</span>
+    .subscribe(
+      token -&gt; sendToken(ctx, token),
+      err -&gt; handleAuthError(ctx, err));
+}
+
+private void sendToken(RoutingContext ctx, String token) {
+  ctx.response().putHeader("Content-Type", "application/jwt").end(token);
+}
+
+private void handleAuthError(RoutingContext ctx, Throwable err) {
+  logger.error("Authentication error", err);
+  ctx.fail(401);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036207"/><span class="fm-combinumeral">❶</span> We extract the credentials from the request to /api/v1/token.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036228"/><span class="fm-combinumeral">❷</span> We first issue an authentication request.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036245"/><span class="fm-combinumeral">❸</span> On success, we make another request to get the profile data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036262"/><span class="fm-combinumeral">❹</span> We prepare the token.</p>
+
+  <p class="body"><a id="pgfId-1016607"/>This is a typical RxJava composition of asynchronous operations <a id="marker-1016596"/>with <code class="fm-code-in-text">flatMap</code> to chain requests. You can also see the declarative API of the Vert.x router, where we can specify that we expect the first request to be a success.</p>
+
+  <p class="body"><a id="pgfId-1016629"/>The following listing shows the implementation <a id="marker-1016618"/>of <code class="fm-code-in-text">fetchUserDetails</code>, which gets the user profile data after the authentication request has succeeded.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016689"/>Listing 8.15 Fetching user details</p>
+  <pre class="programlisting">private Single&lt;HttpResponse&lt;JsonObject&gt;&gt; fetchUserDetails(String username) {
+  return webClient
+    .get(3000, "localhost", "/" + username)
+    .expect(ResponsePredicate.SC_OK)         <span class="fm-combinumeral">❶</span>
+    .as(BodyCodec.jsonObject())
+    .rxSend();
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036138"/><span class="fm-combinumeral">❶</span> We expect a success.</p>
+
+  <p class="body"><a id="pgfId-1016790"/>Finally, the next listing shows how to prepare a JWT token.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016847"/>Listing 8.16 Preparing a JWT token</p>
+  <pre class="programlisting">private String makeJwtToken(String username, String deviceId) {
+  JsonObject claims = new JsonObject()                          <span class="fm-combinumeral">❶</span>
+    .put("deviceId", deviceId);
+  JWTOptions jwtOptions = new JWTOptions()
+    .setAlgorithm("RS256")
+    .setExpiresInMinutes(10_080) // 7 days
+    .setIssuer("10k-steps-api")                                 <span class="fm-combinumeral">❷</span>
+    .setSubject(username);
+  return jwtAuth.generateToken(claims, jwtOptions);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035978"/><span class="fm-combinumeral">❶</span> Our custom claims</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035999"/><span class="fm-combinumeral">❷</span> A claim that is in the JWT specification</p>
+
+  <p class="body"><a id="pgfId-1017020"/>The <code class="fm-code-in-text">JWTOptions</code> class offers methods for the common claims from the JWT RFC, such as the issuer, expiration date, and subject. You can see that we did not specify when the token was issued, although there is a method <a id="marker-1016999"/>for that in <code class="fm-code-in-text">JWTOptions</code>. The <code class="fm-code-in-text">jwtAuth</code> object does the <a id="marker-1017025"/>right thing here and adds it on our behalf. <a id="marker-1017031"/><a id="marker-1017034"/><a id="marker-1017036"/><a id="marker-1017038"/></p>
+
+  <h2 class="fm-head" id="heading_id_11"><a id="pgfId-1017044"/>8.3 Cross-origin resource sharing (CORS)</h2>
+
+  <p class="body"><a id="pgfId-1017067"/><a id="marker-1017055"/><a id="marker-1017057"/>We have a public API that forwards requests to internal services, and this API uses JWT tokens for authentication and access control. I also demonstrated on the command line that we can interact with the API. In fact, <i class="fm-italics">any</i> third-party application can talk to our API over HTTP: a mobile phone application, another service, a desktop application, and so on. You might think that web applications could also talk to the API from JavaScript code running in web browsers, but it is (fortunately!) not that simple.</p>
+
+  <h3 class="fm-head1" id="heading_id_12"><a id="pgfId-1017076"/>8.3.1 What is the problem?</h3>
+
+  <p class="body"><a id="pgfId-1017086"/>Web browsers enforce security policies, and among them is the <i class="fm-italics">same-origin policy</i>. Suppose we load app.js from https://my.tld:4000/js/app.js:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1017102"/>app.js is allowed to make requests to https://my.tld:4000/api/foo/bar.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1017117"/>app.js is not allowed to make requests to https://my.tld:4001/a/b/c because a different port is not the same origin.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1017128"/>app.js is not allowed to make requests to https://other.tld/123 because a different host is not the same origin.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1017158"/>Cross-origin resource sharing (CORS) is a mechanism by which a service can allow incoming requests from other <i class="fm-italics">origins</i> (<span class="fm-hyperlink"><a href="https://fetch.spec.whatwg.org/">https://fetch.spec.whatwg.org/</a></span>). For instance, the service exposing https://other.tld/123 can specify that cross-origin requests are allowed from code served from https://my.tld:4000, or even from <i class="fm-italics">any</i> origin. This allows web browsers to proceed with a cross-origin request when the request origin allows it; otherwise it will deny it, which is the default behavior.</p>
+
+  <p class="body"><a id="pgfId-1017190"/>When a cross-origin request is triggered, such as to load some JSON data, an image, or a web font, the web browser sends a request to the server with the requested resource, and passes <a id="marker-1017169"/>an <code class="fm-code-in-text">Origin</code> HTTP header. The server then responds with an <code class="fm-code-in-text">Access-Control-Allow-Origin</code> HTTP header with the allowed <a id="marker-1017195"/>origin, as illustrated in figure 8.4.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH08_F04_Ponge.png" width="885" height="370"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1039301"/>Figure 8.4 Example CORS interaction</p>
+
+  <p class="body"><a id="pgfId-1017245"/>A value of <code class="fm-code-in-text">"*"</code> means that any origin can access the resource, whereas a value like <code class="fm-code-in-text">https://my.tld</code> means that only cross-origin requests from https://my.tld are allowed. In figure 8.4, the request succeeds with the JSON payload, but if the CORS policy forbids the call, the app.js code would get an error while attempting to make a cross-origin request.</p>
+
+  <p class="body"><a id="pgfId-1017344"/>Depending on the type of cross-origin HTTP request<a id="marker-1017257"/>, web browsers do <i class="fm-italics">simple</i> or <i class="fm-italics">preflighted</i> <a id="marker-1032071"/>requests. The request in figure 8.4 is a simple one. By contrast, a <code class="fm-code-in-text">PUT</code> request would need a preflighted request, as it can potentially have side effects (<code class="fm-code-in-text">PUT</code> implies modifying a resource), so a preflight <code class="fm-code-in-text">OPTIONS</code> HTTP request to the resource must be made to check what the CORS policy is, followed by the actual <code class="fm-code-in-text">PUT</code> request when allowed. Preflighted requests provide more detail, such as the allowed HTTP headers and methods, because a server can, for example, have a CORS policy of forbidding doing <code class="fm-code-in-text">DELETE</code> requests or having an <code class="fm-code-in-text">ABC</code> header in the HTTP request. I recommend reading Mozilla’s “Cross-Origin Resource Sharing (CORS)” document (<span class="fm-hyperlink"><a href="http://mng.bz/X0Z6">http://mng .bz/X0Z6</a></span>), as it provides a detailed and approachable explanation of the interactions between browsers and servers with CORS.</p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1017354"/>8.3.2 Supporting CORS with Vert.x</h3>
+
+  <p class="body"><a id="pgfId-1017387"/>Vert.x comes with a ready-to-use CORS handler <a id="marker-1017366"/>with the <code class="fm-code-in-text">CorsHandler</code> class. Creating a <code class="fm-code-in-text">CorsHandler</code> instance requires three settings:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1017396"/>The allowed origin pattern</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1017410"/>The allowed HTTP headers</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1017420"/>The allowed HTTP methods</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1017430"/>The following listing shows how to install CORS support in a Vert.x router.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017487"/>Listing 8.17 Installing CORS support in a router</p>
+  <pre class="programlisting">Set&lt;String&gt; allowedHeaders = new HashSet&lt;&gt;();        <span class="fm-combinumeral">❶</span>
+allowedHeaders.add("x-requested-with");
+allowedHeaders.add("Access-Control-Allow-Origin");
+allowedHeaders.add("origin");
+allowedHeaders.add("Content-Type");
+allowedHeaders.add("accept");
+allowedHeaders.add("Authorization");
+
+Set&lt;HttpMethod&gt; allowedMethods = new HashSet&lt;&gt;();    <span class="fm-combinumeral">❷</span>
+allowedMethods.add(HttpMethod.GET);
+allowedMethods.add(HttpMethod.POST);
+allowedMethods.add(HttpMethod.OPTIONS);
+allowedMethods.add(HttpMethod.PUT);
+
+router.route().handler(CorsHandler                   <span class="fm-combinumeral">❸</span>
+  .create("*")
+  .allowedHeaders(allowedHeaders)
+  .allowedMethods(allowedMethods));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035793"/><span class="fm-combinumeral">❶</span> The set of allowed HTTP headers</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035814"/><span class="fm-combinumeral">❷</span> The set of allowed HTTP methods</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035838"/><span class="fm-combinumeral">❸</span> A CORS handler for all origins</p>
+
+  <p class="body"><a id="pgfId-1017696"/>The HTTP methods are those supported in our API. You can see that we don’t support <code class="fm-code-in-text">DELETE</code>, for instance. The CORS handler has been installed for all routes, since they are all part of the API and should be accessible from any kind of application, including web browsers. The allowed headers should match what your API needs, and also what clients may pass, like specifying a content type, or headers that could be injected by proxies and for distributed tracing purposes.</p>
+
+  <p class="body"><a id="pgfId-1017711"/>We can check that CORS is properly supported by making an HTTP <code class="fm-code-in-text">OPTIONS</code> preflight request to one of the routes supported by the API.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017777"/>Listing 8.18 Checking CORS support</p>
+  <pre class="programlisting">$ http OPTIONS :4000/api/v1/token Origin:'http://foo.tld'
+HTTP/1.1 405 Method Not Allowed
+access-control-allow-origin: *
+content-length: 0</pre>
+
+  <p class="body"><a id="pgfId-1017873"/>By specifying <a id="marker-1017836"/>an <code class="fm-code-in-text">origin</code> HTTP header, the CORS handler inserts an <code class="fm-code-in-text">access-control-allow-origin</code> HTTP header in the <a id="marker-1017862"/>response. The HTTP status code is 405, since the <code class="fm-code-in-text">OPTION</code> HTTP method is not supported by the specific route, but this is not an issue as web browsers are only interested in the CORS-related headers when they do a preflight request. <a id="marker-1017878"/><a id="marker-1017881"/></p>
+
+  <h2 class="fm-head" id="heading_id_14"><a id="pgfId-1017887"/>8.4 A modern web frontend</h2>
+
+  <p class="body"><a id="pgfId-1017904"/><a id="marker-1017898"/><a id="marker-1017900"/>We have discussed the interesting points in the public API: how to make HTTP requests with the Vert.x web client, how to use JWT tokens, and how to enable CORS support. It is now time to see how we can expose the user web application (defined in chapter 7), and how that application can connect to the public API.</p>
+
+  <p class="body"><a id="pgfId-1017909"/>The application is written with the Vue.js JavaScript framework. Vert.x is used to serve the application’s compiled assets: HTML, CSS, and JavaScript.</p>
+
+  <p class="body"><a id="pgfId-1017915"/>The corresponding source code is located in the part2-steps-challenge/user-webapp folder of the book’s source code repository.</p>
+
+  <h3 class="fm-head1" id="heading_id_15"><a id="pgfId-1017930"/>8.4.1 Vue.js</h3>
+
+  <p class="body"><a id="pgfId-1017955"/><a id="marker-1017941"/><a id="marker-1017943"/><a id="marker-1017945"/>Vue.js deserves a book by itself, and we recommend that you read Erik Hanchett and Benjamin Listwon’s <i class="fm-italics">Vue.js in Action</i> (Manning, 2018) if you are interested in learning this framework. I’ll provide a quick overview here, since we’re using Vue.js as the JavaScript framework for the two web applications developed as part of the larger 10k steps application.</p>
+
+  <p class="body"><a id="pgfId-1017964"/>Vue.js is a modern JavaScript frontend framework, like React or Angular, for building modern web applications, including single-page applications. It is <i class="fm-italics">reactive</i> as changes in a component model trigger changes in the user interface. Suppose that we display a temperature in a web page. When the corresponding data changes, the temperature is updated, and Vue.js takes care of (most) of the plumbing for doing that.</p>
+
+  <p class="body"><a id="pgfId-1017979"/>Vue.js supports components, where an HTML template, CSS styling, and JavaScript code can be grouped together, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018036"/>Listing 8.19 Canvas of a Vue.js component</p>
+  <pre class="programlisting">&lt;template&gt;
+  &lt;div id="app"&gt;
+    {{ hello }}                     <span class="fm-combinumeral">❶</span>
+  &lt;/div&gt;
+&lt;/template&gt;
+
+&lt;style scoped&gt;                      <span class="fm-combinumeral">❷</span>
+  div {
+    border: solid 1px black;
+  }
+&lt;/style&gt;
+
+&lt;script&gt;
+  export default {
+    data() {
+      return {
+        hello: "Hello, world!"      <span class="fm-combinumeral">❸</span>
+      }
+    }
+  }
+&lt;/script&gt;</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035598"/><span class="fm-combinumeral">❶</span> Replaced by the value of the hello property</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035619"/><span class="fm-combinumeral">❷</span> CSS rules local to the component</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035636"/><span class="fm-combinumeral">❸</span> The initial definition of the hello property</p>
+
+  <p class="body"><a id="pgfId-1018263"/>A Vue.js project can be created using the Vue.js command-line interface (<span class="fm-hyperlink"><a href="https://cli.vuejs.org/">https://cli .vuejs.org/</a></span>):</p>
+  <pre class="programlisting">$ vue create user-webapp</pre>
+
+  <p class="body"><a id="pgfId-1018338"/>The <code class="fm-code-in-text">yarn</code> build tool can then be used to install dependencies (<code class="fm-code-in-text">yarn install</code>), serve the <a id="marker-1018305"/>project for development with automatic live-reload (<code class="fm-code-in-text">yarn run serve</code>), and build <a id="marker-1018321"/>a production version of the project HTML, CSS, and JavaScript <a id="marker-1018327"/>assets (<code class="fm-code-in-text">yarn run build</code>). <a id="marker-1018343"/></p>
+
+  <h3 class="fm-head1" id="heading_id_16"><a id="pgfId-1018350"/>8.4.2 Vue.js application structure and build integration</h3>
+
+  <p class="body"><a id="pgfId-1018360"/><a id="marker-1018361"/>The user web application is a single-page application with three different screens: a login form, a page with user details, and a registration form.</p>
+
+  <p class="body"><a id="pgfId-1018369"/>The key Vue.js files are the following:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1018375"/>src/main.js--The entry point</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1018396"/>src/router.js--The Vue.js router that dispatches to the components of the three different screens</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1018413"/>src/DataStore.js--An object to hold the application store using the web browser local storage API, shared among all screens</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1018430"/>src/App.vue--The main component that mounts the Vue.js router</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1018485"/>src/views--Contains the three screen components: <code class="fm-code-in-text">Home.vue</code>, <code class="fm-code-in-text">Login.vue</code>, and <code class="fm-code-in-text">Register.vue</code></p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1018491"/>The Vue.js router configuration is shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018548"/>Listing 8.20 Vue.js router configuration</p>
+  <pre class="programlisting">import Vue from 'vue'
+import Router from 'vue-router'
+import Home from './views/Home.vue'
+import Login from './views/Login.vue'
+import Register from './views/Register.vue'
+
+Vue.use(Router)
+
+export default new Router({
+  routes: [
+    {
+      path: '/',        <span class="fm-combinumeral">❶</span>
+      name: 'home',     <span class="fm-combinumeral">❷</span>
+      component: Home   <span class="fm-combinumeral">❸</span>
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: Login
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: Register
+    },
+  ]
+})</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035436"/><span class="fm-combinumeral">❶</span> Component path</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035457"/><span class="fm-combinumeral">❷</span> Component name</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035474"/><span class="fm-combinumeral">❸</span> Component reference</p>
+
+  <p class="body"><a id="pgfId-1018824"/>The application code is colocated in the same module as the Vert.x application that serves the user web application, so you will find the usual Java source files under src/main/java and a Gradle build.gradle.kts file. The Vue.js compiled <a id="marker-1018813"/>assets (<code class="fm-code-in-text">yarn build</code>) must be copied to src/main/resources/webroot/assets for the Vert.x-based service to serve them.</p>
+
+  <p class="body"><a id="pgfId-1018833"/>This makes for two build tools in a single project, and fortunately they can coexist peacefully. In fact, it is very easy to call <code class="fm-code-in-text">yarn</code> from Gradle, as the com.moowork.node Gradle plugin provides a self-contained Node environment. The following listing shows the Node-related configuration of the user web application Gradle build file.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018899"/>Listing 8.21 Using the com.moowork.node Gradle plugin</p>
+  <pre class="programlisting">import com.moowork.gradle.node.yarn.YarnTask
+apply(plugin = "com.moowork.node")                             <span class="fm-combinumeral">❶</span>
+tasks.register&lt;YarnTask&gt;("buildVueApp") {                      <span class="fm-combinumeral">❷</span>
+  dependsOn("yarn_install")                                    <span class="fm-combinumeral">❸</span>
+  // (...)                                                     <span class="fm-combinumeral">❹</span>
+  args = listOf("build")                                       <span class="fm-combinumeral">❺</span>
+}
+tasks.register&lt;Copy&gt;("copyVueDist") {                          <span class="fm-combinumeral">❻</span>
+  dependsOn("buildVueApp")
+  from("$projectDir/dist")
+  into("$projectDir/src/main/resources/webroot/assets")
+}
+val processResources by tasks.named("processResources") {      <span class="fm-combinumeral">❼</span>
+  dependsOn("copyVueDist")
+}
+val clean by tasks.named&lt;Delete&gt;("clean") {                    <span class="fm-combinumeral">❽</span>
+  delete("$projectDir/dist")
+  delete("$projectDir/src/main/resources/webroot/assets")
+}
+// (...)</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034817"/><span class="fm-combinumeral">❶</span> Uses the Node plugin</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034838"/><span class="fm-combinumeral">❷</span> Creates a task to call yarn</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034855"/><span class="fm-combinumeral">❸</span> Adds a dependency on running yarn install first</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034872"/><span class="fm-combinumeral">❹</span> Gradle caching instructions that you can find in the full source code</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034892"/><span class="fm-combinumeral">❺</span> Calls yarn build</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034909"/><span class="fm-combinumeral">❻</span> Task to copy the compiled assets</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034926"/><span class="fm-combinumeral">❼</span> Make sure building the project also builds the Vue.js application.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034943"/><span class="fm-combinumeral">❽</span> Extra clean task to be done for the Vue.js compiled assets</p>
+
+  <p class="body"><a id="pgfId-1019270"/>The <code class="fm-code-in-text">buildVueApp</code> and <code class="fm-code-in-text">copyVueDist</code> tasks are <a id="marker-1019253"/>inserted as <a id="marker-1019259"/>part of the regular project build tasks, so the project builds both the Java Vert.x code and the Vue.js code. We also customize the <code class="fm-code-in-text">clean</code> task to remove the generated assets. <a id="marker-1019275"/><a id="marker-1019278"/><a id="marker-1019280"/></p>
+
+  <h3 class="fm-head1" id="heading_id_17"><a id="pgfId-1019286"/>8.4.3 Backend integration illustrated</h3>
+
+  <p class="body"><a id="pgfId-1019303"/><a id="marker-1019297"/><a id="marker-1019299"/>Let’s look at one of the Vue.js components: the login screen shown in figure 8.5.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH08_F05_Ponge.png" width="788" height="420"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1039343"/>Figure 8.5 Screenshot of the login screen</p>
+
+  <p class="body"><a id="pgfId-1019318"/>The file for this component is src/views/Login.vue. The component shows the login form, and when submitted it must call the public API to get a JWT token. On success, it must store the JWT token locally and then switch the view to the <code class="fm-code-in-text">home</code> component. On error, it must stay on the login form and display an error message.</p>
+
+  <p class="body"><a id="pgfId-1019347"/>The HTML template part of the component is shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019404"/>Listing 8.22 Login component HTML template</p>
+  <pre class="programlisting">&lt;template&gt;
+  &lt;div&gt;
+    &lt;div class="alert alert-danger" role="alert" 
+    <span class="fm-code-continuation-arrow">➥</span> v-if="alertMessage.length &gt; 0"&gt;                                   <span class="fm-combinumeral">❶</span>
+      {{ alertMessage }}                                                 <span class="fm-combinumeral">❷</span>
+    &lt;/div&gt;
+    &lt;form v-on:submit="login"&gt;                                           <span class="fm-combinumeral">❸</span>
+      &lt;div class="form-group"&gt;
+        &lt;label for="username"&gt;User name&lt;/label&gt;
+        &lt;input type="username" class="form-control" id="username" 
+<span class="fm-code-continuation-arrow">              ➥</span> placeholder="somebody123" v-model="username"&gt;                <span class="fm-combinumeral">❹</span>
+      &lt;/div&gt;
+      &lt;div class="form-group"&gt;
+        &lt;label for="password"&gt;Password&lt;/label&gt;
+        &lt;input type="password" class="form-control" id="password" placeholder="abc123" v-model="password"&gt;
+      &lt;/div&gt;
+      &lt;button type="submit" class="btn btn-primary"&gt;Submit&lt;/button&gt;
+    &lt;/form&gt;
+    &lt;div&gt;
+      &lt;p&gt;...or &lt;router-link to="/register"&gt;register&lt;/router-link&gt;&lt;/p&gt;    <span class="fm-combinumeral">❺</span>
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/template&gt;</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034430"/><span class="fm-combinumeral">❶</span> Conditionally display the div block depending on the value of the alertMessage component data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034451"/><span class="fm-combinumeral">❷</span> Template syntax to render the value of alertMessage</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034468"/><span class="fm-combinumeral">❸</span> Call the login method on form submit.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034485"/><span class="fm-combinumeral">❹</span> v-model binds the field value to the username component data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034502"/><span class="fm-combinumeral">❺</span> &lt;router-link&gt; allows linking to another component.</p>
+
+  <p class="body"><a id="pgfId-1019690"/>The JavaScript part of the component provides the component data declaration <a id="marker-1019679"/>as well as the <code class="fm-code-in-text">login</code> method implementation. We use the Axios JavaScript library to make HTTP client calls to the public API. The following listing provides the component JavaScript code.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019750"/>Listing 8.23 Login component JavaScript code</p>
+  <pre class="programlisting">import DataStore from '../DataStore'
+import axios from 'axios'
+
+export default {
+  data() {                                                             <span class="fm-combinumeral">❶</span>
+    return {
+      username: '',
+      password: '',
+      alertMessage: ''
+    }
+  },
+  methods: {                                                           <span class="fm-combinumeral">❷</span>
+    login: function () {
+      if (this.username.length === 0 || this.password.length === 0) {  <span class="fm-combinumeral">❸</span>
+        return
+      }
+      axios
+        .post("http://localhost:4000/api/v1/token", {                  <span class="fm-combinumeral">❹</span>
+          username: this.username,
+          password: this.password
+        })
+        .then(response =&gt; {
+          DataStore.setToken(response.data)                            <span class="fm-combinumeral">❺</span>
+          DataStore.setUsername(this.username)
+          this.$router.push({name: 'home'})                            <span class="fm-combinumeral">❻</span>
+        })
+        .catch(err =&gt; this.alertMessage = err.message)                 <span class="fm-combinumeral">❼</span>
+    }
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033857"/><span class="fm-combinumeral">❶</span> Component data declaration</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033878"/><span class="fm-combinumeral">❷</span> Component methods declaration</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033895"/><span class="fm-combinumeral">❸</span> If either of the fields is empty, there is no point in trying to authenticate against the public API.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033912"/><span class="fm-combinumeral">❹</span> Issue an authentication request with the credentials as a JSON payload.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033946"/><span class="fm-combinumeral">❺</span> In case of success, store the token and username from the response.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033929"/><span class="fm-combinumeral">❻</span> Tell the router to change component.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033963"/><span class="fm-combinumeral">❼</span> Triggers the error message to be reactively displayed when the value of alertMessage changes</p>
+
+  <p class="body"><a id="pgfId-1020143"/>The component data properties are updated as the user types <a id="marker-1020122"/>text in the username and password fields, and the <code class="fm-code-in-text">login</code> method is called on form submit. If the call succeeds, the application moves to the <code class="fm-code-in-text">home</code> component.</p>
+
+  <p class="body"><a id="pgfId-1020152"/>The next listing is from the code of the Home.vue component, and it shows how you can use the JWT token to fetch the user’s total number of steps.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020209"/>Listing 8.24 Using the JWT token with Axios</p>
+  <pre class="programlisting">axios
+  .get(`http://localhost:4000/api/v1/${DataStore.username()}/total`, {
+    headers: {
+      'Authorization': `Bearer ${DataStore.token()}`          <span class="fm-combinumeral">❶</span>
+    }
+  })
+  .then(response =&gt; this.totalSteps = response.data.count)    <span class="fm-combinumeral">❷</span>
+  .catch(err =&gt; {
+    if (err.response.status === 404) {
+      this.totalSteps = 0
+    } else {
+      this.alertMessage = err.message
+    }
+  })</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033740"/><span class="fm-combinumeral">❶</span> Pass the token from the value fetched by the login component.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033761"/><span class="fm-combinumeral">❷</span> Update the component data, triggering a view refresh.</p>
+
+  <p class="body"><a id="pgfId-1020374"/>Let’s now see how we can serve the web application assets with Vert.x. <a id="marker-1020376"/><a id="marker-1020379"/></p>
+
+  <h3 class="fm-head1" id="heading_id_18"><a id="pgfId-1020385"/>8.4.4 Static content serving with Vert.x</h3>
+
+  <p class="body"><a id="pgfId-1020432"/><a id="marker-1020396"/><a id="marker-1020398"/><a id="marker-1020400"/>The Vert.x code does not have much to do beyond starting an HTTP server and serving static content. The following listing shows the content of <a id="marker-1020405"/>the <code class="fm-code-in-text">rxStart</code> method of <a id="marker-1020421"/>the <code class="fm-code-in-text">UserWebAppVerticle</code> class.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020492"/>Listing 8.25 Serving static content with Vert.x</p>
+  <pre class="programlisting">@Override
+public Completable rxStart() {
+  Router router = Router.router(vertx);
+
+  router.route().handler(StaticHandler.create("webroot/assets"));    <span class="fm-combinumeral">❶</span>
+  router.get("/*").handler(ctx -&gt; ctx.reroute("/index.html"));       <span class="fm-combinumeral">❷</span>
+
+  return vertx.createHttpServer()
+    .requestHandler(router)
+    .rxListen(HTTP_PORT)
+    .ignoreElement();
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033626"/><span class="fm-combinumeral">❶</span> Resolve static content against webroot/assets in the classpath.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033647"/><span class="fm-combinumeral">❷</span> Alias /* to /index.html.</p>
+
+  <p class="body"><a id="pgfId-1020671"/>The <code class="fm-code-in-text">StaticHandler</code> caches files in memory<a id="marker-1020654"/>, unless configured otherwise in the <a id="marker-1020660"/>call to the <code class="fm-code-in-text">create</code> method. Disabling caching is useful in development mode, because you can modify static assets’ content and see changes by reloading in a web browser without having to restart the Vert.x server. By default, static files are resolved from the webroot folder in the classpath, but you can override it as we did by specifying webroot/assets.</p>
+
+  <p class="body"><a id="pgfId-1020680"/>Now that we’ve discussed how to use the Vert.x web stack, it is time to focus on testing the services that compose the reactive application. <a id="marker-1020682"/><a id="marker-1020685"/><a id="marker-1020687"/><a id="marker-1020689"/><a id="marker-1020691"/></p>
+
+  <h2 class="fm-head" id="heading_id_19"><a id="pgfId-1020697"/>8.5 Writing integration tests</h2>
+
+  <p class="body"><a id="pgfId-1020707"/><a id="marker-1020708"/>Testing is a very important concern, especially as there are multiple services involved in the making of the 10k steps challenge reactive application. There is no point in testing that the user web application service delivers static content properly, but it is crucial to have tests covering interactions with the public API service. Let’s discuss how to write integration tests for this service.</p>
+
+  <p class="body"><a id="pgfId-1020716"/>The public API source code reveals an <code class="fm-code-in-text">IntegrationTest</code> class. It contains several <a id="marker-1020727"/>ordered test methods that check the API behavior:</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1020737"/>Register some users.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1020751"/>Get a JWT token for each user.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1020761"/>Fetch a user’s data.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1020771"/>Try to fetch the data of another user.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1020781"/>Update a user’s data.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1020791"/>Check some activity stats for a user.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1020801"/>Try to check the activity of another user.</p>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1020824"/>Since the public API service depends on the activity and user profile services, we either need to <a id="marker-1020813"/>mock them with <i class="fm-italics">fake</i> services that we run during the tests’ execution, or deploy them along with all their dependencies, like databases. Either approach is fine. In the chapters in this part we will sometimes create a fake service for running our integration tests, and sometimes we will just deploy the real services.</p>
+
+  <p class="body"><a id="pgfId-1020833"/>In this case, we are going to deploy the real services, and we need to make this from JUnit 5 in a self-contained and reproducible manner. We first need to add the project dependencies, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020890"/>Listing 8.26 Test dependencies to run the integration tests</p>
+  <pre class="programlisting">testImplementation(project(":user-profile-service"))                         <span class="fm-combinumeral">❶</span>
+testImplementation(project(":activity-service"))
+testImplementation("io.vertx:vertx-pg-client:$vertxVersion")                 <span class="fm-combinumeral">❷</span>
+testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")<span class="fm-combinumeral">❸</span>
+
+testImplementation("org.junit.jupiter:junit-jupiter-api:$junit5Version")
+testImplementation("io.vertx:vertx-junit5:$vertxVersion")
+testImplementation("io.vertx:vertx-junit5-rx-java2:$vertxVersion")
+testImplementation("io.rest-assured:rest-assured:$restAssuredVersion")       <span class="fm-combinumeral">❹</span>
+testImplementation("org.assertj:assertj-core:$assertjVersion")</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033372"/><span class="fm-combinumeral">❶</span> Dependency on another project module</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033393"/><span class="fm-combinumeral">❷</span> This is used to insert data in PostgreSQL. More on that later.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033410"/><span class="fm-combinumeral">❸</span> This is to run Docker containers.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033427"/><span class="fm-combinumeral">❹</span> A nice DSL library for testing HTTP services</p>
+
+  <p class="body"><a id="pgfId-1021074"/>These dependencies bring us two useful tools for writing tests:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1021080"/>Testcontainers is a project for running Docker containers in JUnit tests, so we will be able to use infrastructure services like PostgreSQL or Kafka (<span class="fm-hyperlink1"><a class="calibre9" href="http://www.testcontainers.org">www.test containers.org</a></span>).</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1021094"/>REST Assured is a library focusing on testing HTTP services, providing a convenient fluent API for describing requests and response assertions (<span class="fm-hyperlink1"><a class="calibre9" href="http://rest-assured.io">http://rest-assured.io</a></span>).</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1021105"/>The preamble of the test class is shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021162"/>Listing 8.27 Preamble of the integration test class</p>
+  <pre class="programlisting">@ExtendWith(VertxExtension.class)                                    <span class="fm-combinumeral">❶</span>
+@TestMethodOrder(OrderAnnotation.class)                              <span class="fm-combinumeral">❷</span>
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@DisplayName("Integration tests for the public API")
+@Testcontainers                                                      <span class="fm-combinumeral">❸</span>
+class IntegrationTest {
+
+  @Container
+  private static final DockerComposeContainer CONTAINERS =
+    new DockerComposeContainer(new File("../docker-compose.yml"));   <span class="fm-combinumeral">❹</span>
+  // (...)
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033053"/><span class="fm-combinumeral">❶</span> Use the Vert.x JUnit 5 support.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033074"/><span class="fm-combinumeral">❷</span> Test methods must be run in order.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033091"/><span class="fm-combinumeral">❸</span> Use Testcontainers support.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033108"/><span class="fm-combinumeral">❹</span> Start containers from a Docker Compose file.</p>
+
+  <p class="body"><a id="pgfId-1021363"/>Testcontainers gives lots of choices for starting one or many containers. It supports generic Docker images, specialized classes for common infrastructure (PostgreSQL, Apache Kafka, etc.), and Docker Compose. Here we reuse the Docker Compose descriptor for running the whole application (<code class="fm-code-in-text">docker-compose.yml</code>), and the containers <a id="marker-1021374"/>described in the file are started before the first test is run. The containers are destroyed when all tests have executed. This is very interesting--we get to write integration tests against the real infrastructure services that would be used in production.</p>
+
+  <p class="body"><a id="pgfId-1021422"/>The <code class="fm-code-in-text">prepareSpec</code> method is annotated <a id="marker-1021395"/>with <code class="fm-code-in-text">@BeforeAll</code> and is <a id="marker-1021411"/>used to prepare the tests. It inserts some data in the PostgreSQL database for the activity service and then deploys the user profile and activity verticles. It also prepares a <code class="fm-code-in-text">RequestSpecification</code> object from <a id="marker-1021427"/>REST Assured, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021488"/>Listing 8.28 Preparing a REST Assured request specification</p>
+  <pre class="programlisting">requestSpecification = new RequestSpecBuilder()
+  .addFilters(asList(new ResponseLoggingFilter(), new RequestLoggingFilter()))<span class="fm-combinumeral">❶</span>
+  .setBaseUri("http://localhost:4000/")
+  .setBasePath("/api/v1")                                                     <span class="fm-combinumeral">❷</span>
+  .build();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032883"/><span class="fm-combinumeral">❶</span> All requests and responses will be logged, which is useful for tracking errors.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032904"/><span class="fm-combinumeral">❷</span> This avoids repeating the base path of all URLs in requests.</p>
+
+  <p class="body"><a id="pgfId-1021599"/>This object is shared among all tests methods, as they all have to make requests to the API. We enable logging of all requests and responses for easier debugging, and we set <code class="fm-code-in-text">/api/v1</code> as the base path for all requests.</p>
+
+  <p class="body"><a id="pgfId-1021614"/>The test class maintains a hash map of users to register and later use in calls, as well as a hash map of JWT tokens.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021671"/>Listing 8.29 Utility hash maps for the integration test</p>
+  <pre class="programlisting">private final HashMap&lt;String, JsonObject&gt; registrations = new 
+<span class="fm-code-continuation-arrow">➥</span> HashMap&lt;String, JsonObject&gt;() {                               <span class="fm-combinumeral">❶</span>
+  {
+    put("Foo", new JsonObject()
+      .put("username", "Foo")
+      .put("password", "foo-123")
+      .put("email", "foo@email.me")
+      .put("city", "Lyon")
+      .put("deviceId", "a1b2c3")
+      .put("makePublic", true));
+    // (...)
+};
+
+private final HashMap&lt;String, String&gt; tokens = new HashMap&lt;&gt;();  <span class="fm-combinumeral">❷</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032748"/><span class="fm-combinumeral">❶</span> Users</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032769"/><span class="fm-combinumeral">❷</span> JWT tokens, once retrieved</p>
+
+  <p class="body"><a id="pgfId-1021842"/>The following listing is the first test, where the users <a id="marker-1021831"/>from the <code class="fm-code-in-text">registrations</code> hash map are registered.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021902"/>Listing 8.30 Test for registering users</p>
+  <pre class="programlisting">@Test
+@Order(1)
+@DisplayName("Register some users")
+void registerUsers() {
+  registrations.forEach((key, registration) -&gt; {
+    given(requestSpecification)
+      .contentType(ContentType.JSON)
+      .body(registration.encode())     <span class="fm-combinumeral">❶</span>
+      .post("/register")               <span class="fm-combinumeral">❷</span>
+      .then()
+      .assertThat()
+      .statusCode(200);                <span class="fm-combinumeral">❸</span>
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032563"/><span class="fm-combinumeral">❶</span> We encode the JSON data to a string.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032584"/><span class="fm-combinumeral">❷</span> HTTP POST to /api/v1/register</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032601"/><span class="fm-combinumeral">❸</span> Assert that the status code is a 200.</p>
+
+  <p class="body"><a id="pgfId-1022089"/>The REST Assured fluent API allows us to express our request and then do an assertion on the response. It is possible to extract a response as text or JSON to perform further assertions, as in the next listing, which is extracted from the test method that retrieves JWT tokens.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1022146"/>Listing 8.31 Test code for retrieving JWT tokens</p>
+  <pre class="programlisting">JsonObject login = new JsonObject()
+  .put("username", key)
+  .put("password", registration.getString("password"));
+
+String token = given(requestSpecification)
+  .contentType(ContentType.JSON)
+  .body(login.encode())
+  .post("/token")
+  .then()
+  .assertThat()
+  .statusCode(200)
+  .contentType("application/jwt")    <span class="fm-combinumeral">❶</span>
+  .extract()                         <span class="fm-combinumeral">❷</span>
+  .asString();
+assertThat(token)                    <span class="fm-combinumeral">❸</span>
+  .isNotNull()
+  .isNotBlank();
+
+tokens.put(key, token);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032361"/><span class="fm-combinumeral">❶</span> Assert that the content-type header is in the response and matches that of JWT tokens.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032389"/><span class="fm-combinumeral">❷</span> Extract the response.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032406"/><span class="fm-combinumeral">❸</span> AssertJ assertions on a String</p>
+
+  <p class="body"><a id="pgfId-1022366"/>The test fetches a token and then asserts that the token is neither a <code class="fm-code-in-text">null</code> value or a blank string (empty or with spaces). Extracting JSON data is similar, as shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1022432"/>Listing 8.32 Extracting JSON with REST Assured</p>
+  <pre class="programlisting">JsonPath jsonPath = given(requestSpecification)
+  .headers("Authorization", "Bearer " + tokens.get("Foo"))         <span class="fm-combinumeral">❶</span>
+  .get("/Foo/total")
+  .then()
+  .assertThat()
+  .statusCode(200)
+  .contentType(ContentType.JSON)
+  .extract()
+  .jsonPath();
+
+assertThat(jsonPath.getInt("count")).isNotNull().isEqualTo(6255);  <span class="fm-combinumeral">❷</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032244"/><span class="fm-combinumeral">❶</span> Pass a JWT token.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1032265"/><span class="fm-combinumeral">❷</span> Work with a JSON representation.</p>
+
+  <p class="body"><a id="pgfId-1022594"/>The test fetches the total number of steps for user <code class="fm-code-in-text">Foo</code>, extracts the JSON response, and then checks that the step count (the <code class="fm-code-in-text">count</code> key in the <a id="marker-1022599"/>JSON response) is equal to 6255.</p>
+
+  <p class="body"><a id="pgfId-1022609"/>The integration test can be run with Gradle (<code class="fm-code-in-text">./gradlew :public-api:test</code>) or from a development environment, as shown in figure 8.6.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH08_F06_Ponge.png" width="1089" height="435"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1039385"/>Figure 8.6 Running the integration tests from IntelliJ IDEA</p>
+
+  <p class="body"><a id="pgfId-1022634"/>You now have a good understanding of using the Vert.x web stack both for exposing endpoints and consuming other services. The next chapter focuses on the messaging and event streaming stack of Vert.x. <a id="marker-1022650"/></p>
+
+  <h2 class="fm-head" id="heading_id_20"><a id="pgfId-1022657"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1022667"/>The Vert.x web module makes it easy to build an edge service with CORS support and HTTP calls to other services.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1022681"/>JSON web tokens are useful for authorization and access control in a public API.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1022691"/>Vert.x does not have a preference regarding frontend application frameworks, but it is easy to integrate a Vue.js frontend application.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1022701"/>By combining Docker containers managed from Testcontainers and the Rest Assured library, you can write integration tests for HTTP APIs.</p>
+    </li>
+  </ul>
+</div></body>
+</html>

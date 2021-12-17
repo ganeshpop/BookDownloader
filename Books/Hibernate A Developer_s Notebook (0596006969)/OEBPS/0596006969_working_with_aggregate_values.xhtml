@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_working_with_aggregate_values"><a id="working_with_aggregate_values"/><h3 class="docSection1Title">9.4. Working with Aggregate Values</h3><p class="docText"><a id="writing"/>Especially when writing <a id="idx-CHP-9-0314"/>reports, you'll often want <a id="idx-CHP-9-0315"/>summary information from the database: "How many? What's the average? The longest?" HQL can help with this, by offering aggregate functions like those in SQL. In HQL, of course, these functions apply to the properties of persistent classes.<a id="idx-CHP-9-0316"/></p><a id="how_do_i_do_that-id030"/><h4 id="title-ID0ENNBG" class="docSection2Title">9.1.1. How do I do that?</h4><p class="docText">Let's try some of this in our query test framework. First, add the query in <a class="docLink" href="#a_query_collecting_aggregate_information">Example 9-15</a> after the existing query in <span class="docEmphasis">Track.hbm.xml</span>.</p><a id="a_query_collecting_aggregate_information"/><h5 id="title-ID0EZNBG" class="docExampleTitle">Example 9-15. A query collecting aggregate information about tracks</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;query name="com.oreilly.hh.trackSummary"&gt;
+  &lt;![CDATA[
+      select count(*), min(track.playTime), max(track.playTime)
+      from com.oreilly.hh.Track as track
+    ]]&gt;
+&lt;/query&gt;
+</pre><br/>
+</td></tr></table><p class="docText">I was tempted to try asking for the average playing time as well, but unfortunately HSQLDB doesn't know how to calculate averages for nonnumeric values, and this property is stored in a column of type <tt>date</tt>.</p><p class="docText">Next we need to write a method to run this query and display the results. Add the code in <a class="docLink" href="#a_method_to_run_the_tracksummary_query">Example 9-16</a> to <span class="docEmphasis">QueryTest.java</span>, after the <tt>tracksNoLongerThan()</tt> method.</p><a id="a_method_to_run_the_tracksummary_query"/><h5 id="title-ID0EPOBG" class="docExampleTitle">Example 9-16. A method to run the trackSummary query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+/**
+ * Print <a id="idx-CHP-9-0317"/>summary information about all tracks.
+ *
+ *@param session the Hibernate session that can retrieve data.
+ *@throws HibernateException if there is a problem.
+ **/
+public static void printTrackSummary(Session session)
+    throws HibernateException
+{
+    Query query = session.getNamedQuery("com.oreilly.hh.trackSummary");
+    Object[] results = (Object[])query.uniqueResult();
+    System.out.println("<a id="idx-CHP-9-0318"/>Summary information:");
+    System.out.println("       Total tracks: " + results[0]);
+    System.out.println("     Shortest track: " + results[1]);
+    System.out.println("      Longest track: " + results[2]);
+} 
+</pre><br/>
+</td></tr></table><p class="docText"> Since we're only using <a id="idx-CHP-9-0319"/>aggregate functions in the query, we know  we'll only get one row of results back. This is another opportunity to use the <tt>uniqueResult()</tt> convenience method offered by the <tt>Query</tt> interface. It saves us the trouble of getting back a list and extracting the first element. As discussed in the "Selecting Properties and Pieces" section above, since we've asked for multiple distinct values, that result will be an <tt>Object</tt> array, whose elements are the values we requested in the same order we put them in the query.</p><p class="docText">We also need to add a line to <tt>main()</tt> to call this method. We can put it after the end of the loop in which we print details about selected tracks, as shown in <a class="docLink" href="#addition_to_main_in_querytestjava_to_dis">Example 9-17</a>.</p><a id="addition_to_main_in_querytestjava_to_dis"/><h5 id="title-ID0E3PBG" class="docExampleTitle">Example 9-17. Addition to main() in QueryTest.java to display the new summary information</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+... 
+            System.out.println("Track: " + aTitle + " [ID=" + anID + ']'); 
+        }
+        <b>printTrackSummary(session);</b>
+} finally {
+        // No matter what, close the session
+... 
+</pre><br/>
+</td></tr></table><p class="docText">With these additions, we get new output when running <tt><b>ant qtest</b></tt>(<a class="docLink" href="#the_summary_output">Example 9-18</a>).<a id="idx-CHP-9-0320"/></p><a id="the_summary_output"/><h5 id="title-ID0ETQBG" class="docExampleTitle">Example 9-18. The summary output</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+qtest:
+     [java] Track: Video Killed the Radio Star [ID=1]
+     [java] Track: Test Tone 1 [ID=6]
+     [java] Track: Russian Trance [ID=0]
+     [java] Track: Never Turn Your Back on Mother Earth [ID=11]
+     [java] Track: Motherless Child [ID=12]
+     [java] Track: In a Manner of Speaking [ID=8]
+     [java] Track: Gone [ID=10]
+     [java] <b><a id="idx-CHP-9-0321"/>Summary information:</b>
+     [java]        <b>Total tracks: 13</b>
+     [java]      <b>Shortest track: 00:00:10</b>
+     [java]       <b>Longest track: 00:07:39</b>
+					</pre><br/>
+</td></tr></table><p class="docText">That was pretty easy. Let's try something trickier—pulling information from joined tables. Tracks have a collection of artists associated with them. Suppose we want to get summary information about the tracks associated with a particular artist, rather than for all tracks. <a class="docLink" href="#summarizing_tracks_associated_with_an_ar">Example 9-19</a> shows what we'd add to the query.</p><a id="summarizing_tracks_associated_with_an_ar"/><h5 id="title-ID0ETRBG" class="docExampleTitle">Example 9-19. Summarizing tracks associated with an artist</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;query name="com.oreilly.hh.trackSummary"&gt;
+  &lt;![CDATA[
+      select count(*), min(track.playTime), max(track.playTime)
+      from com.oreilly.hh.Track as track
+      <b>where :artist in elements(track.artists)</b>
+    ]]&gt;
+&lt;/query&gt;
+</pre><br/>
+</td></tr></table><p class="docText">We've added a where clause to narrow down the tracks we want to see, using a named parameter, <tt>artist</tt>. HQL provides another use for the in operator. While you can use it in the normal SQL sense to give a list of possible values for a property, you can also do what we've done here. This statement tells Hibernate we are interested in tracks whose <tt>artists</tt> collection contains a specified value. To call this version of the query, beef up <tt>printTrackSummary()</tt> a little, as shown in <a class="docLink" href="#enhancing_printtracksummary_to_work_with">Example 9-20</a>.</p><a id="enhancing_printtracksummary_to_work_with"/><h5 id="title-ID0EMSBG" class="docExampleTitle">Example 9-20. Enhancing printTrackSummary() to work with a specific artist</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+/**
+ * Print <a id="idx-CHP-9-0322"/>summary information about <b>tracks associated with an artist</b>.
+ *
+ <b>*@param artist the artist in whose tracks we're interested</b>
+ *@param session the Hibernate session that can retrieve data.
+ *@throws HibernateException if there is a problem.
+ **/
+public static void printTrackSummary(<b>Artist artist</b>, Session session)
+    throws HibernateException
+{
+    Query query = session.getNamedQuery("com.oreilly.hh.trackSummary");
+    <b>query.setParameter("artist", artist);</b>
+    Object[] <a id="idx-CHP-9-0323"/>results = (Object[])query.uniqueResult();
+    System.out.println("Summary <b>of tracks by " + artist.getName() + ':'</b>);
+    System.out.println("       Total tracks: " + results[0]);
+    System.out.println("     Shortest track: " + results[1]);
+    System.out.println("      Longest track: " + results[2]);
+}
+</pre><br/>
+</td></tr></table><p class="docText">Wasn't much to that, was there? Finally, the line that calls this method needs another parameter to specify an artist. Use the handy <tt>getArtist()</tt> method in <span class="docEmphasis">CreateTest.java</span> once again. Change the method call in <span class="docEmphasis">QueryTest.java's</span>
+					<tt>main()</tt> method to look like it does in <a class="docLink" href="#calling_the_enhanced_printtracksummary">Example 9-21</a>.</p><a id="calling_the_enhanced_printtracksummary"/><h5 id="title-ID0E3TBG" class="docExampleTitle">Example 9-21. Calling the enhanced printTrackSummary()</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+         System.out.println("Track: " + aTitle + " [ID=" + anID + ']');
+     }
+     printTrackSummary(<b>CreateTest.getArtist("Samuel Barber",
+                                                       false, session</b>), session);
+
+} finally {
+     // No matter what, close the session
+... 
+</pre><br/>
+</td></tr></table><p class="docText">Now when you run <tt><b>ant qtest</b></tt> you'll see information that looks like <a class="docLink" href="#running_the_summary_query_for_tracks_by_">Example 9-22</a>.</p><a id="running_the_summary_query_for_tracks_by_"/><h5 id="title-ID0EPUBG" class="docExampleTitle">Example 9-22. Running the summary query for tracks by Samuel Barber</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+qtest:
+     [java] Track: Video Killed the Radio Star [ID=1]
+     [java] Track: Test Tone 1 [ID=6]
+     [java] Track: Russian Trance [ID=0]
+     [java] Track: Never Turn Your Back on Mother Earth [ID=11]
+     [java] Track: Motherless Child [ID=12]
+     [java] Track: In a Manner of Speaking [ID=8]
+     [java] Track: Gone [ID=10]
+     [java] <b>Summary of tracks by Samuel Barber:
+     [java]        Total tracks: 2 
+     [java]      Shortest track: 00:06:35
+     [java]       Longest track: 00:07:39</b>
+					</pre><br/>
+</td></tr></table><a id="what_just_happened-id014"/><h4 id="title-ID0EZUBG" class="docSection2Title">9.1.2. What just happened?</h4><p class="docText">This took so little effort that it's worth taking a minute to appreciate how much Hibernate actually did for us. The <tt>getArtist()</tt> method we called returned the <tt>Artist</tt> instance corresponding to Samuel Barber. We were able to pass this entire object as a named parameter to our HQL, query, and Hibernate knows enough about how to put together join queries using the <tt>Artist</tt>'s <tt>id</tt> property and the <tt>TRACK_ARTISTS</tt> table to implement the complicated condition we expressed so concisely in <a class="docLink" href="#summarizing_tracks_associated_with_an_ar">Example 9-19</a>.<a id="idx-CHP-9-0324"/></p><p class="docText"><a id="The"/>The <a id="idx-CHP-9-0325"/>results we got reflect the two remixes of "Adagio for Strings" in the sample data. They don't show up in the detailed track list because they're both longer than five minutes.</p><blockquote><p class="docText"><span class="docEmphasis">Just try doing something like that with vanilla SQL</span>!<a id="idx-CHP-9-0326"/><a id="I_indexterm9_d1e8311"/><a id="I_indexterm9_d1e8314"/></p></blockquote></div></div></body>
+</html>

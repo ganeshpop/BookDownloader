@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_defining_a_persistent_enumerated_type"><a id="defining_a_persistent_enumerated_type"/><h3 class="docSection1Title">6.1. Defining a Persistent Enumerated Type</h3><p class="docText">Hibernate has been around for a while and (at least as of this writing) Java 1.5 isn't yet released, so the support for enumerations in Hibernate can't take advantage of its new <tt>enum</tt> keyword. Instead, Hibernate lets you define your own typesafe enumeration classes however you like, and it provides a mechanism to help you get them into and out of a database, by translating them to and from small integer values. This is something of a regression to the world of C, but it is useful nonetheless.<a id="idx-CHP-6-0229"/></p><blockquote><p class="docText"><span class="docEmphasis">C-style enumerations still appear too often in Java. Older parts of the Sun API contain many of them</span>.</p></blockquote><p class="docText">In our music database, for example, we might want to add a field to our <tt>Track</tt> class that tells us the medium from which it was imported.</p><a id="how_do_i_do_that-id019"/><h4 id="title-ID0EISAG" class="docSection2Title">6.1.1. How do I do that?</h4><p class="docText">The key to adding persistence support for our enumeration is to have it implement Hibernate's <tt>PersistentEnum</tt> interface. This interface has two methods, <tt>toInt()</tt> and <tt>fromInt()</tt>, that Hibernate uses to translate between the enumeration constants and values that represent them in a database.<a id="idx-CHP-6-0230"/><a id="idx-CHP-6-0231"/><a id="idx-CHP-6-0232"/></p><p class="docText">Let's suppose we want to be able to specify whether our tracks came from cassette tapes, vinyl, VHS tapes, CDs, a broadcast, an internet download site, or a digital audio stream. (We could go really nuts and distinguish between Internet streams and satellite radio services like Sirius or XM, or radio versus television broadcast, but this is plenty to demonstrate the important ideas.)</p><p class="docText">Without any consideration of persistence, our typesafe enumeration class might look something like <a class="docLink" href="#sourcemediajava_our_initial_typesafe_enu">Example 6-1</a>. (The JavaDoc has been compressed to take less printed space, but the downloadable version is formatted normally.)</p><a id="sourcemediajava_our_initial_typesafe_enu"/><h5 id="title-ID0EKTAG" class="docExampleTitle">Example 6-1. SourceMedia.java, our initial typesafe enumeration</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+package com.oreilly.hh;
+
+import java.util.*;
+import java.io.Serializable;
+
+/**
+ * This is a typesafe enumeration that identifies the media on which an
+ * item in our music database was obtained.
+ **/
+public class SourceMedia implements Serializable {
+
+   /** Stores the external name of this instance, by which it can be retrieved. */
+   private final String name;
+
+   /**
+    * Stores the human-readable description of this instance, by which it is
+    * identified in the user interface.
+    */
+   private final transient String description;
+
+   /**
+    * Return the external name associated with this instance.
+    * @return the name by which this instance is identified in code.
+    **/
+   public String getName() {
+       return name;
+   }
+
+   /**
+    * Return the description associated with this instance.
+    * @return the human-readable description by which this instance is
+    *         identified in the user interface.
+    **/
+   public String getDescription() {
+       return description;
+   }
+
+   /** Keeps track of all instances by name, for efficient lookup. */
+   private static final Map instancesByName = new HashMap();
+
+   /**
+    * Constructor is private to prevent instantiation except during class
+    * loading.
+    *
+    * @param name the external name of the message type.
+    * @param description the human readable description of the message type,
+    *        by which it is presented in the user interface.
+    */
+   private SourceMedia(String name, String description) {
+       this.name = name;
+       this.description = description;
+
+       // Record this instance in the collection that tracks the enumeration
+       instancesByName.put(name, this);
+   }
+
+   /** The instance that represents music obtained from cassette tape. */
+   public static final SourceMedia CASSETTE =
+       new SourceMedia("cassette", "Audio Cassette Tape");
+
+   /** The instance that represents music obtained from vinyl. */
+   public static final SourceMedia VINYL =
+       new SourceMedia("vinyl", "Vinyl Record");
+
+   /** The instance that represents music obtained from VHS tapes. */
+   public static final SourceMedia VHS =
+       new SourceMedia("vhs", "VHS Videocassette Tape");
+
+   /** The instance that represents music obtained from a compact disc. */
+   public static final SourceMedia CD =
+       new SourceMedia("cd", "Compact Disc");
+
+   /** The instance that represents music obtained from a broadcast. */
+   public static final SourceMedia BROADCAST =
+       new SourceMedia("broadcast", "Analog Broadcast");
+
+   /** The instance that represents music obtained as an Internet download. */
+   public static final SourceMedia DOWNLOAD =
+       new SourceMedia("download", "Internet Download");
+
+   /** The instance that represents music from a digital audio stream. */
+   public static final SourceMedia STREAM =
+       new SourceMedia("stream", "Digital Audio Stream");
+   
+   /**
+    * Obtain the collection of all legal enumeration values.
+    * @return all instances of this typesafe enumeration.
+    */
+   public static Collection getAllValues() {
+       return Collections.unmodifiableCollection(instancesByName.values());
+   }
+
+   /**
+    * Look up an instance by name.
+    *
+    * @param name the external name of an instance.
+    * @return the corresponding instance.
+    * @throws NoSuchElementException if there is no such instance.
+    */
+   public static SourceMedia getInstanceByName(String name) {
+       SourceMedia result = (SourceMedia)instancesByName.get(name);
+       if (result == null) {
+           throw new NoSuchElementException(name);
+       }
+       return result;
+   }
+
+   /** Return a string representation of this object. */
+       public String toString() {
+       return description;
+   }
+
+   /** Insure that deserialization preserves the signleton property. */
+   private Object readResolve() {
+       return getInstanceByName(name);
+   }
+}
+</pre><br/>
+</td></tr></table><p class="docText">To add <a id="idx-CHP-6-0233"/>persistence support for this class, all we need to do is implement the <tt>PersistentEnum</tt> interface. Unfortunately, this requires us to assign an integer value to each instance, and to provide a way of looking up instances by this integer value. This is the "regression to C" mentioned in the introduction. Most typesafe enumerations with which I've worked have not included such an integer representation, since (as in this example) it was not part of their object-oriented semantics. Still, adding this integer property is not that hard. <a class="docLink" href="#changes_to_sourcemediajava_in_order_to_s">Example 6-2</a> shows the revisions we need to make in bold. (To save space, unchanged members and methods and some JavaDoc are omitted from this version of the example; the downloadable version is complete.)<a id="idx-CHP-6-0234"/><a id="idx-CHP-6-0235"/></p><a id="changes_to_sourcemediajava_in_order_to_s"/><h5 id="title-ID0EIUAG" class="docExampleTitle">Example 6-2. Changes to SourceMedia.java in order to support persistence using Hibernate</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+package com.oreilly.hh;
+
+<b>import net.sf.hibernate.PersistentEnum;</b>
+import java.util.*;
+import java.io.Serializable;
+
+/**
+ * This is a typesafe enumeration that identifies the media on which an
+ * item in our music database was obtained.
+ **/
+public class SourceMedia implements <b>PersistentEnum</b>, Serializable {
+    ...
+    <b>/** Stores the integer value used by Hibernate to persist this instance. */
+    private final int code;
+    ...
+    /**
+     * Return the persistence code associated with this instance, as
+     * mandated by the {@link PersistentEnum} interface.
+     */
+    public int toInt() {
+        return code;
+    }
+    ...
+    /** Keeps track of all instances by code, for efficient lookup.
+    private static final Map instancesByCode = new HashMap();</b>
+
+    /**
+     * Constructor is private to prevent instantiation except during class
+     * loading.
+     *
+     * @param name the external name of the message type.
+     * @param description the human readable description of the message type,
+     *        by which it is presented in the user interface.
+     <b>* @param code the persistence code by which Hibernate stores the instance.</b>
+     */
+    private SourceMedia(String name, String description, int code) {
+        this.name = name;
+        this.description = description;
+        <b>this.code = code;</b>
+        // Record this instance in the collections that track the enumeration
+        instancesByName.put(name, this);
+        <b>instancesByCode.put(new Integer(code), this);</b>
+    }
+    ...
+    public static final SourceMedia CASSETTE =
+        new SourceMedia("cassette", "Audio Cassette Tape"<b>, 0</b>);
+    ...
+    public static final SourceMedia VINYL =
+        new SourceMedia("vinyl", "Vinyl Record"<b>, 1</b>);
+    ...
+    public static final SourceMedia VHS =
+        new SourceMedia("vhs", "VHS Videocassette Tape"<b>, 2</b>);
+    ...
+    public static final SourceMedia CD =
+        new SourceMedia("cd", "Compact Disc"<b>, 3</b>);
+    ...
+    public static final SourceMedia BROADCAST =
+        new SourceMedia("broadcast", "Analog Broadcast"<b>, 4</b>);
+    ...
+    public static final SourceMedia DOWNLOAD =
+        new SourceMedia("download", "Internet Download"<b>, 5</b>);
+    ...
+    public static final SourceMedia STREAM =
+        new SourceMedia("stream", "Digital Audio Stream"<b>, 6</b>);
+    ...
+    <b>/**
+     * Look up an instance by code, as specified by the {@link PersistentEnum}
+     * interface.
+     *
+     * @param code the persistence code of an instance.
+     * @return the corresponding instance.
+     * @throws NoSuchElementException if there is no such instance.
+     */
+    public static SourceMedia fromInt(int code) {
+        SourceMedia result =
+            (SourceMedia)instancesByCode.get(new Integer(code));
+        if (result == null) {
+            throw new NoSuchElementException("code=" + code);
+        }
+        return result;
+    }</b>
+    ...
+}
+</pre><br/>
+</td></tr></table><p class="docText">An alternative to adding the codes to the constructor arguments is to usea static counter that gets incremented each time a new instance is constructed. Although this is more convenient and concise, it makes it much harder to tell by inspection which code goes with which instance, and it also means you need to be careful to add new instances to the end of the construction code if you don't want existing values to be rearranged (this is a problem if you've already got values persisted in the database). These are some of the reasons it'd be nicer to avoid the numeric codes completely, and use the symbolic names to represent instances in the database.</p><blockquote><p class="docText"><span class="docEmphasis">If you're in too much suspense, rest assured that the next chapter shows a nice way to avoid the need for such numeric codes</span>.</p></blockquote><p class="docText">The good news is that once we've got our persistent enum type defined, it's extremely easy to use it. Let's see how!</p></div></div></body>
+</html>

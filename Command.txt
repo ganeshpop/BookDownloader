@@ -1,0 +1,1 @@
+python safaribooks.py --cred "ballsandnuts@gmail.com:Balls@123" 0596006969

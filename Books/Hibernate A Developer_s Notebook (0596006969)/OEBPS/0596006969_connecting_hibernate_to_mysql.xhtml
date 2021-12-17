@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_connecting_hibernate_to_mysql"><a id="connecting_hibernate_to_mysql"/><h3 class="docSection1Title">2.4. Connecting Hibernate to MySQL</h3><p class="docText">If you were skimming through this chapter (or, more likely, the table of contents) you may not have even noticed that Hibernate connected to and manipulated a database in the previous section, "Cooking Up a Schema." Since working with databases is the whole point of Hibernate, it makes this as easy as possible. Once you've set up a configuration file like the one in <a class="docLink" href="0596006969_cooking_up_a_schema.xhtml#setting_up_hibernateproperties">Example 2-4</a>, the schema generation tool can get in and work with your database, and your Java code can use it for persistence sessions as demonstrated in <a class="docLink" href="0596006969_harnessing_hibernate.xhtml#harnessing_hibernate">Chapter 3</a>.</p><blockquote><p class="docText"><span class="docEmphasis">This example assumes you've already got a working MySQL instance installed andrunning, since explaining how to do that would be quite a detour</span>.</p></blockquote><p class="docText">In the interest of further clarifying this aspect of working with Hibernate, let's take a look at what we'd change in that example to set up a connection with the popular, free, and open source <a id="idx-CHP-2-0085"/>MySQL database (available from <a class="docLink" target="_blank" href="http://www.mysql.com">http://www.mysql.com</a><a id="idx-CHP-2-0086"/>).</p><a id="how_do_i_do_that-id007"/><h4 id="title-ID0EUPAE" class="docSection2Title">2.3.1. How do I do that?</h4><p class="docText">Connect to your <a id="idx-CHP-2-0087"/>MySQL server and set up a new database to play with, along the lines of <a class="docLink" href="#setting_up_the_mysql_database_notebook_d">Example 2-8</a>.</p><a id="setting_up_the_mysql_database_notebook_d"/><h5 id="title-ID0EFQAE" class="docExampleTitle">Example 2-8. Setting up the MySQL database notebook_db as a Hibernate playground</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>mysql -u root -p</b>
+Enter password:
+Welcome to the MySQL monitor. Commands end with ; or \g.
+Your MySQL connection id is 764 to server version: 3.23.44-Max-log
+
+Type 'help;' or '\h' for help. Type '\c' to clear the buffer.
+
+mysql&gt; <b>CREATE DATABASE notebook_db;</b>
+Query OK, 1 row affected (0.00 sec)
+
+mysql&gt; <b>GRANT ALL ON notebook_db.* TO jim IDENTIFIED BY "s3cret";</b>
+Query OK, 0 rows affected (0.20 sec)
+
+mysql&gt; <b>quit;</b>
+Bye
+</pre><br/>
+</td></tr></table><blockquote><p class="docText"><span class="docEmphasis">Hopefully you'll use a less guessable password than this in your real databases</span>!</p></blockquote><p class="docText">Make a note of the database name you create, as well as the username and password that can access to it. These will need to be entered into <span class="docEmphasis">hibernate.properties</span>, as shown in <a class="docLink" href="#changes_to_hibernateproperties_to_connec">Example 2-9</a>.</p><p class="docText">Next, you'll need a JDBC driver capable of connecting to MySQL. If you're already using MySQL for your Java projects, you'll have one. Otherwise, you can download Connector/J from <a class="docLink" target="_blank" href="http://www.mysql.com/downloads/api-jdbc-stable.html">http://www.mysql.com/downloads/api-jdbc-stable.html</a>. However you obtain it, copy the driver library jar (which will be named something like <span class="docEmphasis">mysql-connector-java-3.0.10-stable-bin.jar)</span> to your project's <span class="docEmphasis">lib</span> directory alongside the HSQLDB, Hibernate, and other libraries that are already there. It's fine to have drivers for several different databases available to your code; they won't conflict with each other, since the configuration file specifies which driver class to use.</p><p class="docText">Speaking of which, it's time to edit <span class="docEmphasis">hibernate.properties</span> to use the new driver and database we've just made available. <a class="docLink" href="#changes_to_hibernateproperties_to_connec">Example 2-9</a> shows how it is set up to connect to my MySQL instance using the database created in <a class="docLink" href="#setting_up_the_mysql_database_notebook_d">Example 2-8</a>. You'll need to tweak these values to correspond to your own server, database, and the login credentials you chose. (If you're using MM.<a id="idx-CHP-2-0088"/>MySQL, the older incarnation of the <a id="idx-CHP-2-0089"/>MySQL JDBC driver, the <tt>driver_class</tt> will need to be <tt>com.mysql.jdbc.Driver</tt>.)<a id="idx-CHP-2-0090"/></p><a id="changes_to_hibernateproperties_to_connec"/><h5 id="title-ID0EQSAE" class="docExampleTitle">Example 2-9. Changes to hibernate.properties to connect to the new MySQL database</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+hibernate.dialect=net.sf.hibernate.dialect.<a id="idx-CHP-2-0091"/>MySQLDialect
+hibernate.connection.driver_class=<b>com.mysql.jdbc.Driver</b>
+hibernate.connection.url=jdbc:<b>mysql://slant.reseune.pvt/notebook_db</b>
+hibernate.connection.username=<b>jim</b>
+hibernate.connection.password=<b>s3cret</b>
+					</pre><br/>
+</td></tr></table><p class="docText">The URL on the third line will need to reflect your server; you won't be able to resolve my private internal domain name, let alone route to it.<a id="idx-CHP-2-0092"/></p><p class="docText">Once this is all set, you can rerun the schema creation example that was set up in the previous section. This time it will build the schema on your MySQL server rather than in the embedded HSQLDB world. You'll see output like that in <a class="docLink" href="#schema_creation_when_connecting_to_mysql">Example 2-10</a>.</p><a id="schema_creation_when_connecting_to_mysql"/><h5 id="title-ID0EYTAE" class="docExampleTitle">Example 2-10. Schema creation when connecting to MySQL</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>ant schema</b>
+Buildfile: build.xml
+
+prepare:
+
+compile:
+
+schema:
+[schemaexport] 23:02:13,614 INFO Environment:462 - Hibernate 2.1.2
+[schemaexport] 23:02:13,659 INFO Environment:496 - loaded properties from
+resource hibernate.properties: {hibernate.connection.username=jim, hibernate.
+connection.password=s3cret, hibernate.cglib.use_reflection_optimizer=true,
+hibernate.dialect=net.sf.hibernate.dialect.MySQLDialect, hibernate.connection.
+url=jdbc:mysql://slant.reseune.pvt/notebook_db, hibernate.connection.driver_
+class=com.mysql.jdbc.Driver}
+[schemaexport] 23:02:13,711 INFO Environment:519 - using CGLIB reflection
+optimizer
+[schemaexport] 23:02:13,819 INFO Configuration:166 - Mapping file: /Users/jim/
+Documents/Work/OReilly/Hibernate/Examples/ch02/classes/com/oreilly/hh/Track.hbm.xml
+[schemaexport] 23:02:15,568 INFO Binder:229 - Mapping class: com.oreilly.hh.
+Track -&gt; TRACK
+[schemaexport] 23:02:16,164 INFO Dialect:82 - Using dialect: net.sf.hibernate.
+dialect.MySQLDialect
+[schemaexport] 23:02:16,175 INFO Configuration:595 - processing one-to-many
+association mappings
+[schemaexport] 23:02:16,188 INFO Configuration:604 - processing one-to-one
+association property references
+[schemaexport] 23:02:16,209 INFO Configuration:629 - processing foreign key
+constraints
+[schemaexport] 23:02:16,429 INFO Configuration:595 - processing one-to-many
+association mappings
+[schemaexport] 23:02:16,436 INFO Configuration:604 - processing one-to-one
+association property references
+[schemaexport] 23:02:16,440 INFO Configuration:629 - processing foreign key
+constraints
+[schemaexport] 23:02:16,470 INFO SchemaExport:98 - Running hbm2ddl schema export
+[schemaexport] 23:02:16,488 INFO SchemaExport:117 - exporting generated schema
+to database
+[schemaexport] 23:02:16,543 INFO DriverManagerConnectionProvider:41 - Using
+Hibernate built-in connection pool (not for production use!)
+[schemaexport] 23:02:16,549 INFO DriverManagerConnectionProvider:42 - Hibernate
+connection pool size: 20
+[schemaexport] 23:02:16,583 INFO DriverManagerConnectionProvider:71 - using
+driver: com.<a id="idx-CHP-2-0093"/>mysql.jdbc.Driver at URL: jdbc:<a id="idx-CHP-2-0094"/>mysql://slant.reseune.pvt/notebook_db
+[schemaexport] 23:02:16,597 INFO DriverManagerConnectionProvider:72 -connection
+properties: {user=jim, password=s3cret}
+[schemaexport] drop table if exists TRACK
+[schemaexport] 23:02:18,129 DEBUG SchemaExport:132 - drop table if exists TRACK
+[schemaexport] create table TRACK (
+[schemaexport]    TRACK_ID INTEGER NOT NULL AUTO_INCREMENT,
+[schemaexport]    title VARCHAR(255) not null,
+[schemaexport]    filePath VARCHAR(255) not null,
+[schemaexport]    playTime TIME,
+[schemaexport]    added DATE,
+[schemaexport]    volume SMALLINT,
+[schemaexport]    primary key (Track_id)
+[schemaexport] )
+[schemaexport] 23:02:18,181 DEBUG SchemaExport:149 - create table TRACK (
+[schemaexport]    TRACK_ID INTEGER NOT NULL AUTO_INCREMENT,
+[schemaexport]    title VARCHAR(255) not null,
+[schemaexport]    filePath VARCHAR(255) not null,
+[schemaexport]    playTime TIME,
+[schemaexport]    added DATE,
+[schemaexport]    volume SMALLINT,
+[schemaexport]    primary key (Track_id)
+[schemaexport] )
+[schemaexport] 23:02:18,311 INFO SchemaExport:160 - schema export complete
+[schemaexport] 23:02:18,374 INFO DriverManagerConnectionProvider:137 - cleaning
+up connection pool: jdbc:mysql://slant.reseune.pvt/notebook_db
+
+BUILD SUCCESSFUL
+Total time: 9 seconds
+</pre><br/>
+</td></tr></table><a id="what_just_happened-id005"/><h4 id="title-ID0EOUAE" class="docSection2Title">2.1.3. What just happened?</h4><p class="docText">Hibernate configured itself to work with MySQL's specific features, examined the mapping document for our <tt>Track</tt> class, connected to the MySQL server, and executed the commands necessary to build a database schema for persisting <tt>Track </tt>instances.</p><p class="docText"><a id="compare"/>It's interesting to compare <a class="docLink" href="#checking_the_newly_created_mysql_schema">Example 2-11</a> with <a class="docLink" href="0596006969_cooking_up_a_schema.xhtml#output_from_building_the_schema_using_hs">Example 2-7</a>. Most of the output is the same, but there are subtle differences in the SQL used to actually create the table. This is what Hibernate means by SQL "dialects."</p><p class="docText">Back on the server, you can fire up the <a id="idx-CHP-2-0095"/>MySQL client again, and confirm that the <tt>Track</tt> mapping schema has been created.</p><a id="checking_the_newly_created_mysql_schema"/><h5 id="title-ID0EPVAE" class="docExampleTitle">Example 2-11. Checking the newly created MySQL schema</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>mysql -u jim -p</b>
+Enter password:
+Welcome to the MySQL monitor. Commands end with ; or \g.
+Your MySQL connection id is 772 to server version: 3.23.44-Max-log
+
+Type 'help;' or '\h' for help. Type '\c' to clear the buffer.
+
+mysql&gt; <b>USE notebook_db</b>
+Database changed
+mysql&gt; <b>SHOW TABLES;</b>
++-----------------------+
+| Tables_in_notebook_db |
++-----------------------+
+| TRACK                 |
++-----------------------+
+1 row in set (0.03 sec)
+
+mysql&gt; <b>DESCRIBE TRACK;</b>
++----------+--------------+------+-----+---------+----------------+
+| Field    | Type         | Null | Key | Default | Extra          |
++----------+--------------+------+-----+---------+----------------+
+| TRACK_ID | int(11)      |      | PRI | NULL    |auto_increment  |
+| title    | varchar(255) |      |     |         |                |
+| filePath | varchar(255) |      |     |         |                |
+| playTime | time         | YES  |     | NULL    |                |
+| added    | date         | YES  |     | NULL    |                |
+| volume   | smallint(6)  | YES  |     | NULL    |                |
++----------+--------------+------+-----+---------+----------------+
+6 rows in set (0.02 sec)
+
+mysql&gt; <b>SELECT * FROM TRACK;</b>
+Empty set (0.00 sec)
+
+mysql&gt; <b>quit;</b>
+Bye
+</pre><br/>
+</td></tr></table><p class="docText">It's not surprising to find the table empty. We'll investigate how to populate it with data in the first part of <a class="docLink" href="0596006969_harnessing_hibernate.xhtml#harnessing_hibernate">Chapter 3</a>.<a id="idx-CHP-2-0096"/></p><p class="docText">If you've followed this example and set up a MySQL database, and you'd prefer to continue working with it throughout the rest of the book, feel free to do so, but bear in mind you'll need to know how to look at the results of the examples yourself. The text will assume you're still working with HSQLDB, and it will show you how to check your progress in that context. You will also see slight differences in the schema, as databases all have slightly different column types and features. Apart from  these minor details, it really makes no difference what database you're using–that's part of the appeal of an O/R mapping layer like Hibernate.</p><p class="docText">If you do want to switch back to HSQLDB for the ease of following the discussion, change your <span class="docEmphasis">hibernate.properties</span><a id="in"/> back to the values shown in <a class="docLink" href="0596006969_cooking_up_a_schema.xhtml#setting_up_hibernateproperties">Example 2-4</a>.</p><a id="what_abouthellip-id004"/><h4 id="title-ID0E6WAE" class="docSection2Title">2.1.4. What about…</h4><p class="docText">…Connecting to Oracle, or another favorite, shared, or legacy database that doesn't happen to be MySQL or HSQLDB? You've probably figured out that it's just as easy. All you need to do is change the <tt>hibernate. dialect</tt> setting in your <span class="docEmphasis">hibernate.properties</span> to reflect the kind of database you want to use. There are many dialects available, covering every free and commercial database I can think of. These built-in dialects are listed in <a class="docLink" href="0596006969_hibernate_sql_dialects.xhtml#hibernate_sql_dialects">Appendix C</a>. If you need to work with a more obscure database, you may have to write your own dialect to support it, but that seems unlikely (and check to see if anyone's already started that effort).</p><p class="docText">Once you've chosen the dialect, you'll also need to set the <tt>hibernate. connection</tt> properties (driver, URL, username, and password–the other entries in <a class="docLink" href="0596006969_cooking_up_a_schema.xhtml#setting_up_hibernateproperties">Example 2-4</a> and <a class="docLink" href="#changes_to_hibernateproperties_to_connec">Example 2-9</a>) to the proper values for establishing a JDBC connection to your chosen database environment. If you're porting an existing project to use Hibernate, you'll be able to obtain these from the code or configuration of that project. And, naturally, you'll need to put the database's JDBC driver into your project's library directory.</p><p class="docText">Of course, if you're connecting to an existing or shared database, you won't be using Hibernate to create the schema. Instead, you'll write the mapping document to reflect the existing schema, either by hand or with the help of a tool like Middlegen  (<a class="docLink" target="_blank" href="http://boss.bekk.no/boss/middlegen">http://boss.bekk.no/boss/middlegen</a>), and then start working with the data in the form of persistent objects, as described in <a class="docLink" href="0596006969_harnessing_hibernate.xhtml#harnessing_hibernate">Chapter 3</a>.</p><p class="docText">You can even use Hibernate to talk to multiple databases at the same time; you just need to create multiple <tt>Session Factory</tt> instances with separate configurations. This goes beyond the simple, automatic configuration we demonstrate in <a class="docLink" href="0596006969_harnessing_hibernate.xhtml#harnessing_hibernate">Chapter 3</a>, but there are examples in the Hibernate reference documentation. Of course, a persistent object can only be associated with a single session at a time, which means it can only be linked to a single database at once. With clever, careful coding, though, you can copy or move objects between different database systems, even with a different schema to represent them. That's <span class="docEmphasis">way</span> out of scope for this notebook, though!</p></div></div></body>
+</html>

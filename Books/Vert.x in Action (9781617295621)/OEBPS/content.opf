@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="2.0" >
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"  xmlns:opf="http://www.idpf.org/2007/opf">
+<dc:title>Vert.x in Action</dc:title>
+<dc:creator opf:file-as="Julien Ponge" opf:role="aut">Julien Ponge</dc:creator>
+<dc:description>&lt;span&gt;&lt;i&gt;Vert.x in Action&lt;/i&gt; teaches you how to build production-quality reactive applications in Java. This book covers core Vert.x concepts, as well as the fundamentals of asynchronous and reactive programming. Learn to develop microservices by using Vert.x tools for database communications, persistent messaging, and test app resiliency. The patterns and techniques included here transfer to reactive technologies and frameworks beyond Vert.x.
+  
+  &lt;/span&gt;</dc:description>
+<dc:publisher>Manning Publications</dc:publisher>
+<dc:rights></dc:rights>
+<dc:language>en-US</dc:language>
+<dc:date>2020-11-23</dc:date>
+<dc:identifier id="bookid">9781617295621</dc:identifier>
+<meta name="cover" content="Images/cover.jpeg"/>
+</metadata>
+<manifest>
+<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />
+<item id="titlepage" href="titlepage.xhtml" media-type="application/xhtml+xml" />
+<item id="title" href="title.xhtml" media-type="application/xhtml+xml" />
+<item id="copyright" href="copyright.xhtml" media-type="application/xhtml+xml" />
+<item id="dedication" href="dedication.xhtml" media-type="application/xhtml+xml" />
+<item id="btoc" href="btoc.htm" media-type="application/xhtml+xml" />
+<item id="toc" href="toc.htm" media-type="application/xhtml+xml" />
+<item id="fm" href="fm.htm" media-type="application/xhtml+xml" />
+<item id="p1" href="p1.htm" media-type="application/xhtml+xml" />
+<item id="01" href="01.htm" media-type="application/xhtml+xml" />
+<item id="02" href="02.htm" media-type="application/xhtml+xml" />
+<item id="03" href="03.htm" media-type="application/xhtml+xml" />
+<item id="04" href="04.htm" media-type="application/xhtml+xml" />
+<item id="05" href="05.htm" media-type="application/xhtml+xml" />
+<item id="06" href="06.htm" media-type="application/xhtml+xml" />
+<item id="p2" href="p2.htm" media-type="application/xhtml+xml" />
+<item id="07" href="07.htm" media-type="application/xhtml+xml" />
+<item id="08" href="08.htm" media-type="application/xhtml+xml" />
+<item id="09" href="09.htm" media-type="application/xhtml+xml" />
+<item id="10" href="10.htm" media-type="application/xhtml+xml" />
+<item id="11" href="11.htm" media-type="application/xhtml+xml" />
+<item id="12" href="12.htm" media-type="application/xhtml+xml" />
+<item id="13" href="13.htm" media-type="application/xhtml+xml" />
+<item id="index" href="index.htm" media-type="application/xhtml+xml" />
+<item id="img_CH12_F06_Ponge" href="Images/CH12_F06_Ponge.png" media-type="image/png" />
+<item id="img_CH13_F04_Ponge" href="Images/CH13_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH08_F05_Ponge" href="Images/CH08_F05_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F10_Ponge" href="Images/CH12_F10_Ponge.png" media-type="image/png" />
+<item id="img_CH11_F04_Ponge" href="Images/CH11_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F03_Ponge" href="Images/CH12_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH04_F01_Ponge" href="Images/CH04_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH03_F02_Ponge" href="Images/CH03_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH02_F04_Ponge" href="Images/CH02_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH03_F03_Ponge" href="Images/CH03_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F02_Ponge" href="Images/CH07_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F12_Ponge" href="Images/CH12_F12_Ponge.png" media-type="image/png" />
+<item id="img_CH03_F01_Ponge" href="Images/CH03_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH02_F06_Ponge" href="Images/CH02_F06_Ponge.png" media-type="image/png" />
+<item id="img_CH01_F05_Ponge" href="Images/CH01_F05_Ponge.png" media-type="image/png" />
+<item id="img_CH06_F01_Ponge" href="Images/CH06_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F12_Ponge" href="Images/CH07_F12_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F13_Ponge" href="Images/CH12_F13_Ponge.png" media-type="image/png" />
+<item id="img_CH01_F01_Ponge" href="Images/CH01_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH02_F01_Ponge" href="Images/CH02_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH01_F04_Ponge" href="Images/CH01_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F06_Ponge" href="Images/CH07_F06_Ponge.png" media-type="image/png" />
+<item id="img_CH03_F08_Ponge" href="Images/CH03_F08_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F07_Ponge" href="Images/CH12_F07_Ponge.png" media-type="image/png" />
+<item id="img_CH04_F03_Ponge" href="Images/CH04_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH10_F04_Ponge" href="Images/CH10_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F01_Ponge" href="Images/CH12_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH02_F05_Ponge" href="Images/CH02_F05_Ponge.png" media-type="image/png" />
+<item id="img_CH09_F06_Ponge" href="Images/CH09_F06_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F07_Ponge" href="Images/CH07_F07_Ponge.png" media-type="image/png" />
+<item id="img_CH09_F05_Ponge" href="Images/CH09_F05_Ponge.png" media-type="image/png" />
+<item id="img_CH03_F06_Ponge" href="Images/CH03_F06_Ponge.png" media-type="image/png" />
+<item id="img_CH08_F03_Ponge" href="Images/CH08_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH06_F02_Ponge" href="Images/CH06_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH11_F01_Ponge" href="Images/CH11_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH04_F05_Ponge" href="Images/CH04_F05_Ponge.png" media-type="image/png" />
+<item id="img_CH13_F01_Ponge" href="Images/CH13_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F11_Ponge" href="Images/CH07_F11_Ponge.png" media-type="image/png" />
+<item id="img_CH05_F01_Ponge" href="Images/CH05_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F15_Ponge" href="Images/CH07_F15_Ponge.png" media-type="image/png" />
+<item id="img_CH03_F05_Ponge" href="Images/CH03_F05_Ponge.png" media-type="image/png" />
+<item id="img_CH08_F02_Ponge" href="Images/CH08_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH10_F05_Ponge" href="Images/CH10_F05_Ponge.png" media-type="image/png" />
+<item id="img_Manning_M_small" href="Images/Manning_M_small.png" media-type="image/png" />
+<item id="img_CH13_F02_Ponge" href="Images/CH13_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH03_F04_Ponge" href="Images/CH03_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F01_Ponge" href="Images/CH07_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F05_Ponge" href="Images/CH07_F05_Ponge.png" media-type="image/png" />
+<item id="img_CH11_F02_Ponge" href="Images/CH11_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F03_Ponge" href="Images/CH07_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH09_F03_Ponge" href="Images/CH09_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F13_Ponge" href="Images/CH07_F13_Ponge.png" media-type="image/png" />
+<item id="img_CH13_F03_Ponge" href="Images/CH13_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F09_Ponge" href="Images/CH12_F09_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F08_Ponge" href="Images/CH12_F08_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F10_Ponge" href="Images/CH07_F10_Ponge.png" media-type="image/png" />
+<item id="img_CH09_F02_Ponge" href="Images/CH09_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH02_F02_Ponge" href="Images/CH02_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH01_F03_Ponge" href="Images/CH01_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH03_F07_Ponge" href="Images/CH03_F07_Ponge.png" media-type="image/png" />
+<item id="img_CH10_F01_Ponge" href="Images/CH10_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH01_F02_Ponge" href="Images/CH01_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F14_Ponge" href="Images/CH12_F14_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F08_Ponge" href="Images/CH07_F08_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F11_Ponge" href="Images/CH12_F11_Ponge.png" media-type="image/png" />
+<item id="img_Manning_copyright" href="Images/Manning_copyright.png" media-type="image/png" />
+<item id="img_CH05_F03_Ponge" href="Images/CH05_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F04_Ponge" href="Images/CH07_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH08_F04_Ponge" href="Images/CH08_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH10_F03_Ponge" href="Images/CH10_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH09_F01_Ponge" href="Images/CH09_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH06_F03_Ponge" href="Images/CH06_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH10_F02_Ponge" href="Images/CH10_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH11_F03_Ponge" href="Images/CH11_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH08_F06_Ponge" href="Images/CH08_F06_Ponge.png" media-type="image/png" />
+<item id="img_CH08_F01_Ponge" href="Images/CH08_F01_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F02_Ponge" href="Images/CH12_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F14_Ponge" href="Images/CH07_F14_Ponge.png" media-type="image/png" />
+<item id="img_CH05_F02_Ponge" href="Images/CH05_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH02_F03_Ponge" href="Images/CH02_F03_Ponge.png" media-type="image/png" />
+<item id="img_CH09_F04_Ponge" href="Images/CH09_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH04_F04_Ponge" href="Images/CH04_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH04_F02_Ponge" href="Images/CH04_F02_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F04_Ponge" href="Images/CH12_F04_Ponge.png" media-type="image/png" />
+<item id="img_CH12_F05_Ponge" href="Images/CH12_F05_Ponge.png" media-type="image/png" />
+<item id="img_CH07_F09_Ponge" href="Images/CH07_F09_Ponge.png" media-type="image/png" />
+<item id="style_00" href="Styles/Style00.css" media-type="text/css" />
+<item id="style_01" href="Styles/Style01.css" media-type="text/css" />
+<item id="style_02" href="Styles/Style02.css" media-type="text/css" />
+</manifest>
+<spine toc="ncx">
+<itemref idref="titlepage"/>
+<itemref idref="title"/>
+<itemref idref="copyright"/>
+<itemref idref="dedication"/>
+<itemref idref="btoc"/>
+<itemref idref="toc"/>
+<itemref idref="fm"/>
+<itemref idref="p1"/>
+<itemref idref="01"/>
+<itemref idref="02"/>
+<itemref idref="03"/>
+<itemref idref="04"/>
+<itemref idref="05"/>
+<itemref idref="06"/>
+<itemref idref="p2"/>
+<itemref idref="07"/>
+<itemref idref="08"/>
+<itemref idref="09"/>
+<itemref idref="10"/>
+<itemref idref="11"/>
+<itemref idref="12"/>
+<itemref idref="13"/>
+<itemref idref="index"/></spine>
+<guide><reference href="titlepage.xhtml" title="Cover" type="cover" /></guide>
+</package>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_finding_persistent_objects"><a id="finding_persistent_objects"/><h3 class="docSection1Title">3.2. Finding Persistent Objects</h3><p class="docText">It's time to throw the giant lever into reverse and look at how you load data from a database into Java objects.<a id="idx-CHP-3-0127"/></p><p class="docText">Use Hibernate Query Language to get an object-oriented view of the contents of your mapped database tables. These might have started out as objects persisted in a previous session, or they might be data that came from completely outside your application code.</p><a id="how_do_i_do_that-id009"/><h4 id="title-ID0EHWAE" class="docSection2Title">3.1.1. How do I do that?</h4><p class="docText"><a class="docLink" href="#querytestjava">Example 3-5</a> shows a program that runs a simple query using the test data we just created. The overall structure will look very familiar, because all the Hibernate setup is the same as the previous program.<a id="I_indexterm3_d1e2770"/></p><a id="querytestjava"/><h5 id="title-ID0EXWAE" class="docExampleTitle">Example 3-5. QueryTest.java</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1   package com.oreilly.hh;
+ 2
+ 3   import net.sf.hibernate.*;
+ 4   import net.sf.hibernate.cfg.Configuration;
+ 5
+ 6   import java.sql.Time;
+ 7   import java.util.*;
+ 8
+ 9   /**
+10    * Retrieve <a id="idx-CHP-3-0128"/>data as objects
+11    */
+12   public class QueryTest {
+13
+14       /**
+15        * Retrieve any tracks that fit in the specified amount of time.
+16        *
+17        * @param length the maximum playing time for tracks to be returned.
+18        * @param session the Hibernate session that can retrieve <a id="idx-CHP-3-0129"/>data.
+19        * @return a list of {@link Track}s meeting the length restriction.
+20        * @throws HibernateException if there is a problem.
+21        */
+22       public static List tracksNoLongerThan(Time length, Session session)
+23           throws HibernateException
+24       {
+25           return session.find("from com.oreilly.hh.Track as track " +
+26                               "where track.playTime &lt;= ?",
+27                               length, Hibernate.TIME);
+28       }
+29
+30       /**
+31        * Look up and print some tracks when invoked from the command line.
+32        */
+33       public static void main(String args[]) throws Exception {
+34           // Create a configuration based on the properties file we've put
+35           // in the standard place.
+36           Configuration config = new Configuration();
+37
+38           // Tell it about the classes we want mapped, taking advantage of
+39           // the way we've named their mapping documents.
+40           config.addClass(Track.class);
+41
+42           // Get the session factory we can use for persistence
+43           SessionFactory sessionFactory = config.buildSessionFactory();
+44
+45           // Ask for a session using the JDBC information we've configured
+46           Session session = sessionFactory.openSession();
+47           try {
+48               // Print the tracks that will fit in five minutes
+49               List tracks = tracksNoLongerThan(Time.valueOf("00:05:00"),
+50                                                session);
+51               for (ListIterator iter = tracks.listIterator() ;
+52                    iter.hasNext() ; ) {
+53                   Track aTrack = (Track)iter.next();
+54                 System.out.println("Track: \"" + aTrack.getTitle() +
+55                                    "\", " + aTrack.getPlayTime());
+56             }
+57         } finally {
+58             // No matter what, close the session
+59             session.close();
+60         }
+61
+62         // Clean up after ourselves
+63         sessionFactory.close();
+64      }
+65   }
+</pre><br/>
+</td></tr></table><p class="docText">Again, add a target (<a class="docLink" href="#ant_target_to_invoke_our_query_test">Example 3-6</a>) at the end of <span class="docEmphasis">build.xml</span> to run this test.</p><a id="ant_target_to_invoke_our_query_test"/><h5 id="title-ID0ESXAE" class="docExampleTitle">Example 3-6. Ant target to invoke our query test</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+&lt;target name="qtest" description="Run a simple Hibernate query"
+        depends="compile"&gt;
+  &lt;java classname="com.oreilly.hh.QueryTest" fork="true"&gt;
+    &lt;classpath refid="project.class.path"/&gt;
+  &lt;/java&gt;
+&lt;/target&gt;
+</pre><br/>
+</td></tr></table><p class="docText">With this in place, we can simply type <tt><b><a id="idx-CHP-3-0130"/>ant qtest</b></tt> to retrieve and display some <a id="idx-CHP-3-0131"/>data, with the results shown in <a class="docLink" href="#running_the_query_test">Example 3-7</a>. To save space in the output, we've edited our <span class="docEmphasis">log4j.properties</span> to turn off all the "Info" messages, since they're no different than in the previous example. You can do this yourself by changing the line:</p><pre>
+	log4j.logger.net.sf.hibernate=info
+</pre><br/>
+<p class="docText">to replace the word <tt>info</tt> with <tt>warn</tt>:</p><pre>
+	log4j.logger.net.sf.hibernate=<b>warn</b>
+				</pre><br/>
+<a id="running_the_query_test"/><h5 id="title-ID0EAZAE" class="docExampleTitle">Example 3-7. Running the query test</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+% <b>ant qtest</b>
+Buildfile: build.xml
+
+prepare:
+
+compile:
+    [javac] Compiling 1 source file to /Users/jim/Documents/Work/OReilly/
+Hibernate/Examples/ch03/classes
+
+qtest:
+     [java] Track: "Russian Trance", 00:03:30
+     [java] Track: "Video Killed the Radio Star", 00:03:49
+
+BUILD SUCCESSFUL
+Total time: 11 seconds
+</pre><br/>
+</td></tr></table><a id="what_just_happened-id007"/><h4 id="title-ID0EKZAE" class="docSection2Title">3.2.1. What just happened?</h4><blockquote><p class="docText"><span class="docEmphasis">If you don't want to deal with any query syntax at all, check out criteria queries in <a class="docLink" href="0596006969_criteria_queries.xhtml#criteria_queries">Chapter 8</a></span>!</p></blockquote><p class="docText">In <a class="docLink" href="#querytestjava">Example 3-5</a>, we started out by defining a utility method, <tt>tracksNoLongerThan()</tt> on lines 14–28, which performs the actual Hibernate query. It retrieves any tracks whose playing time is less than or equal to the amount specified as a parameter. Hibernate queries are written in HQL (Hibernate Query Language—explored in <a class="docLink" href="0596006969_a_look_at_hql.xhtml#a_look_at_hql">Chapter 9</a>). This is a SQL-inspired but object-oriented query language with important differences <a id="idx-CHP-3-0132"/>from SQL. HQL is explored in <a class="docLink" href="0596006969_a_look_at_hql.xhtml#a_look_at_hql">Chapter 9</a>. For now, note that it supports <a id="idx-CHP-3-0133"/>parameter placeholders, much like <tt>PreparedStatement</tt> in JDBC. And, just like in that environment, using them is preferable to putting together queries through string manipulation. As you'll see below, however, Hibernate offers even better ways of working with queries in Java.</p><p class="docText">The query itself looks a little strange. It starts with <tt>"from"</tt> rather than "<tt>select</tt>
+					<tt><i>something</i></tt>" as you might expect. While you can certainly use the more familiar format, and will do so when you want to pull out individual properties from an object in your query, if you want to retrieve entire objects you can use this more abbreviated syntax.<a id="idx-CHP-3-0134"/></p><blockquote><p class="docText"><span class="docEmphasis">When you're working with pre-existing databases and objects, it's important to realize that HQL queries refer to object properties rather than database table</span><a id="idx-CHP-3-0135"/><a id="idx-CHP-3-0136"/></p></blockquote><p class="docText">Also note that the query is expressed in terms of the mapped Java <span class="docEmphasis">objects</span> and <span class="docEmphasis">properties</span> rather than the tables and columns. Since the object being used in the query is in the same package as the mapping document, we don't actually need to use a fully qualified class name like this, but it helps remind readers of the query that it's expressed in terms of objects. Keeping the names consistent is a fairly natural choice, and this will always be the case when you're using Hibernate to generate the schema and the data objects, unless you tell it explictly to use different column names.</p><p class="docText">Also, in HQL—just as in SQL—you can alias a column or table to another name; in fact, you <span class="docEmphasis">must</span> use <a id="idx-CHP-3-0137"/>aliases to refer to specific JavaBeans properties of mapped classes in your <tt>where</tt> clauses.</p><p class="docText">With all that in mind, the meaning of the HQL query <tt>"from com.oreilly.hh.Track as track where track.playTime &lt;= ?"</tt> breaks down like this:</p><ul><li><p class="docList">We're retrieving instances of our persistent Java data bean <tt>Track</tt><a id="called"/>. (This happens to be stored in the database table called <tt>TRACK</tt>, but that is managed by the mapping document for class <tt>Track;</tt> the table could be called anything.) Since we started the query with the <tt>from</tt> clause (rather than a <tt>select</tt> clause), we want to obtain entire <tt>Track</tt> instances as the result of the query.</p></li><li><p class="docList">Within the query, we are defining an alias <tt>"track"</tt><a id="the"/> to refer to one particular instance of the <tt>Track</tt> class at a time, so we can specify the properties of the instances we'd like to retrieve.</p></li><li><p class="docList">The instances we want are those where the <tt>playTime</tt> property has a value that's less than or equal to the first (and only) query parameter we're passing in at runtime. (Once again, the fact that the <tt>playTime</tt> property is mapped to the <tt>PLAYTIME</tt><a id="the"/> column is a detail that is buried in the <tt>Track</tt> mapping document, and it need not be true.)</p></li></ul><p class="docText">HQL reads a lot like SQL, but the semantics are different—they refer to the world of the Java program rather than the world of the relational <a id="idx-CHP-3-0138"/>database. This will be more clear in later examples and in <a class="docLink" href="0596006969_a_look_at_hql.xhtml#a_look_at_hql">Chapter 9</a> where we perform more complex queries.</p><p class="docText">The rest of the program should look mighty familiar from the previous example. Our <tt>try</tt> block is simplified because we don't need a transaction, as we're not changing any <a id="idx-CHP-3-0139"/>data. We still use one so that we can have a <tt>finally</tt> clause to close our session cleanly. The body is quite simple, calling our query method to request any tracks whose playing time is five minutes or less, and then iterating over the resulting <tt>Track</tt> objects, printing their titles and playing times.</p><a id="what_abouthellip-id006"/><h4 id="title-ID0EW5AE" class="docSection2Title">3.1.3. What about…</h4><p class="docText">…<a id="idx-CHP-3-0140"/>Deleting objects? If you've made changes to your data creation script and want to start with a "clean slate" in the form of an empty database so you can test them, all you need to do is run <tt><b>ant schema</b></tt> again. This will drop and recreate the <tt>Track</tt> table in a pristine and empty state. Don't do it unless you mean it!</p><p class="docText">If you want to be more selective about what you delete, you can either do it through SQL commands in the HSQLDB UI <tt><b>(ant db)</b></tt>, or you can make a variant of the query test example that retrieves the objects you want to get rid of. Once you've got a reference to a persistent object, passing it to the <tt>Session's delete()</tt> method will remove it from the database:</p><pre>
+	session.delete(aTrack);
+</pre><br/>
+<p class="docText">You've still got at least one reference to it in your program, until <tt>aTrack</tt> goes out of scope or gets reassigned, so conceptually the easiest way to understand what <tt>delete()</tt> does is to think of it as turning a persistent object back into a transient one.</p><p class="docText">Another way to use the <tt>delete()</tt> method is to pass it an HQL query string that matches multiple objects. This lets you delete many persisted objects at once, without writing your own loop. A Java-based alternative to <tt><b>ant schema</b></tt>, and a slightly less violent way of clearing out all the tracks, would therefore be something like this:<a id="I_indexterm3_d1e3048"/></p><pre>
+	session.delete("from com.oreilly.hh.Track");
+</pre><br/>
+<hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">Don't forget that regardless <a id="idx-CHP-3-0141"/>of which of these approaches you use, you'll need to wrap the data manipulation code inside a Hibernate transaction, and commit the transaction if you want your changes to "stick."</p><hr style="height: 1px; color: gray; background-color: gray;"/></div></div></body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_querying_by_example"><a id="querying_by_example"/><h3 class="docSection1Title">8.4. Querying by Example</h3><p class="docText"><a id="want"/>If you don't want <a id="idx-CHP-8-0302"/>to worry about setting up expressions and criteria, but you've got an object that shows what you're looking for, you can use it as an example and have Hibernate build the criteria for you.<a id="idx-CHP-8-0303"/></p><a id="how_do_i_do_that-id026"/><h4 id="title-ID0E6FBG" class="docSection2Title">8.1.1. How do I do that?</h4><p class="docText">Let's add another query method to <span class="docEmphasis">QueryTest.java</span>. Add the code of <a class="docLink" href="#using_an_example_entity_to_populate_a_cr">Example 8-16</a> to the top of the class where the other queries are.<a id="I_indexterm8_d1e7366"/></p><a id="using_an_example_entity_to_populate_a_cr"/><h5 id="title-ID0ESGBG" class="docExampleTitle">Example 8-16. Using an example entity to populate a criteria query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1  /**
+ 2   * Retrieve any tracks that were obtained from a particular source
+ 3   * media type.
+ 4   *
+ 5   * @param sourceMedia the media type of interest.
+ 6   * @param session the Hibernate session that can retrieve data.
+ 7   * @return a list of {@link Track}s meeting the media restriction.
+ 8   * @throws HibernateException if there is a problem.
+ 9   */
+10  public static List tracksFromMedia(SourceMedia media, Session session)
+11      throws HibernateException
+12  {
+13      Track track = new Track();
+14      track.setSourceMedia(media);
+15      Example example = Example.create(track);
+16
+17      Criteria criteria = session.createCriteria(Track.class);
+18      criteria.add(example);
+19      criteria.addOrder(Order.asc("title"));
+20      return criteria.list();
+21  }
+</pre><br/>
+</td></tr></table><p class="docText">Lines 13 and 14 create the example <tt>Track</tt> and set the <tt>sourceMedia</tt> property to represent what we're looking for. Line 15 wraps it in an <tt>Example</tt> object. This object gives you some control over which properties will be used in building criteria and how strings are matched. The default behavior is that <tt>null</tt> properties are ignored, and that strings are compared in a case-sensitive and literal way. You can call <tt>example</tt>'s <tt>excludeZeroes()</tt> method if you want properties with a value of zero to be ignored too, or <tt>excludeNone()</tt> if even <tt>null</tt> properties are to be matched. An <tt>excludeProperty()</tt> method lets you explicitly ignore specific properties by name, but that's starting to get a lot like building criteria by hand. To tune string handling, there are <tt>ignoreCase()</tt> and <tt>enableLike()</tt> methods, which do just what they sound like.</p><p class="docText">Line 17 creates a criteria <a id="idx-CHP-8-0304"/>query, just like our other examples in this chapter, but we then add our <tt>example</tt> to it instead of using <tt>Expression</tt> to create a <tt>criterion</tt>. Hibernate takes care of translating <tt>example</tt> into the corresponding criteria. Lines 19 and 20 are just like our previous query methods: setting up a sort order, running the query, and returning the list of matching entities.</p><p class="docText">Once again we need to modify the <tt>main()</tt> method to call our new query. Let's find the tracks that came from CDs. Make the changes shown in <a class="docLink" href="#changes_to_main_to_call_our_example-driv">Example 8-17</a>.</p><a id="changes_to_main_to_call_our_example-driv"/><h5 id="title-ID0EYIBG" class="docExampleTitle">Example 8-17. Changes to main() to call our example-driven query method</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+// Ask for a session using the JDBC information we've configured
+Session session = sessionFactory.openSession();
+try {
+    // Print <b>tracks that came from CDs</b>
+    List tracks = <b>tracksFromMedia(SourceMedia.CD,</b> session);
+    for (ListIterator iter = tracks.listIterator() ;
+...
+</pre><br/>
+</td></tr></table><p class="docText">Running this version produces output like <a class="docLink" href="#results_of_querying_by_example_for_track">Example 8-18</a>.</p><a id="results_of_querying_by_example_for_track"/><h5 id="title-ID0ELJBG" class="docExampleTitle">Example 8-18. Results of querying by example for tracks from CDs</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+qtest:
+     [java] Track: "Adagio for Strings (ATB Remix)" (ATB, William Orbit, Samuel
+Barber) 00:07:39, from Compact Disc
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35, from Compact Disc
+     [java] Track: "Gravity's Angel" (Laurie Anderson) 00:06:06, from Compact Disc
+     [java] Track: "Russian Trance" (PPK) 00:03:30, from Compact Disc
+</pre><br/>
+</td></tr></table><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">You might think this is something of a contrived example, in that we didn't actually have a handy <tt>Track</tt> object around to use as an example, and had to create one in the method. Well, perhaps… but there <span class="docEmphasis">is</span> a valuable reason to use this approach: it gives you even more compile-time checking than pure criteria queries. While any criteria query protects against syntactic runtime errors in HQL queries, you can still make mistakes in your property names, which won't be caught by the compiler, since they're just strings. When building example queries, you actually set property values using the mutator methods of the entity classes. This means if you make a typo, Java catches it at compile time.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">As you might expect, you can use examples with subcriteria for associated objects, too. We could rewrite <tt>tracksWithArtistLike()</tt> so that it uses an example <tt>Artist</tt> rather than building its criterion "by hand." We'll  need to call <tt>enableLike()</tt> on our <tt>example</tt>. <a class="docLink" href="#updating_the_artist_name_query_to_use_an">Example 8-19</a> shows a concise way of doing this.</p><a id="updating_the_artist_name_query_to_use_an"/><h5 id="title-ID0ENKBG" class="docExampleTitle">Example 8-19. Updating the artist name query to use an example artist</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+public static List tracksWithArtistLike(String namePattern, Session session)
+    throws HibernateException
+{
+    Criteria criteria = session.createCriteria(Track.class);
+    <b>Example example = Example.create(new Artist(namePattern, null, null));
+    criteria.createCriteria("artists").add(example.enableLike());</b>
+    criteria.addOrder(Order.asc("title"));
+    return criteria.list();
+}
+</pre><br/>
+</td></tr></table><p class="docText">Remember that if you want to try running this you'll need to switch <tt>main()</tt> back to the way it was in <a class="docLink" href="0596006969_applying_criteria_to_associations.xhtml#calling_the_new_track_artist_name_query">Example 8-14</a>.</p><p class="docText">A great variety of queries that power the user interface and general operation of a typical data-driven Java application can be expressed as criteria queries, and they provide advantages in readability, compile-time type checking, and even (surprisingly) compactness. As far as experimental APIs go, I'd call this a winner.</p><blockquote><p class="docText"><span class="docEmphasis">Criteria queries are pretty neat, aren't they? I like them a lot more than I expected</span>.</p></blockquote><p class="docText">When criteria queries don't quite do the job, you can turn to the full power of HQL, which we'll investigate in the next chapter.<a id="I_indexterm8_d1e7509"/></p></div></div></body>
+</html>

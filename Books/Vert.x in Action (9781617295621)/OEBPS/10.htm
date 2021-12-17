@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1027472"/>10 Persistent state management with databases</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>Storing data and authenticating users with MongoDB</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>Using PostgreSQL from Vert.x</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011861"/>Testing strategies for integration testing of event-driven services that interact with databases</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011871"/>Reactive applications favor <i class="fm-italics">stateless</i> designs, but state has to be managed somewhere.</p>
+
+  <p class="body"><a id="pgfId-1011886"/>Databases are essential in most applications, because data needs to be stored, retrieved, and queried. Databases can store all kinds of data, such as application state, facts, or user credentials. There are different types of databases on the market: some are generalist and others are specialized for certain types of use cases, access patterns, and data.</p>
+
+  <p class="body"><a id="pgfId-1011892"/>In this chapter we’ll explore database and state management with Vert.x by diving into the implementation of the user and activity services. These services will allow us to use a document-oriented database (MongoDB) and a relational database (PostgreSQL). You will also see how you can use MongoDB for authenticating users, and how to write integration tests for data-driven services.</p>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011898"/>10.1 Databases and Vert.x</h2>
+
+  <p class="body"><a id="pgfId-1011908"/><a id="marker-1011909"/>Vert.x offers a wide range of clients for connecting to data sources. These clients contain drivers that talk to servers, and that may offer efficient connection management, like connection pooling. This is useful for building all kinds of services, from APIs backed by a data source to integration services that mix data sources, messaging, and APIs.</p>
+
+  <h3 class="fm-head1" id="heading_id_4"><a id="pgfId-1011917"/>10.1.1 What the Eclipse Vert.x stack provides</h3>
+
+  <p class="body"><a id="pgfId-1011934"/><a id="marker-1011928"/><a id="marker-1011930"/>The Eclipse Vert.x project provides the data client modules listed in table 10.1.</p>
+
+  <p class="fm-table-caption"><a id="pgfId-1031700"/>Table 10.1 Data client modules supported by Eclipse Vert.x</p>
+
+  <table border="1" class="contenttable" width="100%">
+    <colgroup class="calibre3">
+      <col class="calibre4" span="1" width="25%"/>
+      <col class="calibre4" span="1" width="75%"/>
+    </colgroup>
+
+    <tr class="calibre5">
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1031704"/>Identifier</p>
+      </th>
+
+      <th class="fm-contenttable1" colspan="1" rowspan="1">
+        <p class="fm-table-head"><a id="pgfId-1031706"/>Description</p>
+      </th>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031708"/><code class="fm-code-in-figurecaption">vertx-mongo-client</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031710"/>MongoDB is a document-oriented database. <a id="marker-1031727"/></p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031712"/><code class="fm-code-in-figurecaption">vertx-jdbc-client</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031714"/>Supports any relational <a id="marker-1031728"/>database that offers a JDBC driver.</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031716"/><code class="fm-code-in-figurecaption">vertx-pg-client</code> and <code class="fm-code-in-figurecaption">vertx-mysql-client</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031718"/>Access PostgreSQL and <a id="marker-1031729"/>MySQL relational databases through <a id="marker-1031730"/>dedicated Vert.x reactive drivers.</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031720"/><code class="fm-code-in-figurecaption">vertx-redis-client</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031722"/>Redis is versatile <a id="marker-1031731"/>data structure store.</p>
+      </td>
+    </tr>
+
+    <tr class="calibre5">
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031724"/><code class="fm-code-in-figurecaption">vertx-cassandra-client</code></p>
+      </td>
+
+      <td class="fm-contenttable2" colspan="1" rowspan="1">
+        <p class="fm-table-body"><a id="pgfId-1031726"/>Apache Cassandra is a database <a id="marker-1031732"/>tailored for very large volumes of data.</p>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body"><a id="pgfId-1012187"/>You can find drivers for other kinds of data sources in the larger Vert.x community. Those are beyond the scope of the project at the Eclipse Foundation.</p>
+
+  <p class="body"><a id="pgfId-1012193"/>MongoDB is a popular document-oriented database; it is a good match with Vert.x since it manipulates JSON documents. Redis is an in-memory data structure store with configurable on-disk data snapshots that can be used as a cache, as a database, and as a message broker. Apache Cassandra is a multinode, replicated database designed for storing huge amounts of data. Cassandra is well suited for databases where size is measured in hundreds of terabytes or even petabytes. You can, of course, use it for just a few terabytes, but a more traditional database may suffice in these cases.</p>
+
+  <p class="body"><a id="pgfId-1012199"/>Speaking of “traditional” relational databases, Vert.x can connect to <i class="fm-italics">anything</i> for which there is a JDBC driver. That being said, JDBC is an older protocol based on a multithreaded design and blocking I/O. The JDBC support in Vert.x offloads database calls to worker thread pools, and it pushes results back to event-loop contexts. This is to avoid blocking event loops, since JDBC calls do block. This design limits scalability, as worker threads are needed, but for moderate workloads it should be fine.</p>
+
+  <p class="body"><a id="pgfId-1012214"/>If you use PostgreSQL or MySQL, Vert.x provides its own reactive drivers. These drivers implement the network protocols of each database server, and they are built in a purely asynchronous fashion using Netty, the networking foundation of Vert.x. The drivers offer excellent performance, both in terms of latency and concurrent connections. They are also very stable and implement the current protocols and features of the databases. You should prefer the Vert.x reactive driver clients for PostgreSQL and MySQL, and use the JDBC client when you need to connect to other databases.</p>
+
+  <p class="body"><a id="pgfId-1012220"/>If you are looking for a solid database, PostgreSQL is probably a good bet. PostgreSQL is versatile and has been used in all sorts of small and large-scale projects over the years. You can, of course, use it as a traditional relational database, but it also supports JSON documents as first-class objects, and geographic objects through the PostGIS extension. <a id="marker-1012222"/><a id="marker-1012225"/></p>
+
+  <h3 class="fm-head1" id="heading_id_5"><a id="pgfId-1012231"/>10.1.2 A note on data/object mapping, and why you may not always need it</h3>
+
+  <p class="body"><a id="pgfId-1012248"/><a id="marker-1012242"/><a id="marker-1012244"/>Before we dive into the user profile service design and implementation with MongoDB, I would like to quickly discuss certain established idioms of enterprise Java development, and explain why, in search of simplicity and efficiency, the code in this chapter deviates intentionally from supposed best practices.</p>
+
+  <p class="body"><a id="pgfId-1012253"/>The code of the 10k steps challenge may surprise you, because it does not perform object data mapping, where any data has to be mapped to some Java object model that represents the application domain, such as <a id="marker-1012255"/><a id="marker-1012258"/>data transfer objects (DTOs).<a href="#pgfId-1037129">1</a> For instance, some JSON data representing a pedometer update would be mapped to a <code class="fm-code-in-text">DeviceUpdate</code> Java class <a id="marker-1012598"/>before any further processing was done. Here we will directly manipulate data <a id="marker-1012604"/>in <code class="fm-code-in-text">JsonObject</code> instances as they flow between HTTP, Kafka, and database interfaces. We will not map, say, device update JSON data to <code class="fm-code-in-text">DeviceUpdate</code>; we will work with the <code class="fm-code-in-text">JsonObject</code> representation of that data instead.</p>
+
+  <p class="body"><a id="pgfId-1012644"/>Vert.x does allow you to do data mapping from and to Java classes, but unless the object model contains some significant business logic or can be leveraged by some processing in a third-party library, I see little value in doing any form of data binding. I advocate such a design for several reasons:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1012650"/>It saves us from writing classes that have no functionality except exposing trivial getters and setters.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012664"/>It avoids unnecessary allocation of objects with typically short lifetimes (e.g., the lifespan of processing an HTTP request).</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012674"/>Data is not always easy to map to an object model, and you may not be interested in all the data, but rather in some selected entries.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1012684"/>In the case of relational databases, the object and the models have some well-known mismatches that can result in complex mappings and bad performance due to excessive queries.<a class="calibre9" href="#pgfId-1037203">2</a></p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013132"/>It eventually leads to code that is more <i class="fm-italics1">functional</i>.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013151"/>If you’re in doubt, always ask yourself whether you actually need an object model, or whether the data representation is good enough for the processing work that you are doing. If your object model consists of nothing but getters and setters, perhaps it’s a good sign that (at least initially) you don’t need it.</p>
+
+  <p class="body"><a id="pgfId-1013157"/>Let’s now dive into using MongoDB in the user profile service. <a id="marker-1013159"/><a id="marker-1013162"/><a id="marker-1013164"/></p>
+
+  <h2 class="fm-head" id="heading_id_6"><a id="pgfId-1013170"/>10.2 User profile service with MongoDB</h2>
+
+  <p class="body"><a id="pgfId-1013189"/><a id="marker-1013181"/><a id="marker-1013183"/><a id="marker-1013185"/>The user profile service manages user data such as name, email, and city, and it’s also used to authenticate a user against login/password credentials. This service is used by other services that need to retrieve and correlate data against user information.</p>
+
+  <p class="body"><a id="pgfId-1013194"/>The user service makes use of MongoDB for two purposes:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1013200"/>Storing user data: username, password, email, city, device identifier, and whether data should appear in public rankings</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013214"/>Authenticating users against a username plus password combination</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013246"/>MongoDB is a good fit here because it is a document database; each user can be represented as a document. We will use the <code class="fm-code-in-text">vertx-mongo-client</code> module to connect <a id="marker-1013235"/>to MongoDB instances, and we will use the <code class="fm-code-in-text">vertx-auth-mongo</code> module for authentication.</p>
+
+  <h3 class="fm-head1" id="heading_id_7"><a id="pgfId-1013255"/>10.2.1 Data model</h3>
+
+  <p class="body"><a id="pgfId-1013322"/><a id="marker-1013266"/><a id="marker-1013268"/><a id="marker-1013270"/>The <code class="fm-code-in-text">vertx-auth-mongo</code> module is a turnkey solution <a id="marker-1013285"/>for doing user authentication on top of a MongoDB database, as it manages all the intricacies of properly storing and retrieving credentials. It implements the common authentication interface of module <code class="fm-code-in-text">vertx-auth-common</code>. It especially deals with storing cryptographic hashes <a id="marker-1013301"/>of passwords with a <i class="fm-italics">salt</i> value, because storing actual passwords is never a good idea. According to the conventions defined in the <code class="fm-code-in-text">vertx-auth-mongo</code> module, there is a document for each user in the target database with the following entries:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1013331"/><code class="fm-code-in-text">username</code>--A string for the username <a class="calibre9" id="marker-1013348"/></p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013355"/><code class="fm-code-in-text">salt</code>--A random data string used to secure the password</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013396"/><code class="fm-code-in-text">password</code>--A string made by computing the SHA-512 hash from the actual password <a class="calibre9" id="marker-1013385"/>plus the <code class="fm-code-in-text">salt</code> value</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013423"/><code class="fm-code-in-text">roles</code>--An array of strings defining <i class="fm-italics1">roles</i><a class="calibre9" id="marker-1013425"/> (such as “administrator”)</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013453"/><code class="fm-code-in-text">permissions</code>--An array of strings defining <i class="fm-italics1">permissions</i><a class="calibre9" id="marker-1013455"/> (such as “<code class="fm-code-in-text">can_access _beta</code>”).</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013465"/>In our case, we won’t use roles and permissions, since all users will be equal, so these entries will be empty arrays. We will not have to deal with the subtleties of handling salts and password hashing, as this is taken care of by the authentication module.</p>
+
+  <p class="body"><a id="pgfId-1013471"/>While this data model is prescribed by <code class="fm-code-in-text">vertx-auth-mongo</code>, nothing precludes <a id="marker-1013482"/>us from adding more fields to the documents that represent users. We can thus add the following entries:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1013492"/><code class="fm-code-in-text">city</code>--A string <a class="calibre9" id="marker-1013509"/>for the user’s city</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013519"/><code class="fm-code-in-text">deviceId</code>--A string for the <a class="calibre9" id="marker-1013532"/>pedometer device identifier</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013542"/><code class="fm-code-in-text">email</code>--A string for the user’s email <a class="calibre9" id="marker-1013555"/>address</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013565"/><code class="fm-code-in-text">makePublic</code>--A Boolean to indicate <a class="calibre9" id="marker-1013578"/>whether or not the user wants to appear in public rankings</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013614"/>We’ll also enforce two integrity constraints with MongoDB indexes: both <code class="fm-code-in-text">username</code> and <code class="fm-code-in-text">deviceId</code> must be unique across all documents. This avoids duplicate user names as well as two users having the same device. This will pose a correctness challenge when registering new users, because we will not be able to use any transaction mechanism. We will need to roll back partial data inserts when the <code class="fm-code-in-text">deviceId</code> uniqueness constraint <a id="marker-1013619"/>prevents a duplicate insert.</p>
+
+  <p class="body"><a id="pgfId-1013629"/>Let’s now look at how we can use the Vert.x MongoDB client and Vert.x authentication support. <a id="marker-1013631"/><a id="marker-1013634"/><a id="marker-1013636"/></p>
+
+  <h3 class="fm-head1" id="heading_id_8"><a id="pgfId-1013642"/>10.2.2 User profile API verticle and initialization</h3>
+
+  <p class="body"><a id="pgfId-1013667"/><a id="marker-1013653"/><a id="marker-1013655"/><a id="marker-1013657"/>The <code class="fm-code-in-text">UserProfileApiVerticle</code> class exposes the HTTP API for the <a id="marker-1013672"/>user profile service. It holds three important fields:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1013704"/><code class="fm-code-in-text">mongoClient</code>, of type <code class="fm-code-in-text">MongoClient</code>, is used to connect <a class="calibre9" id="marker-1013709"/>to a MongoDB server.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013737"/><code class="fm-code-in-text">authProvider</code>, of type <code class="fm-code-in-text">MongoAuthentication</code>, is used <a class="calibre9" id="marker-1013742"/>to perform authentication checks using MongoDB.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013770"/><code class="fm-code-in-text">userUtil</code>, of type <code class="fm-code-in-text">MongoUserUtil</code>, is used to facilitate <a class="calibre9" id="marker-1013775"/>new user creation.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013785"/>We initialize these fields from the <code class="fm-code-in-text">rxStart</code> verticle initialization <a id="marker-1013796"/>method (since we use RxJava), as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1013857"/>Listing 10.1 Initializing the MonbgoDB client and authentication provider</p>
+  <pre class="programlisting">mongoClient = MongoClient.createShared(vertx, mongoConfig());   <span class="fm-combinumeral">❶</span>
+
+authProvider = MongoAuthentication.create(mongoClient,
+  new MongoAuthenticationOptions());                            <span class="fm-combinumeral">❷</span>
+
+userUtil = MongoUserUtil.create(mongoClient,                    <span class="fm-combinumeral">❸</span>
+  new MongoAuthenticationOptions(), new MongoAuthorizationOptions());</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1044069"/><span class="fm-combinumeral">❶</span> Create a client based on some configuration.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1044090"/><span class="fm-combinumeral">❷</span> Create an authentication provider on MongoDB.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1044107"/><span class="fm-combinumeral">❸</span> Helper to create users in the MongoDB database</p>
+
+  <p class="body"><a id="pgfId-1014000"/>The authentication provider piggybacks on the MongoDB client instance, which is configured as in the next listing. We pass empty configuration options for the authentication provider as we follow the conventions of the Vert.x MongoDB authentication module. The same goes with the utility that will help us when adding users.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014057"/>Listing 10.2 MongoDB client configuration method</p>
+  <pre class="programlisting">private JsonObject mongoConfig() {
+  return new JsonObject()
+    .put("host", "localhost")      <span class="fm-combinumeral">❶</span>
+    .put("port", 27017)
+    .put("db_name", "profiles");   <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043962"/><span class="fm-combinumeral">❶</span> We will be testing locally.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043983"/><span class="fm-combinumeral">❷</span> profiles is the database name, but we could equally use something else.</p>
+
+  <p class="body"><a id="pgfId-1014174"/>Since we are exposing an HTTP API, we’ll use a Vert.x web router to configure the various routes to be handled by the service, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014231"/>Listing 10.3 User profile service HTTP routing</p>
+  <pre class="programlisting">Router router = Router.router(vertx);
+BodyHandler bodyHandler = BodyHandler.create();
+router.post().handler(bodyHandler);
+router.put().handler(bodyHandler);
+router.post("/register")
+  .handler(this::validateRegistration)             <span class="fm-combinumeral">❶</span>
+  .handler(this::register);
+router.get("/:username").handler(this::fetchUser);
+router.put("/:username").handler(this::updateUser);
+router.post("/authenticate").handler(this::authenticate);
+router.get("/owns/:deviceId").handler(this::whoOwns);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043895"/><span class="fm-combinumeral">❶</span> The processing logic is split between two chained handlers.</p>
+
+  <p class="body"><a id="pgfId-1014356"/>Note that we use two chained handlers for the registration. The first handler is for data validation, and the second handler is for the actual processing logic. But what is in the validation logic?<a id="marker-1014358"/><a id="marker-1014361"/><a id="marker-1014363"/></p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1014369"/>10.2.3 Validating user input</h3>
+
+  <p class="body"><a id="pgfId-1014388"/><a id="marker-1014380"/><a id="marker-1014382"/><a id="marker-1014384"/>Registration is a critical step, so we must ensure that the data is valid. We must check that the incoming data (a JSON document) contains all required fields, and that they are all valid. For instance, we need to check that an email is actually an email, and that a username is not empty and does not contain unwanted characters.</p>
+
+  <p class="body"><a id="pgfId-1014437"/>The <code class="fm-code-in-text">validateRegistration</code> method in the following <a id="marker-1014404"/>listing delegates <a id="marker-1014410"/>the validation to the <a id="marker-1014416"/>helper methods <code class="fm-code-in-text">anyRegistrationFieldIsMissing</code> and <code class="fm-code-in-text">anyRegistrationFieldIsWrong</code>.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014497"/>Listing 10.4 The registration validation method</p>
+  <pre class="programlisting">private void validateRegistration(RoutingContext ctx) {
+  JsonObject body = jsonBody(ctx);
+  if (anyRegistrationFieldIsMissing(body) || 
+  <span class="fm-code-continuation-arrow">➥</span> anyRegistrationFieldIsWrong(body)) {
+    ctx.fail(400);                          <span class="fm-combinumeral">❶</span>
+  } else {
+    ctx.next();                             <span class="fm-combinumeral">❷</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043740"/><span class="fm-combinumeral">❶</span> Registration failed, so we end the HTTP request with status code 400.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043761"/><span class="fm-combinumeral">❷</span> The next handler in the chain is called.</p>
+
+  <p class="body"><a id="pgfId-1014639"/>When any validation steps fails, we respond with a 400 HTTP status code; otherwise, we call the next <a id="marker-1014628"/>handler, which in our case will be the <code class="fm-code-in-text">register</code> method.</p>
+
+  <p class="body"><a id="pgfId-1014648"/>The implementation of the <code class="fm-code-in-text">anyRegistrationFieldIsMissing</code> method is quite <a id="marker-1014659"/>simple. We check that the provided JSON document contains the required fields, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014720"/>Listing 10.5 Checking for missing JSON fields</p>
+  <pre class="programlisting">private boolean anyRegistrationFieldIsMissing(JsonObject body) {
+  return !(body.containsKey("username") &amp;&amp;                         <span class="fm-combinumeral">❶</span>
+    body.containsKey("password") &amp;&amp;
+    body.containsKey("email") &amp;&amp;
+    body.containsKey("city") &amp;&amp;
+    body.containsKey("deviceId") &amp;&amp;
+    body.containsKey("makePublic"));
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043655"/><span class="fm-combinumeral">❶</span> Check that all fields are present.</p>
+
+  <p class="body"><a id="pgfId-1014827"/>The <code class="fm-code-in-text">anyRegistrationFieldIsWrong</code> method delegates checks <a id="marker-1032522"/>to regular expressions, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014899"/>Listing 10.6 Validating specific fields</p>
+  <pre class="programlisting">private final Pattern validUsername = Pattern.compile("\\w[\\w+|-]*");    <span class="fm-combinumeral">❶</span>
+// (...)
+private boolean anyRegistrationFieldIsWrong(JsonObject body) {
+  return !validUsername.matcher(body.getString("username")).matches() ||  <span class="fm-combinumeral">❷</span>
+    !validEmail.matcher(body.getString("email")).matches() ||
+    body.getString("password").trim().isEmpty() ||                        <span class="fm-combinumeral">❸</span>
+    !validDeviceId.matcher(body.getString("deviceId")).matches();
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043475"/><span class="fm-combinumeral">❶</span> Regular expression for valid usernames like <code class="fm-code-in-figurecaption">abc</code>, <code class="fm-code-in-figurecaption">a-b-c</code>, etc.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043496"/><span class="fm-combinumeral">❷</span> Regular expression matching</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043513"/><span class="fm-combinumeral">❸</span> <code class="fm-code-in-figurecaption">trim</code> removes whitespace at the beginning and end of the string and then checks for emptiness.</p>
+
+  <p class="body"><a id="pgfId-1015116"/>The <code class="fm-code-in-text">validDeviceId</code> regular expression <a id="marker-1015089"/>is the same as <code class="fm-code-in-text">validUsername</code>. Validating an <a id="marker-1015105"/>email address (<code class="fm-code-in-text">validEmail</code>) is a more sophisticated <a id="marker-1015121"/>regular expression. I chose to use one of the safe regular expressions from the Open <a id="marker-1015127"/>Web Application Security Project (OWASP) for that purpose (<span class="fm-hyperlink"><a href="http://www.owasp.org/index.php/OWASP_Validation_Regex_Repository">www.owasp.org/index.php/OWASP_Validation_Regex _Repository</a></span>).</p>
+
+  <p class="body"><a id="pgfId-1015137"/>Now that we have validated the data, it is time to register the users. <a id="marker-1015139"/><a id="marker-1015142"/><a id="marker-1015144"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1015150"/>10.2.4 Adding users in MongoDB</h3>
+
+  <p class="body"><a id="pgfId-1015169"/><a id="marker-1015161"/><a id="marker-1015163"/><a id="marker-1015165"/>Inserting a new user in the database requires two steps:</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1015174"/>We need to ask the helper to insert a new user, as it will also deal with other aspects like hashing passwords and having a salt value.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015188"/>We need to update the user document to add extra fields that are not required by the authentication provider schema.</p>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1015198"/>Since this is a two-step data insert, and we cannot use any transaction management facility, we need to take care of the data integrity ourselves, as shown in figure 10.1.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH10_F01_Ponge.png" width="1017" height="735"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1045316"/>Figure 10.1 Steps to successfully add a user</p>
+
+  <p class="body"><a id="pgfId-1015214"/>Fortunately RxJava makes the error management declarative, so we won’t have to deal with nested conditionals of asynchronous operations, which would be complicated to do with callbacks or promises/futures.</p>
+
+  <p class="body"><a id="pgfId-1015234"/>The <code class="fm-code-in-text">register</code> method starts by extracting <a id="marker-1015245"/>the JSON payload from the HTTP request, and then the username and password of the user to create, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015306"/>Listing 10.7 Preamble of the register method</p>
+  <pre class="programlisting">private void register(RoutingContext ctx) {
+  JsonObject body = jsonBody(ctx);               <span class="fm-combinumeral">❶</span>
+  String username = body.getString("username");
+  String password = body.getString("password");
+
+  userUtil
+    .rxCreateUser(username, password)            <span class="fm-combinumeral">❷</span>
+  // (...)
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043348"/><span class="fm-combinumeral">❶</span> Extract the JSON body.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043369"/><span class="fm-combinumeral">❷</span> Insert a new user.</p>
+
+  <p class="body"><a id="pgfId-1015462"/>Remember that <code class="fm-code-in-text">register</code> is called after <a id="marker-1015451"/>validation, so we expect the JSON data to be good. We pass the authentication provider the username and password. There is also a form where <code class="fm-code-in-text">rxCreateUser</code> accepts two <a id="marker-1015467"/>extra lists for defining roles and permissions. Then the helper populates the database with a new document.</p>
+
+  <p class="body"><a id="pgfId-1015477"/>Next we have to run a query to update the newly created document and append new entries. The MongoDB query is shown in the following listing and is represented as a JSON object.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015534"/>Listing 10.8 MongoDB query to update a new user</p>
+  <pre class="programlisting">JsonObject extraInfo = new JsonObject()
+  .put("$set", new JsonObject()              <span class="fm-combinumeral">❶</span>
+    .put("email", body.getString("email"))
+    .put("city", body.getString("city"))
+    .put("deviceId", body.getString("deviceId"))
+    .put("makePublic", body.getBoolean("makePublic")));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043276"/><span class="fm-combinumeral">❶</span> This is the $set operator from MongoDB.</p>
+
+  <p class="body"><a id="pgfId-1015661"/>We must thus chain the <code class="fm-code-in-text">rxInsertUser</code> operation with <a id="marker-1015640"/>a MongoDB update query, knowing that <code class="fm-code-in-text">rxInsertUser</code> returns a <code class="fm-code-in-text">Single&lt;String&gt;</code> where the value is the identifier of the new document. The following listing shows the complete user addition processing with RxJava.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015721"/>Listing 10.9 Complete user addition processing with RxJava</p>
+  <pre class="programlisting">userUtil
+  .rxCreateUser(username, password)                           <span class="fm-combinumeral">❶</span>
+  .flatMapMaybe(docId -&gt; insertExtraInfo(extraInfo, docId))   <span class="fm-combinumeral">❷</span>
+  .ignoreElement()
+  .subscribe(
+    () -&gt; completeRegistration(ctx),                          <span class="fm-combinumeral">❸</span>
+    err -&gt; handleRegistrationError(ctx, err));                <span class="fm-combinumeral">❹</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043015"/><span class="fm-combinumeral">❶</span> User insert query</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043036"/><span class="fm-combinumeral">❷</span> Update query</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043053"/><span class="fm-combinumeral">❸</span> HTTP 200</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1043070"/><span class="fm-combinumeral">❹</span> Deal with the error</p>
+
+  <p class="body"><a id="pgfId-1015888"/>The <code class="fm-code-in-text">flatMapMaybe</code> operator allows us to <a id="marker-1015899"/>chain the two queries.</p>
+
+  <p class="body"><a id="pgfId-1015931"/>The <code class="fm-code-in-text">insertExtraInfo</code> method is shown in the <a id="marker-1015920"/>next listing and returns a <code class="fm-code-in-text">MaybeSource</code>, because finding and updating a document <a id="marker-1015936"/>may not hold a result if no matching document was found.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015997"/>Listing 10.10 Implementation of the <code class="fm-code-in-listingcaption">insertExtraInfo</code> method</p>
+  <pre class="programlisting">private MaybeSource&lt;? extends JsonObject&gt; insertExtraInfo(JsonObject 
+<span class="fm-code-continuation-arrow">➥</span> extraInfo, String docId) {
+  JsonObject query = new JsonObject().put("_id", docId);
+  return mongoClient
+    .rxFindOneAndUpdate("user", query, extraInfo)     <span class="fm-combinumeral">❶</span>
+    .onErrorResumeNext(err -&gt; {
+      return deleteIncompleteUser(query, err);        <span class="fm-combinumeral">❷</span>
+    });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042901"/><span class="fm-combinumeral">❶</span> Find and update a document.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042922"/><span class="fm-combinumeral">❷</span> Manual rollback</p>
+
+  <p class="body"><a id="pgfId-1016152"/>Note that the update query can fail; for example, if another user has already registered a device with the same identifier. In this case, we need to manually roll back and remove the document that was created by the authentication provider, because otherwise we would have an incomplete document in the database. The following listing holds the <a id="marker-1016141"/>implementation of the <code class="fm-code-in-text">deleteIncompleteUser</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016212"/>Listing 10.11 Implementation of the <code class="fm-code-in-listingcaption">deleteIncompleteUser</code> method</p>
+  <pre class="programlisting">private boolean isIndexViolated(Throwable err) {
+  return err.getMessage().contains("E11000");         <span class="fm-combinumeral">❶</span>
+}
+
+private MaybeSource&lt;? extends JsonObject&gt; deleteIncompleteUser(JsonObject 
+<span class="fm-code-continuation-arrow">➥</span> query, Throwable err) {
+  if (isIndexViolated(err)) {
+    return mongoClient
+      .rxRemoveDocument("user", query)                <span class="fm-combinumeral">❷</span>
+      .flatMap(del -&gt; Maybe.error(err));              <span class="fm-combinumeral">❸</span>
+  } else {
+    return Maybe.error(err);                          <span class="fm-combinumeral">❹</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042642"/><span class="fm-combinumeral">❶</span> This is the technical code for an index constraint violation.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042663"/><span class="fm-combinumeral">❷</span> Remove the document.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042680"/><span class="fm-combinumeral">❸</span> Replace the result with the original exception and propagate it.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042697"/><span class="fm-combinumeral">❹</span> err is another kind of error, and we propagate it.</p>
+
+  <p class="body"><a id="pgfId-1016427"/>We need to rely on a technical code in an exception message to distinguish between index violation errors and other types of errors. In the first case, the previous data has to be removed because we want to deal with it and recover; in the second case, this is another error and we cannot do much, so we propagate it.</p>
+
+  <p class="body"><a id="pgfId-1016433"/>Finally, the <code class="fm-code-in-text">handleRegistrationError</code> method shown in the <a id="marker-1016444"/>next listing needs to inspect the error to respond with the appropriate HTTP status code.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016505"/>Listing 10.12 Implementation of the <code class="fm-code-in-listingcaption">handleRegistrationError</code> method</p>
+  <pre class="programlisting">private void handleRegistrationError(RoutingContext ctx, Throwable err) {
+  if (isIndexViolated(err)) {
+    logger.error("Registration failure: {}", err.getMessage());
+    ctx.fail(409);                                              <span class="fm-combinumeral">❶</span>
+  } else {
+    logger.error("Woops", err);
+    ctx.fail(500);                                              <span class="fm-combinumeral">❷</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042448"/><span class="fm-combinumeral">❶</span> The error is because the user provided an existing username or device identifier.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042469"/><span class="fm-combinumeral">❷</span> This is a technical error.</p>
+
+  <p class="body"><a id="pgfId-1016653"/>It is important to notify the requester if the request failed because the username or device identifier has already been taken, or if it failed due to some technical error. In one case, the error is the fault of the requester, and in the other case, the service is the culprit, and the requester can try again later. <a id="marker-1016655"/><a id="marker-1016658"/><a id="marker-1016660"/></p>
+
+  <h3 class="fm-head1" id="heading_id_11"><a id="pgfId-1016666"/>10.2.5 Authenticating a user</h3>
+
+  <p class="body"><a id="pgfId-1016691"/><a id="marker-1016677"/><a id="marker-1016679"/><a id="marker-1016681"/>Authenticating a user against a username and password is very simple. All we need to do is query the authentication provider, which returns an <code class="fm-code-in-text">io.vertx.ext.auth.User</code> instance on <a id="marker-1016696"/>success. In our case, we are not interested in querying permissions or roles--all we want to do is check that authentication succeeded.</p>
+
+  <p class="body"><a id="pgfId-1016742"/>Assuming that an HTTP <code class="fm-code-in-text">POST</code> request sent to <code class="fm-code-in-text">/authenticate</code> has a JSON body with <code class="fm-code-in-text">username</code> and <code class="fm-code-in-text">password</code> fields, we can perform the authentication request as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1016802"/>Listing 10.13 Authenticating a user</p>
+  <pre class="programlisting">private void authenticate(RoutingContext ctx) {
+  authProvider.rxAuthenticate(jsonBody(ctx))                   <span class="fm-combinumeral">❶</span>
+    .subscribe(
+      user -&gt; completeEmptySuccess(ctx),
+      err -&gt; handleAuthenticationError(ctx, err));
+}
+
+private void completeEmptySuccess(RoutingContext ctx) {
+  ctx.response().setStatusCode(200).end();                     <span class="fm-combinumeral">❷</span>
+}
+
+private void handleAuthenticationError(RoutingContext ctx, Throwable err) {
+  logger.error("Authentication problem {}", err.getMessage());
+  ctx.response().setStatusCode(401).end();                     <span class="fm-combinumeral">❸</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042242"/><span class="fm-combinumeral">❶</span> Authentication method</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042263"/><span class="fm-combinumeral">❷</span> Success</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042280"/><span class="fm-combinumeral">❸</span> Report an authentication failure.</p>
+
+  <p class="body"><a id="pgfId-1016993"/>The result of an authentication request is a <code class="fm-code-in-text">User</code>, or an exception if it failed. Depending on the outcome, we end the HTTP request with a 200 or 401 status code. <a id="marker-1017004"/><a id="marker-1017007"/><a id="marker-1017009"/></p>
+
+  <h3 class="fm-head1" id="heading_id_12"><a id="pgfId-1017015"/>10.2.6 Fetching a user’s data</h3>
+
+  <p class="body"><a id="pgfId-1017076"/><a id="marker-1017026"/><a id="marker-1017028"/><a id="marker-1017030"/>HTTP <code class="fm-code-in-text">GET</code> requests to <code class="fm-code-in-text">/username</code> must return <a id="marker-1017055"/>the data associated with that user (e.g., <code class="fm-code-in-text">/foo</code>, <code class="fm-code-in-text">/bar</code>, etc.). To do that, we need to prepare a MongoDB query and return the data as a JSON response.</p>
+
+  <p class="body"><a id="pgfId-1017085"/>We need a MongoDB “find” query to locate a user document. To do that we need two JSON documents:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1017112"/>A query document to find based on the value <a class="calibre9" id="marker-1017101"/>of the <code class="fm-code-in-text">username</code> field of the database documents</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1017121"/>A document to specify the fields that should be returned.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1017131"/>The following code performs such a query.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017188"/>Listing 10.14 Fetching a user’s data in MongoDB</p>
+  <pre class="programlisting">JsonObject query = new JsonObject()
+  .put("username", username);               <span class="fm-combinumeral">❶</span>
+
+JsonObject fields = new JsonObject()
+  .put("_id", 0)                            <span class="fm-combinumeral">❷</span>
+  .put("username", 1)                       <span class="fm-combinumeral">❸</span>
+  .put("email", 1)
+  .put("deviceId", 1)
+  .put("city", 1)
+  .put("makePublic", 1);
+
+mongoClient
+  .rxFindOne("user", query, fields)         <span class="fm-combinumeral">❹</span>
+  .toSingle()
+  .subscribe(
+    json -&gt; completeFetchRequest(ctx, json),
+    err -&gt; handleFetchError(ctx, err));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041974"/><span class="fm-combinumeral">❶</span> We want to match exactly the username.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041995"/><span class="fm-combinumeral">❷</span> We don’t want the document identifier.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042012"/><span class="fm-combinumeral">❸</span> We want to repeat the username.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1042029"/><span class="fm-combinumeral">❹</span> Find one document.</p>
+
+  <p class="body"><a id="pgfId-1017445"/>It is important to specify which fields should be part of the response, and to be explicit about it. In our case, we don’t want to reveal the document identifier, so we set it to <code class="fm-code-in-text">0</code> in the <code class="fm-code-in-text">fields</code> document. We also <a id="marker-1017434"/>explicitly list the fields that we want to be returned with <code class="fm-code-in-text">1</code> values. This also ensures that other fields like the password and salt values from the authentication are not accidentally revealed.</p>
+
+  <p class="body"><a id="pgfId-1017454"/>The next listing shows the two methods that complete the fetch request and HTTP response.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017511"/>Listing 10.15 Completing a user fetch request</p>
+  <pre class="programlisting">private void completeFetchRequest(RoutingContext ctx, JsonObject json) {
+  ctx.response()
+    .putHeader("Content-Type", "application/json")
+    .end(json.encode());                                           <span class="fm-combinumeral">❶</span>
+}
+
+private void handleFetchError(RoutingContext ctx, Throwable err) {
+  if (err instanceof NoSuchElementException) {                     <span class="fm-combinumeral">❷</span>
+    ctx.fail(404);
+  } else {
+    fail500(ctx, err);
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041802"/><span class="fm-combinumeral">❶</span> Complete successfully by forwarding the JSON result.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041823"/><span class="fm-combinumeral">❷</span> Fail with a 404 if the user does not exist, or with a 500 if a technical error was encountered.</p>
+
+  <p class="body"><a id="pgfId-1017669"/>It is important to properly deal with the error cases and to distinguish between a non-existing user and a technical error.</p>
+
+  <p class="body"><a id="pgfId-1017675"/>Let’s now see the case of updating a user. <a id="marker-1044498"/><a id="marker-1044499"/><a id="marker-1044500"/></p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1017688"/>10.2.7 Updating a user’s data</h3>
+
+  <p class="body"><a id="pgfId-1017707"/><a id="marker-1017699"/><a id="marker-1017701"/><a id="marker-1017703"/>Updating a user’s data is similar to fetching data, as we need two JSON documents: one to match documents, and one to specify what fields need to be updated. The following listing shows the corresponding code.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1017763"/>Listing 10.16 Updating a user’s data with MongoDB</p>
+  <pre class="programlisting">JsonObject query = new JsonObject().put("username", username);    <span class="fm-combinumeral">❶</span>
+JsonObject updates = new JsonObject();
+if (body.containsKey("city")) {                                   <span class="fm-combinumeral">❷</span>
+  updates.put("city", body.getString("city"));
+}
+if (body.containsKey("email")) {
+  updates.put("email", body.getString("email"));
+}
+if (body.containsKey("makePublic")) {
+  updates.put("makePublic", body.getBoolean("makePublic"));
+}
+
+if (updates.isEmpty()) {                                          <span class="fm-combinumeral">❸</span>
+  ctx.response().setStatusCode(200).end();
+  return;
+}
+
+updates = new JsonObject().put("$set", updates);                  <span class="fm-combinumeral">❹</span>
+mongoClient
+  .rxFindOneAndUpdate("user", query, updates)                     <span class="fm-combinumeral">❺</span>
+  .ignoreElement()
+  .subscribe(
+    () -&gt; completeEmptySuccess(ctx),
+    err -&gt; handleUpdateError(ctx, err));</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041436"/><span class="fm-combinumeral">❶</span> We want to match by username.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041457"/><span class="fm-combinumeral">❷</span> We selectively check each allowed field for updates.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041474"/><span class="fm-combinumeral">❸</span> If no allowed field was specified, we quickly return.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041498"/><span class="fm-combinumeral">❹</span> The $set operator is used in MongoDB to update data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041515"/><span class="fm-combinumeral">❺</span> We search and update one document.</p>
+
+  <p class="body"><a id="pgfId-1018078"/>Since the update request is a JSON document coming from an HTTP request, there is always the possibility of an external attack if we are not careful. A malicious user could craft a JSON document in the request with updates to the password or username, so we test for the presence of each allowed field in updates: <code class="fm-code-in-text">city</code>, <code class="fm-code-in-text">email</code>, and <code class="fm-code-in-text">makePublic</code>. We then create a JSON document with updates just for these fields, rather than reusing the JSON document received over HTTP, and we make an update request to the Vert.x MongoDB client.</p>
+
+  <p class="body"><a id="pgfId-1018087"/>We have now covered the typical use of MongoDB in Vert.x, as well as how to use it for authentication purposes. Let’s move on to PostgreSQL and the activity service. <a id="marker-1018089"/><a id="marker-1018092"/><a id="marker-1018094"/><a id="marker-1018096"/><a id="marker-1018098"/><a id="marker-1018100"/></p>
+
+  <h2 class="fm-head" id="heading_id_14"><a id="pgfId-1018106"/>10.3 Activity service with PostgreSQL</h2>
+
+  <p class="body"><a id="pgfId-1018123"/><a id="marker-1018117"/><a id="marker-1018119"/>The activity service stores all the step updates as they are received from pedometers. It is a service that reacts to new step update events (to store data), and it can be queried by other services to get step counts for a given device on a given day, month, or year.</p>
+
+  <p class="body"><a id="pgfId-1018128"/>The activity service uses PostgreSQL to store activity data after device updates have been accepted by the ingestion service. PostgreSQL is well suited for this purpose because the SQL query language makes it easy to compute aggregates, such as step counts for a device on a given month.</p>
+
+  <p class="body"><a id="pgfId-1018134"/>The service is split into two independent verticles:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1018140"/><code class="fm-code-in-text">EventsVerticle</code> listens for incoming <a class="calibre9" id="marker-1018157"/>activity updates over Kafka and then stores data in the database.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1018167"/><code class="fm-code-in-text">ActivityApiVerticle</code> exposes an HTTP API for querying <a class="calibre9" id="marker-1018180"/>activity data.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1018206"/>We could have put all the code on a single verticle, but this decoupling renders the code more manageable, as each verticle has a well-defined purpose. <code class="fm-code-in-text">EventsVerticle</code> performs writes to the database, whereas <code class="fm-code-in-text">ActivityApiVerticle</code> performs the read operations.</p>
+
+  <h3 class="fm-head1" id="heading_id_15"><a id="pgfId-1018215"/>10.3.1 Data model</h3>
+
+  <p class="body"><a id="pgfId-1018260"/><a id="marker-1018226"/><a id="marker-1018228"/>The data model is not terribly complex and fits in a single <i class="fm-italics">relation</i> <code class="fm-code-in-text">stepevent</code>. The SQL instructions <a id="marker-1018249"/>for creating the <code class="fm-code-in-text">stepevent</code> table are shown <a id="marker-1018265"/>in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018326"/>Listing 10.17 SQL instruction for creating the <code class="fm-code-in-listingcaption">stepevent</code> table</p>
+  <pre class="programlisting">CREATE TABLE IF NOT EXISTS stepevent
+(
+  device_id VARCHAR,
+  device_sync BIGINT,
+  sync_timestamp timestamptz,            <span class="fm-combinumeral">❶</span>
+  steps_count INTEGER,
+  PRIMARY KEY (device_id, device_sync)   <span class="fm-combinumeral">❷</span>
+);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041313"/><span class="fm-combinumeral">❶</span> A timestamp with a timezone</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041341"/><span class="fm-combinumeral">❷</span> A composite primary key</p>
+
+  <p class="body"><a id="pgfId-1018529"/>The primary key uniquely identifies an activity update <a id="marker-1018470"/>based on a device identifier (<code class="fm-code-in-text">device_id</code>) and a synchronization counter from <a id="marker-1018486"/>the device (<code class="fm-code-in-text">device_sync</code>). The timestamp of the event is recorded (<code class="fm-code-in-text">sync_timestamp</code>), and finally <a id="marker-1018512"/>the number of steps <a id="marker-1018518"/>is stored (<code class="fm-code-in-text">steps_count</code>).</p>
+
+  <p class="fm-callout"><a id="pgfId-1018563"/><span class="fm-callout-head">Tip</span> If you come from a background with <a id="marker-1018550"/><a id="marker-1018553"/>a heavy use of <i class="fm-italics">object-relational mappers</i> (ORMs), you may be surprised by the preceding database schema, and especially the fact that it uses a composite primary key rather than some auto-incremented number. You may want to first consider the proper design of your relational model with respect to normal forms, and only then see how to handle data in your code, be it with collections and/or objects that reflect the data. If you’re interested in the topic, Wikipedia provides a good introduction to database normalization: <span class="fm-hyperlink"><a href="https://en.wikipedia.org/wiki/Database_normalization">https://en.wikipedia.org/wiki/Database_normalization</a></span>. <a id="marker-1021102"/><a id="marker-1021105"/></p>
+
+  <h3 class="fm-head1" id="heading_id_16"><a id="pgfId-1021111"/>10.3.2 Opening a connection pool</h3>
+
+  <p class="body"><a id="pgfId-1021166"/><a id="marker-1021122"/><a id="marker-1021124"/>The <code class="fm-code-in-text">vertx-pg-client</code> module contains <a id="marker-1021139"/>the <code class="fm-code-in-text">PgPool</code> interface that models a pool <a id="marker-1021155"/>of connections to a PostgreSQL server, where each connection can be reused for subsequent queries. <code class="fm-code-in-text">PgPool</code> is your main access point in the client for performing SQL queries.</p>
+
+  <p class="body"><a id="pgfId-1021175"/>The following listing shows how to create a PostgreSQL connection pool.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021232"/>Listing 10.18 Creating a PostgreSQL connection pool</p>
+  <pre class="programlisting">PgPool pgPool = PgPool.pool(vertx, PgConfig.pgConnectOpts(), 
+<span class="fm-code-continuation-arrow">➥</span> new PoolOptions());                             <span class="fm-combinumeral">❶</span>
+// (...)
+
+public static PgConnectOptions pgConnectOpts() {   <span class="fm-combinumeral">❷</span>
+  return new PgConnectOptions()
+    .setHost("localhost")
+    .setDatabase("postgres")
+    .setUser("postgres")
+    .setPassword("vertx-in-action");
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041181"/><span class="fm-combinumeral">❶</span> Create a connection pool.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1041202"/><span class="fm-combinumeral">❷</span> Configuration for the connection</p>
+
+  <p class="body"><a id="pgfId-1021372"/>The pool creation requires a Vert.x context, a set of connection options such as the host, database, and password, and pool options. The pool options can be tuned to set the maximum number of connections as well as the size of the waiting queue, but default values are fine here.</p>
+
+  <p class="body"><a id="pgfId-1021378"/>The <code class="fm-code-in-text">pool</code> object is then used to perform <a id="marker-1021389"/>queries to the database, as you will see next. <a id="marker-1021395"/><a id="marker-1021398"/></p>
+
+  <h3 class="fm-head1" id="heading_id_17"><a id="pgfId-1021404"/>10.3.3 Life of a device update event</h3>
+
+  <p class="body"><a id="pgfId-1021459"/><a id="marker-1021415"/><a id="marker-1021417"/>The <code class="fm-code-in-text">EventsVerticle</code> is in charge <a id="marker-1021432"/>of listening to Kafka records on the <code class="fm-code-in-text">incoming.steps</code> topic, where each <a id="marker-1021448"/>record is an update received from a device through the ingestion service. For each record, <code class="fm-code-in-text">EventsVerticle</code> must do the following:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1021468"/>Insert the record into the PostgreSQL database.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1021482"/>Generate an updated record with the daily step count for the device of the record.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1021509"/>Publish it as a new Kafka record <a class="calibre9" id="marker-1034841"/>to the <code class="fm-code-in-text">daily.step.updates</code> Kafka topic.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1021518"/>This is illustrated in figure 10.2.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH10_F02_Ponge.png" width="881" height="563"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1045358"/>Figure 10.2 Steps for recording a device update and producing an update event</p>
+
+  <p class="body"><a id="pgfId-1021534"/>These steps are modeled by the RxJava pipeline defined in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021605"/>Listing 10.19 RxJava pipeline for processing updates in <code class="fm-code-in-listingcaption">EventsVerticle</code></p>
+  <pre class="programlisting">eventConsumer
+  .subscribe("incoming.steps")                    <span class="fm-combinumeral">❶</span>
+  .toFlowable()
+  .flatMap(this::insertRecord)                    <span class="fm-combinumeral">❷</span>
+  .flatMap(this::generateActivityUpdate)          <span class="fm-combinumeral">❸</span>
+  .flatMap(this::commitKafkaConsumerOffset)       <span class="fm-combinumeral">❹</span>
+  .doOnError(err -&gt; logger.error("Woops", err))
+  .retryWhen(this::retryLater)
+  .subscribe();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040918"/><span class="fm-combinumeral">❶</span> Subscribe to the Kafka topic.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040939"/><span class="fm-combinumeral">❷</span> Insert a new record in the database.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040956"/><span class="fm-combinumeral">❸</span> Query the database to publish another record.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040973"/><span class="fm-combinumeral">❹</span> Commit the record to Kafka.</p>
+
+  <p class="body"><a id="pgfId-1021837"/>This RxJava pipeline is reminiscent of those we saw earlier in the messaging and eventing stack, as we compose three asynchronous operations. This pipeline reads from Kafka, inserts database <a id="marker-1021794"/>records (<code class="fm-code-in-text">insertRecord</code>), produces a query to <a id="marker-1021810"/>write to Kafka (<code class="fm-code-in-text">generateActivityUpdate</code>), and commits <a id="marker-1021826"/>it (<code class="fm-code-in-text">commitKafkaConsumerOffset</code>). <a id="marker-1021842"/><a id="marker-1021845"/></p>
+
+  <h3 class="fm-head1" id="heading_id_18"><a id="pgfId-1021851"/>10.3.4 Inserting a new record</h3>
+
+  <p class="body"><a id="pgfId-1021868"/><a id="marker-1021862"/><a id="marker-1021864"/>The SQL query to insert a record is shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021924"/>Listing 10.20 SQL query to insert step events</p>
+  <pre class="programlisting">static String insertStepEvent() {
+  return "INSERT INTO stepevent VALUES($1, $2, current_timestamp, $3)";    <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040857"/><span class="fm-combinumeral">❶</span> $n is the n th entry in the values tuple.</p>
+
+  <p class="fm-callout"><a id="pgfId-1022011"/><span class="fm-callout-head">Tip</span> Vert.x does not prescribe any object-relational mapping tool. Using plain SQL is a great option, but if you want to abstract your code from the particularities of databases and use an API to build your queries rather than using strings, I recommend looking at jOOQ (<span class="fm-hyperlink"><a href="http://www.jooq.org/">www.jooq.org/</a></span>). You can even find a Vert.x/jOOQ integration module in the community.</p>
+
+  <p class="body"><a id="pgfId-1022030"/>We use a class with static methods to define SQL queries, as it is more convenient than plain string constants in our code. The query will be used as a prepared statement, where values <a id="marker-1022019"/>prefixed by a <code class="fm-code-in-text">$</code> symbol will be taken from a tuple of values. Since we use a prepared statement, these values are safe from SQL injection attacks.</p>
+
+  <p class="body"><a id="pgfId-1022039"/>The <code class="fm-code-in-text">insertRecord</code> method is called for <a id="marker-1022050"/>each new Kafka record, and the method body is shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1022111"/>Listing 10.21 Implementation of the <code class="fm-code-in-listingcaption">insertRecord</code> method</p>
+  <pre class="programlisting">JsonObject data = record.value();     <span class="fm-combinumeral">❶</span>
+
+Tuple values = Tuple.of(              <span class="fm-combinumeral">❷</span>
+  data.getString("deviceId"),
+  data.getLong("deviceSync"),
+  data.getInteger("stepsCount"));
+
+return pgPool
+  .preparedQuery(insertStepEvent())   <span class="fm-combinumeral">❸</span>
+  .rxExecute(values)                  <span class="fm-combinumeral">❹</span>
+  .map(rs -&gt; record)                  <span class="fm-combinumeral">❺</span>
+  .onErrorReturn(err -&gt; {             <span class="fm-combinumeral">❻</span>
+    if (duplicateKeyInsert(err)) {
+      return record;
+    } else {
+      throw new RuntimeException(err);
+    }
+  })
+  .toFlowable();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040493"/><span class="fm-combinumeral">❶</span> JSON body from the Kafka record</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040514"/><span class="fm-combinumeral">❷</span> Tuple structure</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040531"/><span class="fm-combinumeral">❸</span> Insert request</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040548"/><span class="fm-combinumeral">❹</span> Execute the request with parameters.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040565"/><span class="fm-combinumeral">❺</span> Remap the Kafka record for processing in the generateActivityUpdate method.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040582"/><span class="fm-combinumeral">❻</span> Handle duplicate inserts gracefully.</p>
+
+  <p class="body"><a id="pgfId-1022434"/>We first extract the JSON body from the record, and then prepare a tuple of values to pass as parameters to the SQL query in listing 10.20. The result of the query is a row set, but since <a id="marker-1022407"/>this is not a <code class="fm-code-in-text">SELECT</code> query, we do not care about the result. Instead, we simply remap the result with the original <a id="marker-1022423"/>Kafka record value, so the <code class="fm-code-in-text">generateActivityUpdate</code> method can reuse it.</p>
+
+  <p class="body"><a id="pgfId-1022471"/>The <code class="fm-code-in-text">onErrorReturn</code> operator allows us <a id="marker-1022454"/>to handle duplicate inserts gracefully. It is possible that after a service restart we’ll end up replaying some Kafka events that we had already <a id="marker-1022460"/>processed, so the <code class="fm-code-in-text">INSERT</code> queries will fail instead of creating entries with duplicate primary keys.</p>
+
+  <p class="body"><a id="pgfId-1022480"/>The <code class="fm-code-in-text">duplicateKeyInsert</code> method in the following <a id="marker-1022491"/>listing shows how we can distinguish between a duplicate key error and another technical error.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1022552"/>Listing 10.22 Detecting a duplicate key error</p>
+  <pre class="programlisting">private boolean duplicateKeyInsert(Throwable err) {
+  return (err instanceof PgException) &amp;&amp;
+    "23505".equals(((PgException) err).getCode());    <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040429"/><span class="fm-combinumeral">❶</span> Technical code error for a duplicate key insertion attempt</p>
+
+  <p class="body"><a id="pgfId-1022635"/>We again have to search for a technical error code in the exception message, and if it corresponds to a PostgreSQL duplicate key error, then <code class="fm-code-in-text">onErrorReturn</code> puts the original Kafka record in the pipeline rather than letting an error be propagated. <a id="marker-1022646"/><a id="marker-1022649"/></p>
+
+  <h3 class="fm-head1" id="heading_id_19"><a id="pgfId-1022655"/>10.3.5 Generating a device’s daily activity update</h3>
+
+  <p class="body"><a id="pgfId-1022684"/><a id="marker-1035291"/><a id="marker-1035292"/>The next step in the RxJava processing pipeline after a record has been inserted is to query the database to find out how many steps have been taken on the current day. This is then used to prepare a new Kafka record and <a id="marker-1035294"/>push it to the <code class="fm-code-in-text">daily.step.updates</code> Kafka topic.</p>
+
+  <p class="body"><a id="pgfId-1022706"/>The SQL query corresponding to that operation is specified <a id="marker-1035295"/>by the <code class="fm-code-in-text">stepsCountForToday</code> method in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1022766"/>Listing 10.23 SQL query to get the steps count for a device on the current day</p>
+  <pre class="programlisting">static String stepsCountForToday() {
+  return "SELECT current_timestamp, coalesce(sum(steps_count), 0) 
+<span class="fm-code-continuation-arrow">➥</span> FROM stepevent WHERE " +                                       <span class="fm-combinumeral">❶</span>
+    "(device_id = $1) AND" +
+    "(date_trunc('day', sync_timestamp) = date_trunc('day', 
+    <span class="fm-code-continuation-arrow">➥</span> current_timestamp))";                                      <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040249"/><span class="fm-combinumeral">❶</span> Steps count will be 0 if there are no matching entries.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1040270"/><span class="fm-combinumeral">❷</span> Match records for the current day, truncating hours, minutes, and seconds.</p>
+
+  <p class="body"><a id="pgfId-1022877"/>This request computes the sum (or 0) of the steps taken on the current day for a given device identifier.</p>
+
+  <p class="body"><a id="pgfId-1022911"/>The next listing shows the implementation of the <code class="fm-code-in-text">generateActivityUpdate</code> method, picking up <a id="marker-1022894"/>the original Kafka record <a id="marker-1022900"/>forwarded by the <code class="fm-code-in-text">insertRecord</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1022971"/>Listing 10.24 Implementation of the <code class="fm-code-in-listingcaption">generateActivityUpdate</code> method</p>
+  <pre class="programlisting">String deviceId = record.value().getString("deviceId");                    <span class="fm-combinumeral">❶</span>
+LocalDateTime now = LocalDateTime.now();
+String key = deviceId + ":" + now.getYear() + "-" + now.getMonth() + "-" + 
+<span class="fm-code-continuation-arrow">➥</span> now.getDayOfMonth();                                                    <span class="fm-combinumeral">❷</span>
+
+return pgPool
+  .preparedQuery(stepsCountForToday())
+  .rxExecute(Tuple.of(deviceId))                                           <span class="fm-combinumeral">❸</span>
+  .map(rs -&gt; rs.iterator().next())                                         <span class="fm-combinumeral">❹</span>
+  .map(row -&gt; new JsonObject()                                             <span class="fm-combinumeral">❺</span>
+    .put("deviceId", deviceId)
+    .put("timestamp", row.getTemporal(0).toString())
+    .put("stepsCount", row.getLong(1)))
+  .flatMap(json -&gt; 
+<span class="fm-code-continuation-arrow">    ➥</span> updateProducer.rxSend(KafkaProducerRecord.create("daily.step.updates", 
+<span class="fm-code-continuation-arrow">    ➥</span> key, json)))                                                         <span class="fm-combinumeral">❻</span>
+  .map(rs -&gt; record)
+  .toFlowable();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039704"/><span class="fm-combinumeral">❶</span> Extract the device identifier from the original Kafka record.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039725"/><span class="fm-combinumeral">❷</span> Key for the new Kafka record</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039742"/><span class="fm-combinumeral">❸</span> Prepared statement with a tuple of one value</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039759"/><span class="fm-combinumeral">❹</span> We expect just one row.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039776"/><span class="fm-combinumeral">❺</span> Create a new JsonObject out of the row values.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039793"/><span class="fm-combinumeral">❻</span> Compose the Kafka send operation.</p>
+
+  <p class="body"><a id="pgfId-1023355"/>This code shows how we can manipulate <a id="marker-1023244"/>rows following a <code class="fm-code-in-text">SELECT</code> query. The result <a id="marker-1023260"/>of a query is <code class="fm-code-in-text">RowSet</code>, materialized here <a id="marker-1023276"/>by the <code class="fm-code-in-text">rs</code> argument in the first <code class="fm-code-in-text">map</code> operator, and which <a id="marker-1023302"/>can be iterated row by row. Since the query returns a single row, we can directly access the first and only row by calling <code class="fm-code-in-text">next</code> on the <code class="fm-code-in-text">RowSet</code> iterator. We then access the row elements by type and index <a id="marker-1023328"/>to build a <code class="fm-code-in-text">JsonObject</code> that creates <a id="marker-1023344"/>the Kafka record sent to the <code class="fm-code-in-text">daily.step.updates</code> topic. <a id="marker-1023360"/><a id="marker-1023363"/></p>
+
+  <h3 class="fm-head1" id="heading_id_20"><a id="pgfId-1023369"/>10.3.6 Activity API queries</h3>
+
+  <p class="body"><a id="pgfId-1023420"/><a id="marker-1023380"/><a id="marker-1023382"/><a id="marker-1023384"/>The <code class="fm-code-in-text">ActivityApiVerticle</code> class exposes the <a id="marker-1023399"/>HTTP API for the activity service--all routes lead to SQL queries. I won’t show all of them. We’ll focus on the monthly steps for a device, handled through HTTP <code class="fm-code-in-text">GET</code> requests to <code class="fm-code-in-text">/:deviceId/:year/:month</code>. The SQL query is shown next.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1023480"/>Listing 10.25 Monthly step count SQL query</p>
+  <pre class="programlisting">static String monthlyStepsCount() {
+  return "SELECT sum(steps_count) FROM stepevent WHERE" +
+    "(device_id = $1) AND" +
+    "(date_trunc('month', sync_timestamp) = $2::timestamp)";    <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039645"/><span class="fm-combinumeral">❶</span> The value needs to be coalesced to a timestamp.</p>
+
+  <p class="body"><a id="pgfId-1023569"/>The <code class="fm-code-in-text">stepsOnMonth</code> method is shown in the <a id="marker-1023580"/>next listing. It performs the SQL query based on the year and month path parameters.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1023641"/>Listing 10.26 Handling monthly steps requests</p>
+  <pre class="programlisting">private void stepsOnMonth(RoutingContext ctx) {
+  try {
+    String deviceId = ctx.pathParam("deviceId");
+    LocalDateTime dateTime = LocalDateTime.of(
+      Integer.parseInt(ctx.pathParam("year")),
+      Integer.parseInt(ctx.pathParam("month")),
+      1, 0, 0);
+    Tuple params = Tuple.of(deviceId, dateTime);           <span class="fm-combinumeral">❶</span>
+    pgPool.preparedQuery(SqlQueries.monthlyStepsCount())
+      .rxExecute(params)
+      .map(rs -&gt; rs.iterator().next())
+      .subscribe(
+        row -&gt; sendCount(ctx, row),                        <span class="fm-combinumeral">❷</span>
+        err -&gt; handleError(ctx, err));                     <span class="fm-combinumeral">❸</span>
+  } catch (DateTimeException | NumberFormatException e) {  <span class="fm-combinumeral">❹</span>
+    sendBadRequest(ctx);
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039391"/><span class="fm-combinumeral">❶</span> Query arguments tuple</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039412"/><span class="fm-combinumeral">❷</span> JSON response based on the row data</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039429"/><span class="fm-combinumeral">❸</span> Sends an HTTP 400 error</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039446"/><span class="fm-combinumeral">❹</span> When a URL parameter is not a number or does not result in a valid date</p>
+
+  <p class="body"><a id="pgfId-1023932"/>The query result is again a <code class="fm-code-in-text">RowSet</code>, and we know <a id="marker-1023885"/>from the SQL query that only one row can be returned, so we use the <code class="fm-code-in-text">map</code> operator to extract it. The <code class="fm-code-in-text">sendCount</code> method sends the data as a JSON <a id="marker-1023911"/>document, while the <code class="fm-code-in-text">handleError</code> method produces an HTTP 500 error. When a year or month URL parameter is not a number or does not result in a valid date, <code class="fm-code-in-text">sendBadRequest</code> produces an HTTP 400 response <a id="marker-1023937"/>to let the request know of the mistake.</p>
+
+  <p class="body"><a id="pgfId-1023947"/>It is now time to move on to integration testing strategies. I’ll also show you some other data client methods, such as SQL batch queries, when we have to prepopulate a PostgreSQL database. <a id="marker-1023949"/><a id="marker-1023952"/><a id="marker-1023954"/><a id="marker-1023956"/></p>
+
+  <h2 class="fm-head" id="heading_id_21"><a id="pgfId-1023962"/>10.4 Integration tests</h2>
+
+  <p class="body"><a id="pgfId-1023981"/><a id="marker-1023973"/><a id="marker-1023975"/><a id="marker-1023977"/>Testing the user profile service involves issuing HTTP requests to the corresponding API. The activity service has two facets: one that involves the HTTP API, and one that involves crafting Kafka events and observing the effects in terms of persisted state and produced events.</p>
+
+  <h3 class="fm-head1" id="heading_id_22"><a id="pgfId-1023986"/>10.4.1 Testing the user profile service</h3>
+
+  <p class="body"><a id="pgfId-1024005"/><a id="marker-1023997"/><a id="marker-1023999"/><a id="marker-1024001"/>The user profile tests rely on issuing HTTP requests that impact the service state and the database (e.g., creating a user) and then issuing further HTTP requests to perform some assertions, as illustrated in figure 10.3.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH10_F03_Ponge.png" width="728" height="360"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1045400"/>Figure 10.3 Testing the user profile service</p>
+
+  <p class="body"><a id="pgfId-1024020"/>The integration tests rely again on Testcontainers, as we need to have a MongoDB instance running. Once we have the container running, we need to prepare the MongoDB database to be in a <i class="fm-italics">clean state</i> before we <a id="marker-1024045"/>run any tests. This is important to ensure that a test is not affected by data left by a previous test’s execution.</p>
+
+  <p class="body"><a id="pgfId-1024071"/>The <code class="fm-code-in-text">setup</code> method of the <code class="fm-code-in-text">IntegrationTest</code> class performs the <a id="marker-1024076"/>test preparation.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024137"/>Listing 10.27 User profile integration test setup</p>
+  <pre class="programlisting">@BeforeEach
+void setup(Vertx vertx, VertxTestContext testContext) {
+  JsonObject mongoConfig = new JsonObject()
+    .put("host", "localhost")
+    .put("port", 27017)
+    .put("db_name", "profiles");
+  mongoClient = MongoClient.createShared(vertx, mongoConfig);
+
+  mongoClient
+    .rxCreateIndexWithOptions("user", new JsonObject().put("username", 1),  <span class="fm-combinumeral">❶</span>
+      new IndexOptions().unique(true))
+    .andThen(mongoClient.rxCreateIndexWithOptions("user",
+      new JsonObject().put("deviceId", 1), new IndexOptions().unique(true)))<span class="fm-combinumeral">❷</span>
+    .andThen(dropAllUsers())                                                <span class="fm-combinumeral">❸</span>
+    .flatMapSingle(res -&gt; 
+<span class="fm-code-continuation-arrow">       ➥</span> vertx.rxDeployVerticle(new UserProfileApiVerticle()))
+    .subscribe(
+      ok -&gt; testContext.completeNow(),
+      testContext::failNow);
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039187"/><span class="fm-combinumeral">❶</span> Ensure we have an index on username.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039208"/><span class="fm-combinumeral">❷</span> Ensure we have an index on deviceId.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039225"/><span class="fm-combinumeral">❸</span> Drop all users.</p>
+
+  <p class="body"><a id="pgfId-1024389"/>We first connect to the MongoDB database and then ensure we have two indexes for the <code class="fm-code-in-text">username</code> and <code class="fm-code-in-text">deviceId</code> fields. We then remove all existing documents from the <code class="fm-code-in-text">profiles</code> database (see listing 10.28), and deploy an instance of the <code class="fm-code-in-text">UserProfileApiVerticle</code> verticle before <a id="marker-1024394"/>successfully completing the initialization phase.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024455"/>Listing 10.28 Deleting all users in the MongoDB database</p>
+  <pre class="programlisting">private Maybe&lt;MongoClientDeleteResult&gt; dropAllUsers() {
+  return mongoClient.rxRemoveDocuments("user", new JsonObject());    <span class="fm-combinumeral">❶</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039127"/><span class="fm-combinumeral">❶</span> Match unconditionally with an empty JSON query document.</p>
+
+  <p class="body"><a id="pgfId-1024532"/>The <code class="fm-code-in-text">IntegrationTest</code> class provides different <a id="marker-1024543"/>test cases of operations that are expected to succeed, as well as operations that are expected to fail. RestAssured is used to write the test specifications of the HTTP requests, as in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024604"/>Listing 10.29 Test for authenticating a missing user</p>
+  <pre class="programlisting">@Test
+@DisplayName("Failing at authenticating an unknown user")
+void authenticateMissingUser() {
+  JsonObject request = new JsonObject()    <span class="fm-combinumeral">❶</span>
+    .put("username", "Bean")
+    .put("password", "abc");
+
+  with()
+    .spec(requestSpecification)
+    .contentType(ContentType.JSON)
+    .body(request.encode())
+    .post("/authenticate")
+    .then()
+    .assertThat()
+    .statusCode(401);                      <span class="fm-combinumeral">❷</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038999"/><span class="fm-combinumeral">❶</span> This user does not exist.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1039020"/><span class="fm-combinumeral">❷</span> We expect an HTTP 401 status code.</p>
+
+  <p class="body"><a id="pgfId-1024780"/>The <code class="fm-code-in-text">authenticateMissingUser</code> method checks that authenticating <a id="marker-1024791"/>against invalid credentials results in an HTTP 401 status code.</p>
+
+  <p class="body"><a id="pgfId-1024801"/>Another example is the following test, where we check what happens when we attempt to register a user twice.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024858"/>Listing 10.30 Test for registering a user twice</p>
+  <pre class="programlisting">given()
+  .spec(requestSpecification)
+  .contentType(ContentType.JSON)
+  .accept(ContentType.JSON)
+  .body(basicUser().encode()))     <span class="fm-combinumeral">❶</span>
+  .when()
+  .post("/register")
+  .then()
+  .assertThat()
+  .statusCode(200);                <span class="fm-combinumeral">❷</span>
+
+given()
+  .spec(requestSpecification)
+  .contentType(ContentType.JSON)
+  .accept(ContentType.JSON)
+  .body(basicUser().encode())
+  .when()
+  .post("/register")
+  .then()
+  .assertThat()
+  .statusCode(409);                <span class="fm-combinumeral">❸</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038795"/><span class="fm-combinumeral">❶</span> This method returns a predefined JSON object for a user.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038816"/><span class="fm-combinumeral">❷</span> The first attempt is ok.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038833"/><span class="fm-combinumeral">❸</span> The second attempt is not ok!</p>
+
+  <p class="body"><a id="pgfId-1025086"/>We could also peek into the database and check the data that is being stored after each action. Since we need to cover all functional cases of the HTTP API, it is more straightforward to focus on just the HTTP API in the integration tests. However, there are cases where an API on top of a database may not expose you to some important effects on the stored data, and in these cases, you will need to connect to the database to make some further assertions. <a id="marker-1025088"/><a id="marker-1025091"/><a id="marker-1025093"/></p>
+
+  <h3 class="fm-head1" id="heading_id_23"><a id="pgfId-1025099"/>10.4.2 Testing the activity service API</h3>
+
+  <p class="body"><a id="pgfId-1025118"/><a id="marker-1025110"/><a id="marker-1025112"/><a id="marker-1025114"/>Testing the activity service API is quite similar to testing the user profile service, except that we use PostgreSQL instead of MongoDB.</p>
+
+  <p class="body"><a id="pgfId-1025123"/>We first need to ensure that the data schema is defined as in listing 10.17. To do that, the SQL script in init/postgres/setup.sql is run automatically when the PostgreSQL container starts. This works because the container image specifies that any SQL script found in /docker-entrypoint-initdb.d/ will be run when it starts, and the Docker Compose file that we use mounts init/postgres to /docker-entrypoint-initdb.d/, so the SQL file is available in the container.</p>
+
+  <p class="body"><a id="pgfId-1025129"/>Once the database has been prepared with some predefined data, we issue HTTP requests to perform assertions, as shown in figure 10.4.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH10_F04_Ponge.png" width="751" height="428"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1045442"/>Figure 10.4 Testing the activity service API</p>
+
+  <p class="body"><a id="pgfId-1025145"/>We again rely on Testcontainers to start a PostgreSQL server, and then we rely on the test setup method to prepare the data as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1025216"/>Listing 10.31 Preparing the activity service API test</p>
+  <pre class="programlisting">String insertQuery = "INSERT INTO stepevent 
+<span class="fm-code-continuation-arrow">➥</span> VALUES($1, $2, $3::timestamp, $4)";                              <span class="fm-combinumeral">❶</span>
+LocalDateTime now = LocalDateTime.now();
+List&lt;Tuple&gt; data = Arrays.asList(                                   <span class="fm-combinumeral">❷</span>
+  Tuple.of("123", 1, LocalDateTime.of(2019, 4, 1, 23, 0), 6541),
+  Tuple.of("123", 2, LocalDateTime.of(2019, 5, 20, 10, 0), 200),
+  Tuple.of("123", 3, LocalDateTime.of(2019, 5, 21, 10, 10), 100),
+  Tuple.of("456", 1, LocalDateTime.of(2019, 5, 21, 10, 15), 123),
+  Tuple.of("123", 4, LocalDateTime.of(2019, 5, 21, 11, 0), 320),
+  Tuple.of("abc", 1, now.minus(1, ChronoUnit.HOURS), 1000),
+  Tuple.of("def", 1, now.minus(2, ChronoUnit.HOURS), 100),
+  Tuple.of("def", 2, now.minus(30, ChronoUnit.MINUTES), 900),
+  Tuple.of("abc", 2, now, 1500)
+);
+PgPool pgPool = PgPool.pool(vertx, PgConfig.pgConnectOpts(), 
+<span class="fm-code-continuation-arrow">➥</span> new PoolOptions());
+
+pgPool.query("DELETE FROM stepevent")                               <span class="fm-combinumeral">❸</span>
+  .rxExecute()
+  .flatMap(rows -&gt; 
+<span class="fm-code-continuation-arrow">➥</span> gPool.preparedQuery(insertQuery).rxExecuteBatch(data)            <span class="fm-combinumeral">❹</span>
+  .ignoreElement()
+  .andThen(vertx.rxDeployVerticle(new ActivityApiVerticle()))       <span class="fm-combinumeral">❺</span>
+  .ignoreElement()
+  .andThen(Completable.fromAction(pgPool::close))                   <span class="fm-combinumeral">❻</span>
+  .subscribe(testContext::completeNow, testContext::failNow);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038365"/><span class="fm-combinumeral">❶</span> Query to insert data</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038386"/><span class="fm-combinumeral">❷</span> A set of entries for the database</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038403"/><span class="fm-combinumeral">❸</span> Ensure no event is left.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038420"/><span class="fm-combinumeral">❹</span> Insert our data.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038437"/><span class="fm-combinumeral">❺</span> Deploy the API verticle.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038454"/><span class="fm-combinumeral">❻</span> Close the connection pool.</p>
+
+  <p class="body"><a id="pgfId-1025578"/>Here we want a database with a data set that we control, with activities for devices <code class="fm-code-in-text">123</code>, <code class="fm-code-in-text">456</code>, <code class="fm-code-in-text">abc</code>, and <code class="fm-code-in-text">def</code> at various points in time. For instance, device <code class="fm-code-in-text">123</code> recorded 320 steps on 2019/05/21 at 11:00, and that was the fourth time the device made a successful synchronization with the backend. We can then perform checks against the HTTP API, as in the following listing, where we check the number of steps for device <code class="fm-code-in-text">123</code> in May 2019.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1025638"/>Listing 10.32 Checking steps for device 123 on a given month</p>
+  <pre class="programlisting">JsonPath jsonPath = given()
+  .spec(requestSpecification)
+  .accept(ContentType.JSON)
+  .get("/123/2019/05")                                 <span class="fm-combinumeral">❶</span>
+  .then()
+  .assertThat()
+  .statusCode(200)
+  .extract()
+  .jsonPath();
+
+assertThat(jsonPath.getInt("count")).isEqualTo(620);   <span class="fm-combinumeral">❷</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038217"/><span class="fm-combinumeral">❶</span> URL of the query</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038238"/><span class="fm-combinumeral">❷</span> Check the JSON result.</p>
+
+  <p class="body"><a id="pgfId-1025784"/>The activity HTTP API is the read-only part of the service, so let’s now look at the other part of the service. <a id="marker-1025786"/><a id="marker-1025789"/><a id="marker-1025791"/></p>
+
+  <h3 class="fm-head1" id="heading_id_24"><a id="pgfId-1025797"/>10.4.3 Testing the activity service’s event handling</h3>
+
+  <p class="body"><a id="pgfId-1025830"/><a id="marker-1025808"/><a id="marker-1025810"/><a id="marker-1025812"/><a id="marker-1025814"/>The technique for testing the Kafka event processing <a id="marker-1025819"/>part of <code class="fm-code-in-text">EventsVerticle</code> is very similar to what we did in the previous chapter: we’ll send some Kafka records and then observe what Kafka records the service produces.</p>
+
+  <p class="body"><a id="pgfId-1025839"/>By sending multiple step updates for a given device, we should observe that the service produces updates that accumulate the steps on the current day. Since the service both consumes and produces Kakfa records that reflect the current state of the database, we won’t need to perform SQL queries--observing that correct Kafka records are being produced is sufficient. Figure 10.5 provides an overview of how the testing is done.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH10_F05_Ponge.png" width="741" height="325"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1045484"/>Figure 10.5 Testing the activity service event handling</p>
+
+  <p class="body"><a id="pgfId-1025855"/>The integration test class (<code class="fm-code-in-text">EventProcessingTest</code>) again uses TestContainers to start <a id="marker-1025880"/>the required services: PostgreSQL, Apache Kafka, and Apache ZooKeeper. Before any test is run, we must start from a clean state by using the test preparation code in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1025941"/>Listing 10.33 Preparation code for the event-processing integration tests</p>
+  <pre class="programlisting">consumer = KafkaConsumer.create(vertx, 
+<span class="fm-code-continuation-arrow">➥</span> KafkaConfig.consumer("activity-service-test-" + 
+<span class="fm-code-continuation-arrow">➥</span> System.currentTimeMillis()));
+producer = KafkaProducer.create(vertx, KafkaConfig.producer());
+KafkaAdminClient adminClient = KafkaAdminClient.create(vertx, 
+<span class="fm-code-continuation-arrow">➥</span> KafkaConfig.producer());
+PgPool pgPool = PgPool.pool(vertx, PgConfig.pgConnectOpts(), 
+<span class="fm-code-continuation-arrow">➥</span> new PoolOptions());
+
+pgPool.query("DELETE FROM stepevent")                            <span class="fm-combinumeral">❶</span>
+  .rxExecute()
+  .flatMapCompletable(rs -&gt; 
+  <span class="fm-code-continuation-arrow">➥</span> adminClient.rxDeleteTopics(Arrays.asList("incoming.steps", 
+  <span class="fm-code-continuation-arrow">➥</span> "daily.step.updates")))                                     <span class="fm-combinumeral">❷</span>
+  .andThen(Completable.fromAction(pgPool::close))                <span class="fm-combinumeral">❸</span>
+  .onErrorComplete()
+  .subscribe(
+    testContext::completeNow,
+    testContext::failNow);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037977"/><span class="fm-combinumeral">❶</span> Delete data from the database.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037998"/><span class="fm-combinumeral">❷</span> Delete Kafka topics.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1038015"/><span class="fm-combinumeral">❸</span> Close the database connection pool.</p>
+
+  <p class="body"><a id="pgfId-1026121"/>We need to ensure that the PostgreSQL database is empty, and that the Kafka topics we use to receive and send events are deleted. We can then focus on the test method, where we will send two step updates for device <code class="fm-code-in-text">123</code>.</p>
+
+  <p class="body"><a id="pgfId-1026159"/>Before that, we must <a id="marker-1026138"/>first subscribe to the <code class="fm-code-in-text">daily.step.updates</code> Kafka topic, where the <code class="fm-code-in-text">EventsVerticle</code> class will send Kafka records. The following <a id="marker-1026164"/>listing shows the first part of the test case.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1026225"/>Listing 10.34 First part of the events verticle test case</p>
+  <pre class="programlisting">consumer.subscribe("daily.step.updates")
+  .toFlowable()
+  .skip(1)                                           <span class="fm-combinumeral">❶</span>
+  .subscribe(record -&gt; {                             <span class="fm-combinumeral">❷</span>
+    JsonObject json = record.value();
+    testContext.verify(() -&gt; {                       <span class="fm-combinumeral">❸</span>
+      assertThat(json.getString("deviceId")).isEqualTo("123");
+      assertThat(json.containsKey("timestamp")).isTrue();
+      assertThat(json.getInteger("stepsCount")).isEqualTo(250);
+    });
+    testContext.completeNow();
+  }, testContext::failNow);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037736"/><span class="fm-combinumeral">❶</span> Skip the first update.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037757"/><span class="fm-combinumeral">❷</span> Get the second update.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037774"/><span class="fm-combinumeral">❸</span> Perform some assertions.</p>
+
+  <p class="body"><a id="pgfId-1026400"/>Since we send two updates, we skip the emitted record and only perform assertions on the second one, as it should reflect the sum of the steps from the two updates. The preceding code is waiting for events to be produced, so we now need to deploy <code class="fm-code-in-text">EventsVerticle</code> and send the <a id="marker-1026411"/>two updates as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1026472"/>Listing 10.35 Second part of the events verticle test case</p>
+  <pre class="programlisting">vertx
+  .rxDeployVerticle(new EventsVerticle())      <span class="fm-combinumeral">❶</span>
+  .flatMap(id -&gt; {                             <span class="fm-combinumeral">❷</span>
+    JsonObject steps = new JsonObject()
+      .put("deviceId", "123")
+      .put("deviceSync", 1L)
+      .put("stepsCount", 200);
+    return producer.rxSend(KafkaProducerRecord.create("incoming.steps", 
+    <span class="fm-code-continuation-arrow">➥</span> "123", steps));
+  })
+  .flatMap(id -&gt; {                             <span class="fm-combinumeral">❸</span>
+    JsonObject steps = new JsonObject()
+      .put("deviceId", "123")
+      .put("deviceSync", 2L)
+      .put("stepsCount", 50);
+    return producer.rxSend(KafkaProducerRecord.create("incoming.steps", 
+    <span class="fm-code-continuation-arrow">➥</span> "123", steps));
+  })
+  .subscribe(ok -&gt; {
+  }, testContext::failNow);</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037523"/><span class="fm-combinumeral">❶</span> Deploy EventsVerticle.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037540"/><span class="fm-combinumeral">❷</span> First update</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1037557"/><span class="fm-combinumeral">❸</span> Second update</p>
+
+  <p class="body"><a id="pgfId-1026720"/>The test completes as <code class="fm-code-in-text">EventsVerticle</code> properly sends <a id="marker-1026703"/>correct updates <a id="marker-1026709"/>to the <code class="fm-code-in-text">daily.step.updates</code> Kafka topic. We can again note how RxJava allows us to compose asynchronous operations in a declarative fashion and ensure the error processing is clearly identified. We have essentially two RxJava pipelines here, and any error causes the test context to fail.</p>
+
+  <p class="fm-callout"><a id="pgfId-1026739"/><span class="fm-callout-head">note</span> There is a tiny vulnerability window for this test to fail if the first update is sent before midnight and the second right after midnight. In that case, the second event will not be a sum of the steps in the two events. This is very unlikely to happen, since the two events will be emitted a few milliseconds apart, but still, it <i class="fm-italics">could</i> happen.</p>
+
+  <p class="body"><a id="pgfId-1026754"/>Speaking of event streams, the next chapter will focus on advanced event processing services with Vert.x. <a id="marker-1026756"/><a id="marker-1026759"/><a id="marker-1026761"/><a id="marker-1026763"/><a id="marker-1026765"/><a id="marker-1026767"/></p>
+
+  <h2 class="fm-head" id="heading_id_25"><a id="pgfId-1026773"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1026783"/>The Vert.x MongoDB client allows you to store and query documents.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1026797"/>Vert.x can also use MongoDB to perform authentication and safely store user credentials, roles, and permissions.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1026807"/>Vert.x offers an efficient reactive driver for PostgreSQL.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1026817"/>You do not always need an object-relational mapper. Working directly with SQL and relational data can be simple and efficient.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1026827"/>It is important to ensure clean state in databases before executing integration tests.</p>
+    </li>
+  </ul>
+  <hr class="calibre12"/>
+
+  <p class="fm-footnote"><span class="footnotenumber">1.</span><a id="pgfId-1037129"/>For information on DTOs, see Martin Fowler’s “Data Transfer Object” article at <span class="fm-hyperlink"><a href="https://martinfowler.com/eaaCatalog/dataTransferObject.html">https://martinfowler.com/ eaaCatalog/dataTransferObject.html</a></span>.</p>
+
+  <p class="fm-footnote"><span class="footnotenumber">2.</span><a id="pgfId-1037203"/>See Ted Neward, “The Vietnam of Computer Science,” <span class="fm-hyperlink"><a href="http://blogs.tedneward.com/post/the-vietnam-of-computer-science/">http://blogs.tedneward.com/post/the-vietnam-of-computer-science/</a></span>.</p>
+</div></body>
+</html>

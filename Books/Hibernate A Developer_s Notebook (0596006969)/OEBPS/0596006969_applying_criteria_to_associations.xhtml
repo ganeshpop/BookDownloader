@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_applying_criteria_to_associations"><a id="applying_criteria_to_associations"/><h3 class="docSection1Title">8.3. Applying Criteria to Associations</h3><p class="docText">So far we've been looking at the properties of a single class in forming our criteria. Of course, in our real systems, we've got a rich set of associations between objects, and sometimes the details we want to use to filter our results come from these associations. Fortunately, the criteria query API provides a straightforward way of performing such searches.<a id="idx-CHP-8-0299"/></p><a id="how_do_i_do_that-id025"/><h4 id="title-ID0ESEBG" class="docSection2Title">8.1.1. How do I do that?</h4><p class="docText">Let's suppose we're interested in finding all the tracks associated with particular artists. We'd want our criteria to look  at the values contained in each <tt>Track's artists</tt> property, which is a collection of associations to <tt>Artist</tt> objects. Just to make it a bit more fun, let's say we want to be able to find tracks associated with artists whose <tt>name</tt> property matches a particular SQL string pattern.</p><p class="docText">Let's add a new method to <span class="docEmphasis">QueryTest.java</span> to implement this. Add the method  shown in <a class="docLink" href="#filtering_tracks_based_on_their_artist_a">Example 8-13</a> after the end of the <tt>tracksNoLongerThan()</tt> method.</p><a id="filtering_tracks_based_on_their_artist_a"/><h5 id="title-ID0EMFBG" class="docExampleTitle">Example 8-13. Filtering tracks based on their artist associations</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+ 1  /**
+ 2   * Retrieve any tracks associated with artists whose name matches a
+ 3   * SQL string pattern.
+ 4   *
+ 5   * @param namePattern the pattern which an artist's name must match
+ 6   * @param session the Hibernate session that can retrieve data.
+ 7   * @return a list of {@link Track}s meeting the artist name restriction.
+ 8   * @throws HibernateException if there is a problem.
+ 9   */
+10  public static List tracksWithArtistLike(String namePattern, Session session)
+11      throws HibernateException
+12  {
+13      Criteria criteria = session.createCriteria(Track.class);
+14      Criteria artistCriteria = criteria.createCriteria("artists");
+15      artistCriteria.add(Expression.like("name", namePattern));
+16      criteria.addOrder(Order.asc("title"));
+17      return criteria.list();
+18  }
+</pre><br/>
+</td></tr></table><p class="docText">Line 14 creates a second <tt>Criteria</tt> instance, attached to the one we're using to select tracks, by following the tracks' <tt>artists</tt> property. We can add constraints to either <tt>criteria</tt> (which would apply to the properties of the <tt>Track</tt> itself), or to <tt>artistCriteria</tt>, which causes them to apply to the properties of the <tt>Artist</tt> entities associated with the track. In this case, we are only interested in features of the artists, so line 15 restricts our results to tracks associated with at least one artist whose name matches the specified pattern. (By <a id="idx-CHP-8-0300"/>applying constraints to both <tt>Criteria</tt>, we could restrict by both <tt>Track</tt> and <tt>Artist</tt> properties.)</p><p class="docText">Line 16 requests sorting on the tracks we get back, so we'll see the results in alphabetical order. In the current implementation of <a id="idx-CHP-8-0301"/>criteria queries, you can only sort the outermost criteria, not the subcriteria you create for associations. If you try, you'll be rewarded with an <tt>UnsupportedOperationException</tt>.
+</p><blockquote><p class="docText"><span class="docEmphasis">At least its error message is helpful and descriptive</span>!</p></blockquote><p class="docText">To see all this in action, we need to make one more change. Modify the <tt>main()</tt> method so that it invokes this new query, as shown in <a class="docLink" href="#calling_the_new_track_artist_name_query">Example 8-14</a>.</p><a id="calling_the_new_track_artist_name_query"/><h5 id="title-ID0ENHBG" class="docExampleTitle">Example 8-14. Calling the new track artist name query</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+...
+// Ask for a session using the JDBC information we've configured
+Session session = sessionFactory.openSession();
+try {
+    // Print <b>tracks associated with an artist whose name ends with "n"</b>
+    List tracks = <b>tracksWithArtistLike("%n"</b>, session);
+    for (ListIterator iter = tracks.listIterator() ;
+...
+</pre><br/>
+</td></tr></table><p class="docText">Running <tt><b>antqtest</b></tt><a id="in"/> now gives the results shown in <a class="docLink" href="#tracks_associated_with_an_artist_whose_n">Example 8-15</a>.</p><a id="tracks_associated_with_an_artist_whose_n"/><h5 id="title-ID0EDIBG" class="docExampleTitle">Example 8-15. Tracks associated with an artist whose name ends with the letter n</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+qtest:
+     [java] Track: "Adagio for Strings (Ferry Corsten Remix)" (Ferry Corsten,
+William Orbit, Samuel Barber) 00:06:35, from Compact Disc
+     [java] Track: "Gravity's Angel" (Laurie Anderson) 00:06:06, from Compact Disc
+     [java] Track: "The World '99" (Ferry Corsten, Pulp Victim) 00:07:05, from
+Digital Audio Stream
+</pre><br/>
+</td></tr></table><a id="what_just_happened-id012"/><h4 id="title-ID0EJIBG" class="docSection2Title">8.3.1. What just happened?</h4><p class="docText">If you look at the lists of artists for each of the three tracks that were found, you'll see that at least one of them has a name ending in "n" as we requested. Also notice that we have access to all the artists associated with each track, not just the ones that matched the <tt>name</tt> criterion. This is what you'd expect and want, given that we've retrieved the actual <tt>Track</tt> entities. You can run criteria queries in a different mode, by calling <tt>setResultTransformer(Criteria.ALIAS_TO_ENTITY_MAP)</tt>, which causes it to return a list of hierarchical <tt>Maps</tt> in which the criteria at each level have filtered the results. This goes beyond the scope of this notebook, but there are some examples of it in the reference and API documentation.</p><blockquote><p class="docText"><span class="docEmphasis">You can also create aliases for the associations you're working with, and use those aliases in expressions. This starts getting complex but it's useful. Explore it someday</span>.</p></blockquote><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">If the table from which you're fetching objects might contain duplicate entries, you can achieve the equivalent of SQL's "<tt>select distinct</tt>" by calling <tt>setResultTransformer(Criteria. DISTINCT_ROOT_ENTITY)</tt> on your criteria.</p><hr style="height: 1px; color: gray; background-color: gray;"/></div></div></body>
+</html>

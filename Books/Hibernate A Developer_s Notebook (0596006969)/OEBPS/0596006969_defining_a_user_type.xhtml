@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}#sbo-rt-content *{word-wrap:break-word!important;word-break:break-word!important;}#sbo-rt-content table,#sbo-rt-content pre{overflow-x:unset!important;overflow:unset!important;overflow-y:unset!important;white-space:pre-wrap!important;}</style></head>
+<body><div id="sbo-rt-content"><div id="id0596006969_defining_a_user_type"><a id="defining_a_user_type"/><h3 class="docSection1Title">7.1. Defining a User Type</h3><p class="docText">In all of these scenarios, the task is to teach Hibernate a new way to translate between a particular kind of in-memory value and its persistent database representation.<a id="idx-CHP-7-0237"/></p><p class="docText">Hibernate lets you provide your own logic for mapping values in situations that need it, by implementing one of two interfaces: <tt>net.sf.hibernate.UserType or net.sf.hibernate.CompositeUserType</tt>.<a id="idx-CHP-7-0238"/><a id="idx-CHP-7-0239"/></p><p class="docText">It's important to realize that what is being created is a <span class="docEmphasis">translator</span> for a particular kind of value, not a new kind of value that knows how to persist itself. In other words, in our ZIP code example, it's not the ZIP code property that would implement <tt>UserType</tt>. Instead, we'd create a new class implementing <tt>UserType</tt>, and in our mapping document specify this class as the Java type used to map the ZIP code property. Because of this, I think the terminology of "user types" is a little confusing.</p><p class="docText">Let's look at a concrete example. In <a class="docLink" href="0596006969_persistent_enumerated_types.xhtml#persistent_enumerated_types">Chapter 6</a> we saw how to use Hibernate's built-in enumeration support to persist a typesafe enumeration to an integer column, and we had to work around the fact that many object-oriented enumerations have no natural integer representation. While we can hope that Java 1.5 will allow Hibernate to resolve this tension in a universal way, we don't have to wait for that to happen, nor do we necessarily have to make the kind of compromises we did in <a class="docLink" href="0596006969_defining_a_persistent_enumerated_type.xhtml#changes_to_sourcemediajava_in_order_to_s">Example 6-2</a>. We can define our own <a id="idx-CHP-7-0240"/><a id="the"/>custom value type that persists the <tt>SourceMedia</tt> class on its own terms. Later in the chapter we'll look at a more complex example involving multiple properties and columns.<a id="idx-CHP-7-0241"/></p><a id="how_do_i_do_that-id021"/><h4 id="title-ID0EQZAG" class="docSection2Title">7.1.1. How do I do that?</h4><p class="docText">We'll work with the verson of <span class="docEmphasis">SourceMedia.java</span> shown in <a class="docLink" href="0596006969_defining_a_persistent_enumerated_type.xhtml#sourcemediajava_our_initial_typesafe_enu">Example 6-1</a>. Our custom type will allow this class to be persisted without any changes from its original form. In other words, the design of our data classes can be dictated by the needs and semantics of the application alone, and we can move the persistence support into a separate class focused on that sole purpose. This is a much better division of labor.<a id="idx-CHP-7-0242"/></p><p class="docText">We'll call our new class <tt>SourceMediaType</tt>. Our next decision is whether it needs to implement <tt>UserType or CompositeUserType</tt>. The reference documentation doesn't provide much guidance on this question, but the API documentation confirms the hint contained in the interface names: the <tt>CompositeUserType</tt> interface is only needed if your <a id="idx-CHP-7-0243"/>custom type implementation is to expose internal structure in the form of named properties that can be accessed individually in queries (as in our ZIP code example). For <tt>SourceMedia</tt>, a simple <tt>UserType</tt> implementation is sufficient. The source for a mapping manager meeting our needs is shown in <a class="docLink" href="#sourcemediatypejava_our_custom_type_mapp">Example 7-1</a>.<a id="idx-CHP-7-0244"/><a id="idx-CHP-7-0245"/></p><a id="sourcemediatypejava_our_custom_type_mapp"/><h5 id="title-ID0EG2AG" class="docExampleTitle">Example 7-1. SourceMediaType.java, our custom type mapping handler</h5><table cellspacing="0" width="*" border="1" cellpadding="5"><tr><td><pre>
+package com.oreilly.hh;
+
+import java.io.Serializable;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Types;
+
+import net.sf.hibernate.UserType;
+import net.sf.hibernate.Hibernate;
+import net.sf.hibernate.HibernateException;
+import net.sf.hibernate.type.Type;
+
+/**
+ * Manages persistence for the {@link SourceMedia} typesafe enumeration.
+ */
+public class SourceMediaType implements UserType {
+
+    /**
+     *Indicates whether objects managed by this type are mutable. 
+     *
+     *@return &lt;code&gt;false&lt;/code&gt;, since enumeration instances are immutable 
+     *        singletons.
+     */
+    public boolean isMutable() {
+        return false;
+    }
+
+    /**
+     * Return a deep copy of the persistent state, stopping at
+     * entities and collections. 
+     *
+     * @param value the object whose state is to be copied.
+     * @return the same object, since enumeration instances are singletons.
+     * @throws ClassCastException for non {@link SourceMedia} values.
+     */
+    public Object deepCopy(Object value) {
+        return (<a id="idx-CHP-7-0246"/>SourceMedia)value;
+    }
+
+    /**
+     * Compare two instances of the class mapped by this type for persistence
+     * "equality".
+     *
+     * @param x first object to be compared.
+     * @param y second object to be compared.
+     * @return &lt;code&gt;true&lt;/code&gt; iff both represent the same <a id="idx-CHP-7-0247"/>SourceMedia type.
+     * @throws ClassCastException if x or y isn't a {@link SourceMedia}.
+     */
+    public boolean equals(Object x, Object y) {
+        // We can compare instances, since SourceMedia are immutable singletons
+        return (x == y);
+    }
+
+    /**
+     * Determine the class that is returned by {@link #nullSafeGet}.
+     *
+     * @return {@link SourceMedia}, the actual type returned
+     * by {@link #nullSafeGet}.
+     */
+    public Class returnedClass() {
+        return SourceMedia.class;
+    }
+
+    /**
+     * Determine the SQL type(s) of the column(s) used by this type mapping.
+     *
+     * @return a single VARCHAR column.
+     */
+    public int[] sqlTypes() {
+        // Allocate a new array each time to protect against callers changing
+        // its contents.
+        int[] typeList = {
+            Types.VARCHAR
+        };
+        return typeList;
+    }
+
+    /**
+     * Retrieve an instance of the mapped class from a JDBC {@link ResultSet}.
+     *
+     * @param rs the results from which the instance should be retrieved.
+     * @param names the columns from which the instance should be retrieved.
+     * @param owner the entity containing the value being retrieved.
+     * @return the retrieved {@link SourceMedia} value, or &lt;code&gt;null&lt;/code&gt;.
+     * @throws HibernateException if there is a problem performing the mapping.
+     * @throws SQLException if there is a problem accessing the database.
+     */
+    public Object nullSafeGet(ResultSet rs, String[] names, Object owner)
+        throws HibernateException, SQLException
+    {
+        // Start by looking up the value name
+        String name = (String) Hibernate.STRING.nullSafeGet(rs, names[0]);
+        if (name == null) {
+            return null;
+        }
+        // Then find the corresponding enumeration value
+        try {
+            return <a id="idx-CHP-7-0248"/>SourceMedia.getInstanceByName(name);
+        }
+        catch (java.util.NoSuchElementException e) {
+            throw new HibernateException("Bad <a id="idx-CHP-7-0249"/>SourceMedia value: " + name, e);
+        }
+    }
+
+    /**
+     * Write an instance of the mapped class to a {@link PreparedStatement},
+     * handling null values.
+     *
+     * @param st a JDBC prepared statement.
+     * @param value the SourceMedia value to write.
+     * @param index the parameter index within the prepared statement at which
+     *        this value is to be written.
+     * @throws HibernateException if there is a problem performing the mapping.
+     * @throws SQLException if there is a problem accessing the database.
+     */
+    public void nullSafeSet(PreparedStatement st, Object value, int index)
+        throws HibernateException, SQLException
+    {
+        String name = null;
+        if (value != null)
+            name = ((SourceMedia)value).getName();
+        Hibernate.STRING.nullSafeSet(st, name, index);
+    }
+}
+</pre><br/>
+</td></tr></table><p class="docText">All of the <a id="idx-CHP-7-0250"/>methods in this class are required by the <tt>UserType</tt> interface. Our implementations are quite brief and straightforward, as befits the simple mapping we've undertaken. The first three methods don't need any discussion beyond what's in the JavaDoc and inline comments.</p><p class="docText"><a id="The"/>The <tt>sqlTypes</tt>() method reports to Hibernate the number of columns that will be needed to store values managed by this <a id="idx-CHP-7-0251"/>custom type and the SQL types. We indicate that our type uses a single <tt>VARCHAR</tt> column.</p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Warning:</b></i></span></p><p class="docText">Since the API specifies that this information is to be returned as an array, safe coding practices dictate that we create and return a new array on each call, to protect against malicious or buggy code that might manipulate the contents of the array. (Java has no support for immutable <a id="idx-CHP-7-0252"/>arrays. It would have been slightly preferable if the <tt>UserType</tt> interface declared this method to return a <tt>Collection</tt> or <tt>List</tt>, since these can be immutable.)</p><hr style="height: 1px; color: gray; background-color: gray;"/><p class="docText">In <tt>nullSafeGet()</tt> we translate database results into the corresponding <tt>MediaSource</tt> enumeration value. Since we know we stored the value as a string in the database, we can delegate the actual retrieval to Hibernate's utility method for loading strings from database results. You'll be able to do something like this in most cases. Then it's just a matter of using the enumeration's own instance lookup capability.<a id="idx-CHP-7-0253"/></p><p class="docText"><a id="idx-CHP-7-0254"/>Mapping the other direction is handled by <tt>nullSafeSet()</tt>. Once again we can rely on built-in features of the enumeration to translate from a <tt>MediaSource</tt> instance to its name, and then use Hibernate's utilities to store this string in the database.<a id="idx-CHP-7-0255"/></p><hr style="height: 1px; color: gray; background-color: gray;"/><p><span class="v2"><i><b>Tip:</b></i></span></p><p class="docText">In all the methods dealing with values, it's important to write your code in a way that will not crash if any of the arguments are <tt>null</tt>, as they often will be. The "<tt>nullSafe</tt>" prefix in some method names is a reminder of this, but even the <tt>equals()</tt> method must be careful. Blindly delegating to <tt>x.equals(y)</tt> would blow up if <tt>x</tt> is <tt>null</tt>.</p><hr style="height: 1px; color: gray; background-color: gray;"/></div></div></body>
+</html>

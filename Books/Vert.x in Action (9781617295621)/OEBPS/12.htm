@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2002/06/xhtml2/ http://www.w3.org/MarkUp/SCHEMA/xhtml2.xsd" xmlns:epub="http://www.idpf.org/2007/ops">
+<head>
+<link href="Styles/Style01.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style02.css" rel="stylesheet" type="text/css" />
+<link href="Styles/Style00.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">body{margin:1em;background-color:transparent!important;}#sbo-rt-content *{text-indent:0pt!important;}#sbo-rt-content .bq{margin-right:1em!important;}</style></head>
+<body><div id="sbo-rt-content" class="calibre"><div class="tocheadb">
+    <h1 class="tochead" id="heading_id_2"><a id="pgfId-998407"/><a id="pgfId-1025841"/>12 Toward responsiveness with load and chaos testing</h1>
+  </div>
+
+  <p class="co-summary-head"><a id="pgfId-1011800"/>This chapter covers</p>
+
+  <ul class="calibre8">
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011837"/>Simulating users with Locust</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011851"/>Load testing HTTP endpoints with Hey</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011861"/>Chaos testing with Pumba</li>
+
+    <li class="co-summary-bullet"><a class="calibre9" id="pgfId-1011871"/>Mitigating failures with explicit timeouts, circuit breakers, and caches</li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1011881"/>We have now covered all the important technical parts of the 10k steps challenge application: how to build web APIs, web applications, and edge services, and how to use databases and perform event-stream processing. By using Vert.x’s asynchronous and reactive programming, we can expect the set of services that form the application to be <i class="fm-italics">reactive</i> : scalable as workloads grow and resilient as failures happen.</p>
+
+  <p class="body"><a id="pgfId-1011896"/>Are the services that we built actually reactive? Let’s discover that now through testing and experimentation, and see where we can make improvements toward being reactive.</p>
+
+  <p class="body"><a id="pgfId-1011902"/>To do that, we will use load testing tools to stress services and measure latencies. We will then add failures using chaos testing tools to see how this impacts the service behaviors, and we will discuss several options for fixing the problems that we identify. You will be able to apply this methodology in your own projects too.</p>
+
+  <div class="fm-sidebar-block">
+    <p class="fm-sidebar-title"><a class="calibre9" id="pgfId-1036787"/>Software versions</p>
+
+    <p class="fm-sidebar-text"><a id="pgfId-1036788"/>The chapter was written and tested with the following tool versions:</p>
+
+    <ul class="calibre8">
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1036789"/>Locust 1.0.3</p>
+      </li>
+
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1036790"/>Python 3.8.2</p>
+      </li>
+
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1036791"/>Hey 0.1.3</p>
+      </li>
+
+      <li class="fm-sidebar-bullet">
+        <p class="list-s"><a id="pgfId-1036792"/>Pumba 0.7.2</p>
+      </li>
+    </ul>
+  </div>
+
+  <h2 class="fm-head" id="heading_id_3"><a id="pgfId-1011968"/>12.1 Initial experiments: Is the performance any good?</h2>
+
+  <p class="body"><a id="pgfId-1011978"/><a id="marker-1011979"/>This chapter is extensively based on experiments, so we need to generate some workloads to assess how the application copes with demanding workloads and failures. There are many load testing tools, and it is not always easy to pick one. Some tools are very good at stressing a service with a specific request (e.g., “What is the latency when issuing 500 requests per second to /api/hello”). Some tools provide more flexibility by offering scripting capabilities (e.g., “Simulate a user that logs in, then adds items to a cart, then perform a purchase”). And finally, some tools do all of that, but the reported metrics may be inaccurate due to how such tools are implemented.</p>
+
+  <p class="body"><a id="pgfId-1011987"/>I have chosen two popular and easy-to-use tools to use in this chapter:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1011993"/><i class="fm-italics1">Locust</i> --A versatile load <a class="calibre9" id="marker-1012010"/>testing tool that simulates users through scripts written in Python (<span class="fm-hyperlink1"><a class="calibre9" href="https://locust.io/">https://locust.io/</a></span>)</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1012021"/><i class="fm-italics1">Hey</i> --A reliable HTTP load <a class="calibre9" id="marker-1012034"/>generator (<span class="fm-hyperlink1"><a class="calibre9" href="https://github.com/rakyll/hey">https://github.com/rakyll/hey</a></span>)</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013642"/>These two tools can be used together, or not. Locust allows us to simulate a representative workload of users interacting with the application, while Hey give us precise metrics of how specific HTTP endpoints behave under stress.</p>
+
+  <p class="fm-callout"><a id="pgfId-1013658"/><span class="fm-callout-head">Tip</span> Both Locust and Hey work on Linux, macOS, and Windows. As usual, if you are <a id="marker-1013660"/><a id="marker-1013663"/>a Windows user, I recommend that you use the Windows Subsystem for Linux (WSL).</p>
+
+  <h3 class="fm-head1" id="heading_id_4"><a id="pgfId-1013672"/>12.1.1 Some considerations before load testing</h3>
+
+  <p class="body"><a id="pgfId-1013682"/><a id="marker-1013683"/>Before we run a load testing tool, I’d like to discuss a few points that have to be considered to get representative results. Most importantly, we need to interpret them with care.</p>
+
+  <p class="body"><a id="pgfId-1013691"/>First, when you run the 10k steps application as outlined in chapter 7, all services are running locally, while the third-party middleware and services are running in Docker containers. This means that everything is actually running on the same machine, avoiding real network communications. For instance, when the user profile service talks to MongoDB, it goes through virtual network interfaces, but it never reaches an actual network interface, so there is no fluctuating latency or data loss. We will use other tools later in this chapter to simulate network problems and get a more precise understanding of how our services behave.</p>
+
+  <p class="body"><a id="pgfId-1013697"/>Next, there is a good chance that you will be performing these experiments on your laptop or desktop. Keep in mind that a real server is different from your workstation, both in terms of hardware and software configurations, so you will likely perform tests with lower workloads than the services could actually cope with in a production setting. For instance, when we use PostgreSQL directly from a container, we won’t have done any tuning, which we would do in a production setting. More generally, running the middleware services from containers is convenient for development purposes, but we would run them differently in production, with or without containers. Also note that we will be running the Vert.x-based services without any JVM tuning. In a production setting, you’d need to at least adjust memory settings and tune the garbage collector.</p>
+
+  <p class="body"><a id="pgfId-1013703"/>Also, each service will run as a single instance, and verticles will also be single instances. They have all been designed to work with multiple instances, but deploying, say, two instances of the ingestion service would also require deploying an HTTP reverse proxy to distribute traffic between the two instances.</p>
+
+  <p class="body"><a id="pgfId-1013709"/>Last but not least, it is preferable that you run load tests with two machines: one to run the application, and one to run a load testing tool. You can perform the tests on a single machine if that is more convenient for you, but keep these points in mind:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1013715"/>You will not go through the network, which affects results.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1013729"/>Both the services under test and the load testing tool will compete for operating system resources (CPU time, networking, open file descriptors, etc.), which also affects the results.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1013739"/>The results that I present in this chapter are based on experiments conducted with two Apple MacBook laptops, which hardly qualify as production-grade servers. I am also using a domestic WiFi network, which is not as good as an Ethernet wired connection, especially when it comes to having a stable latency. Finally, macOS has very low limits on the number of file descriptors that a process can open (256), so I had to raise them with the <code class="fm-code-in-text">ulimit</code> command to run the services and the load testing tools--otherwise errors unrelated to the services’ code can arise because too many connections have been opened. I will show you how to do that, and depending on your system, you will likely have to use this technique to run the experiments. <a id="marker-1013750"/></p>
+
+  <h3 class="fm-head1" id="heading_id_5"><a id="pgfId-1013757"/>12.1.2 Simulating users with Locust</h3>
+
+  <p class="body"><a id="pgfId-1013767"/><a id="marker-1013768"/>Locust is a tool for generating workloads by simulating users interacting with a service. You can use it for demonstrations, tests, and measuring performance.</p>
+
+  <p class="body"><a id="pgfId-1013776"/>You will need a recent version of Python on your machine. If you are new to Python, you can read Naomi Ceder’s <i class="fm-italics">Exploring Python Basics</i> (Manning, 2019) or look through one of the many tutorials online. At the time of writing, I am using Python 3.8.2.</p>
+
+  <p class="body"><a id="pgfId-1013813"/>You can install Locust by running <code class="fm-code-in-text">pip install locust</code> on the command <a id="marker-1013802"/>line, where <code class="fm-code-in-text">pip</code> is the standard Python package manager.</p>
+
+  <p class="body"><a id="pgfId-1013822"/>The Locust file that we will use is locustfile.py, and it can be found in the part2-steps-challenge/load-testing folder of the book’s Git repository. We will be simulating the user behaviors illustrated in figure 12.1:</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1013837"/>Each new user is generated from random data and a set of predefined cities.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013851"/>A newly created user registers itself through the public API.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1013861"/>A user fetches a JWT token on the first request after having been registered, and then periodically makes requests:</p>
+
+      <ul class="calibre10">
+        <li class="fm-list-bullet2"><a class="calibre9" id="pgfId-1013871"/>The user sends step updates (80% of its requests).</li>
+
+        <li class="fm-list-bullet2"><a class="calibre9" id="pgfId-1013889"/>The user fetches its profile data (5% of its requests).</li>
+
+        <li class="fm-list-bullet2"><a class="calibre9" id="pgfId-1013899"/>The user fetches its total steps count (5% of its requests).</li>
+
+        <li class="fm-list-bullet2"><a class="calibre9" id="pgfId-1013909"/>The user fetches its steps count for the current day (10% of its requests).</li>
+      </ul>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1013929"/>This activity covers most of the services: ingesting triggers event exchanges between most services, and API queries trigger calls to the activity and user profile services.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F01_Ponge.png" width="467" height="663"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037470"/>Figure 12.1 Activity of a simulated user in Locust</p>
+
+  <p class="body"><a id="pgfId-1013972"/>The locustfile.py file defines <a id="marker-1013951"/>two classes. <code class="fm-code-in-text">UserBehavior</code> defines the tasks performed by a user, and <code class="fm-code-in-text">UserWithDevice</code> runs these <a id="marker-1013977"/>tasks with a random delay between 0.5 and 2 seconds. This is a relatively short delay between requests to increase the overall number of requests per second.</p>
+
+  <p class="body"><a id="pgfId-1013987"/>There are two parameters for running a test with Locust:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1013993"/>The number of users to simulate</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014007"/>The hatch rate, which is the number of new users to create per second during the initial ramp-up phase</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1014039"/>As described in chapter 7, you need to run the container services with Docker Compose from the part2-steps-challenge folder using <code class="fm-code-in-text">docker-compose up</code> in a terminal. Then you <a id="marker-1014028"/>can run all Vert.x-based services in another terminal. You can use <code class="fm-code-in-text">foreman start</code> if you have <a id="marker-1014044"/>foreman installed, or you can run all services using the commands in the Procfile.</p>
+
+  <p class="body"><a id="pgfId-1014054"/>The following listing shows the command to perform an initial warm-up run.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014111"/>Listing 12.1 Locust warm-up run</p>
+  <pre class="programlisting">$ cd part2-steps-challenge/load-testing
+$ ulimit -n 10000                                 <span class="fm-combinumeral">❶</span>
+$ locust --headless \                             <span class="fm-combinumeral">❷</span>
+    --host http://192.168.0.23 \                  <span class="fm-combinumeral">❸</span>
+    --users 50 --hatch-rate 1 --run-time 3m       <span class="fm-combinumeral">❹</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036387"/><span class="fm-combinumeral">❶</span> Raise the number of open file descriptors to 10,000 per process.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036415"/><span class="fm-combinumeral">❷</span> Do not start the Locust web interface.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036432"/><span class="fm-combinumeral">❸</span> Replace this with the IP address of the machine running the services (or in the worst case, use localhost).</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036449"/><span class="fm-combinumeral">❹</span> 50 clients, 1 new client per second, 3 minutes of execution</p>
+
+  <p class="body"><a id="pgfId-1014275"/>It is important to do such a warm-up run because the JVM running the various services needs to have some workload before it can start to run code efficiently. After that, you can run a bigger workload to get a first estimation of how your services are going.</p>
+
+  <p class="body"><a id="pgfId-1014281"/>The following listing shows the command to run a test for 5 minutes with 150 clients and a hatch rate of 2 new users per second.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014338"/>Listing 12.2 Locust run</p>
+  <pre class="programlisting">$ mkdir data/
+$ locust --headless \
+    --host http://192.168.0.23 \
+    --users 150 --hatch-rate 2 --run-time 5m \
+    --csv data/locust-run                        <span class="fm-combinumeral">❶</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036305"/><span class="fm-combinumeral">❶</span> Output the result to CSV files.</p>
+
+  <p class="body"><a id="pgfId-1014427"/>Let’s run the experiment and collect results. We’ll get various metrics on each type of request, such as the average response time, the minimum/maximum times, the median time, and so on. An interesting metric is the latency given a percentile.</p>
+
+  <p class="body"><a id="pgfId-1014433"/>Let’s take the example of the latency at the 80th percentile. This is the maximum latency observed for 80% of the requests. If that latency is 100 ms, it means that 80% of the requests took less than 100 ms. Similarly, if the 95th percentile latency is 150 ms, it means that 95% of the requests took at most 150 ms. The 100th percentile reveals the worst case observed.</p>
+
+  <p class="body"><a id="pgfId-1014439"/>When measuring performance, we are often interested in the latencies between the 95th and 100th percentiles. Suppose that latency at the 90th percentile is 50 ms, but it’s 3 s at the 95th percentile and 20 s at the 99th percentile. In such a case, we clearly have a performance problem, because we observe a large share of bad latencies. By contrast, observing a latency of 50 ms at the 90th percentile and 70 ms at the 99th percentile shows a service with very consistent behavior.</p>
+
+  <p class="body"><a id="pgfId-1014445"/>The latency distribution of a service’s behavior under load tells more than the average latency. What we are actually interested in is not the best cases but those cases where we observed the worst results. Figure 12.2 shows the latency report for a run that I did with 150 users over 5 minutes.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F02_Ponge.png" width="727" height="473"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037515"/>Figure 12.2 Latencies observed with Locust for 150 users over 5 minutes</p>
+
+  <p class="body"><a id="pgfId-1014461"/>The plot contains values at the 95th, 98th, 99th, and 100th percentiles. The reported latencies are under 200 ms at the 99th percentile for all requests, which sounds reasonable for a run with imperfect conditions and no tuning. The 100th percentile values show us the worst response times observed, and they are all under 500 ms.</p>
+
+  <p class="body"><a id="pgfId-1014481"/>We could increase the number of users to stress the application even more, but we are not going to do precise load testing with Locust. If you raise the number of users, you will quickly start seeing increasing latencies and errors being raised. This is not due to the application under test but due to a limitation of Locust at the time of writing:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1014487"/>Locust’s network stack is not very efficient, so we quickly reach limits in the number of concurrent users.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014501"/>Like many load testing tools, Locust suffers from <i class="fm-italics1">coordinated omission</i>, a problem where <a class="calibre9" id="marker-1014516"/>time measures are incorrect due to ignoring the wait time before the requests are actually made.<a class="calibre9" href="#pgfId-1014523">1</a></p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1014536"/>For accurate load testing, we thus have to use another tool, and Hey is a good one.</p>
+
+  <p class="fm-callout"><a id="pgfId-1014552"/><span class="fm-callout-head">Tip</span> Locust is still a great tool for producing a small workload and even automating a demo of the project. Once it is started and is simulating users, you can connect to the dashboard web application and see it updated live. <a id="marker-1014554"/></p>
+
+  <h3 class="fm-head1" id="heading_id_6"><a id="pgfId-1014561"/>12.1.3 Load testing the API with Hey</h3>
+
+  <p class="body"><a id="pgfId-1014571"/><a id="marker-1014572"/>Hey is a much simpler tool than Locust, as it cannot run scripts and it focuses on stressing an HTTP endpoint. It is, however, an excellent tool for getting accurate measures on an endpoint under stress.</p>
+
+  <p class="body"><a id="pgfId-1014580"/>We are still going to use Locust on the side to simulate a small number of users. This will generate some activity in the system across all services and middleware, so our measurements won’t be made on a system that is idle.</p>
+
+  <p class="body"><a id="pgfId-1014586"/>We are going to stress the public API endpoint with two different requests:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1014592"/>Get the total number of steps for a user.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1014606"/>Authenticate and fetch a JWT token.</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1014616"/>This is interesting, because to get the number of steps for a user, the public API service needs to make an HTTP request to the activity service, which in turn queries a PostgreSQL database. Fetching a JWT token involves more work, as the user profile service needs to be queried twice before doing some cryptography work and finally returning a JWT token. The overall latency for these requests is thus impacted by the work done in the HTTP API, in the user and activity services, and finally in the databases.</p>
+
+  <p class="fm-callout"><a id="pgfId-1014632"/><span class="fm-callout-head">note</span> The goal here is not to identify the limits of the services in terms of maximum throughput and best latency. We want to have a baseline to see how the service behaves under a sustained workload, and that will later help us to characterize the impact of various types of failures and mitigation strategies.</p>
+
+  <p class="body"><a id="pgfId-1014638"/>Since Hey cannot run scripts, we have to focus on one user and wrap calls to Hey in shell scripts. You will find helper scripts in the part2-steps-challenge/load-testing folder. The first script is create-user.sh, shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014695"/>Listing 12.3 Script to create a user</p>
+  <pre class="programlisting">#!/bin/bash
+http http://localhost:4000/api/v1/register \     <span class="fm-combinumeral">❶</span>
+  username="loadtesting-user" \
+  password="13tm31n" \
+  email="loadtester@my.tld" \
+  deviceId="p-123456-abcdef" \
+  city="Lyon" \
+  makePublic:=true
+
+for n in `seq 10`; do                            <span class="fm-combinumeral">❷</span>
+  http http://localhost:3002/ingest \
+    deviceId="p-123456-abcdef" \
+    deviceSync:=$n \
+    stepsCount:=1200
+done</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036174"/><span class="fm-combinumeral">❶</span> Register the loadtesting-user user.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1036195"/><span class="fm-combinumeral">❷</span> Publish 10 updates of 1,200 steps.</p>
+
+  <p class="body"><a id="pgfId-1014865"/>This script ensures that user <code class="fm-code-in-text">loadtesting-user</code> is created <a id="marker-1014876"/>and that a few updates have been recorded.</p>
+
+  <p class="body"><a id="pgfId-1014886"/>The run-hey-user-steps.sh script shown in the following listing uses Hey and fetches the total number of steps for user <code class="fm-code-in-text">loadtesting-user</code>.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1014952"/>Listing 12.4 Script to run Hey and load test for getting a user’s total step count</p>
+  <pre class="programlisting">#!/bin/bash
+hey -z $2 \                                           <span class="fm-combinumeral">❶</span>
+    -o csv \                                          <span class="fm-combinumeral">❷</span>
+    -H 'Authorization: Bearer &lt;TOKEN&gt;' \              <span class="fm-combinumeral">❸</span>
+    http://$1:4000/api/v1/loadtesting-user/total \    <span class="fm-combinumeral">❹</span>
+    &gt; data/hey-run-steps-z$2.csv                      <span class="fm-combinumeral">❺</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035809"/><span class="fm-combinumeral">❶</span> Duration of the run (<code class="fm-code-in-figurecaption">10s</code>, <code class="fm-code-in-figurecaption">5m</code>, etc)</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035830"/><span class="fm-combinumeral">❷</span> Enable CSV output.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035847"/><span class="fm-combinumeral">❸</span> Pass the JWT token for user loadtesting-user.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035864"/><span class="fm-combinumeral">❹</span> URL to the service, where the hostname is a variable</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035881"/><span class="fm-combinumeral">❺</span> Redirect the CSV output to a file.</p>
+
+  <p class="body"><a id="pgfId-1015154"/>The run-hey-token.sh script in the following listing is similar and performs an authentication request to get a JWT token.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1015211"/>Listing 12.5 Script to run Hey and load test getting a JWT token</p>
+  <pre class="programlisting">#!/bin/bash
+hey -z $2 \
+    -m POST \                <span class="fm-combinumeral">❶</span>
+    -D auth.json \           <span class="fm-combinumeral">❷</span>
+    -T application/json \    <span class="fm-combinumeral">❸</span>
+    -o csv \
+    http://$1:4000/api/v1/token \
+    &gt; data/hey-run-token-z$2.csv</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035638"/><span class="fm-combinumeral">❶</span> Specify that this is an HTTP POST request.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035659"/><span class="fm-combinumeral">❷</span> Send the content of the auth.json file, which has the credentials of the loadtesting-user user.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035676"/><span class="fm-combinumeral">❸</span> Specify that the payload is some JSON data.</p>
+
+  <p class="body"><a id="pgfId-1015362"/>We are now ready to perform a run on the user total steps count endpoint. In my case, I’m doing the experiment with a second laptop, while my main laptop runs the services and had IP address 192.168.0.23 when I ran the tests. First off, we’ll get some light background workload with Locust, again to make sure the system is not exactly idle:</p>
+  <pre class="programlisting">$ locust --headless --host http://192.168.0.23 --users 20 --hatch-rate 2</pre>
+
+  <p class="body"><a id="pgfId-1015382"/>In another terminal, we’ll launch the test with Hey for five minutes:</p>
+  <pre class="programlisting">./run-hey-user-steps.sh 192.168.0.23 5m</pre>
+
+  <p class="body"><a id="pgfId-1015402"/>Once we have collected the results, the best way to analyze them is to process the data and plot it. You will find Python scripts to do that in the part2-steps-challenge/load-testing folder. Figure 12.3 shows the plot for this experiment.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F03_Ponge.png" width="859" height="577"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037571"/>Figure 12.3 Report for the user total steps count load test</p>
+
+  <p class="body"><a id="pgfId-1015418"/>The figure contains three subplots:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1015438"/>A scattered plot of the request latencies over time</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015452"/>A throughput plot that shares the same scale as the requests latencies plot</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015462"/>A latency distribution over the 95th to 100th percentiles</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1015472"/>The 99.99th percentile latency is very good while the throughput is high. We get better results with Hey compared to a 100-user workload with Locust. We can see a few short throughput drops correlated with higher latency responses, but there is nothing to worry about in these conditions. These drops could have been caused by various factors, including PostgreSQL, the WiFi network, or a JVM garbage collector run. It is easy to get better results with better hardware running Linux, a wired network, some JVM tuning, and a properly configured PostgreSQL database server.</p>
+
+  <p class="body"><a id="pgfId-1015478"/>We can run another load testing experiment, fetching JWT tokens:</p>
+  <pre class="programlisting">./run-hey-token.sh 192.168.0.23 5m</pre>
+
+  <p class="body"><a id="pgfId-1015498"/>The results are shown in figure 12.4.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F04_Ponge.png" width="866" height="581"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037616"/>Figure 12.4 JWT token load test report</p>
+
+  <p class="body"><a id="pgfId-1015514"/>These results again show consistent behavior, albeit with a higher latency and lower throughput than the step count endpoint could achieve. This is easy to explain, as there are two HTTP requests to the user profile service, and then the token has to be generated and signed. The HTTP requests are mostly I/O-bound, while token signing requires CPU-bound work to be done on the event loop. The results are consistent over the five-minute run.</p>
+
+  <p class="body"><a id="pgfId-1015560"/>It is safe to conclude that the tested service implementations deliver solid performance under load. You could try to increase the number of workers for Hey and see what happens with bigger workloads (see the <code class="fm-code-in-text">-c</code> flag of the <code class="fm-code-in-text">hey</code> tool). You could also perform latency measures with increasing request rates (see the <code class="fm-code-in-text">-q</code> flag), but note that by default Hey does not do rate limiting, so in the previous runs Hey did the best it could with 50 workers (the default).</p>
+
+  <p class="body"><a id="pgfId-1015569"/>Scalability is only half of being reactive, so let’s now see how our services behave with the same workloads in the presence of failures. <a id="marker-1015571"/><a id="marker-1015574"/></p>
+
+  <h2 class="fm-head" id="heading_id_7"><a id="pgfId-1015580"/>12.2 Let’s do some chaos engineering</h2>
+
+  <p class="body"><a id="pgfId-1015600"/><a id="marker-1015591"/>Strictly speaking, <i class="fm-italics">chaos engineering</i> is the practice of voluntarily introducing failures in production systems to see how they react to unexpected application, network, and infrastructure failures. For instance, you can try to shut down a database, take down a service, introduce network delays, or even interrupt traffic between networks. Instead of waiting for failures to happen in production and waking up on-duty site reliability engineers at 4 a.m. on a Sunday, you decide to be proactive by periodically introducing failures yourself.</p>
+
+  <p class="body"><a id="pgfId-1015609"/>You can also do chaos engineering before software hits production, as the core principle remains the same: run the software with some workload, introduce some form of failure, and see how the software behaves.</p>
+
+  <h3 class="fm-head1" id="heading_id_8"><a id="pgfId-1015615"/>12.2.1 Test plan</h3>
+
+  <p class="body"><a id="pgfId-1015625"/><a id="marker-1015626"/>We need a reproducible scenario to evaluate the services, as they will alternate between nominal and failure phases. We will introduce failures according to the plan in figure 12.5.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F05_Ponge.png" width="1008" height="321"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037661"/>Figure 12.5 Test plan</p>
+
+  <p class="body"><a id="pgfId-1015644"/>We will run the same load testing experiments as we did in previous sections over periods of five minutes. What will change is that we’re going to split it into five phases of one minute each:</p>
+
+  <ol class="calibre13">
+    <li class="fm-list-numbered">
+      <p class="list"><a class="calibre9" id="pgfId-1015664"/>The databases work nominally for the first minute.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015678"/>We will introduce network delays of three seconds (+/- 500 ms) for all database traffic for the second minute.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015688"/>We will get back to nominal performance for the third minute.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1015698"/>We will stop the two databases for the forth minute.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1015708"/>We will get back to nominal performance for the fifth and final minute.</p>
+    </li>
+  </ol>
+
+  <p class="body"><a id="pgfId-1015718"/>Network delays increase latency, but they also simulate an overloaded database or service that starts to become unresponsive. With extreme delay values, they can also simulate an unreachable host, where establishing TCP connections takes a long time to fail. On the other hand, stopping the databases simulates services being down while their hosts remain up, which should lead to quick TCP connection errors.</p>
+
+  <p class="body"><a id="pgfId-1015724"/>How are we going to introduce these failures?<a id="marker-1015726"/></p>
+
+  <h3 class="fm-head1" id="heading_id_9"><a id="pgfId-1015733"/>12.2.2 Chaos testing with Pumba</h3>
+
+  <p class="body"><a id="pgfId-1015743"/><a id="marker-1015744"/><a id="marker-1015746"/>Pumba is a chaos testing tool for introducing failures in Docker containers (<span class="fm-hyperlink"><a href="https://github.com/alexei-led/pumba">https://github.com/alexei-led/pumba</a></span>). It can be used to do the following:</p>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1018474"/>Kill, remove, and stop containers</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1018488"/>Pause processes in containers</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1018498"/>Stress container resources (e.g., CPU, memory, or filesystem)</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1018508"/>Emulate network problems (packet delays, loss, duplication, corruption, etc.)</p>
+    </li>
+  </ul>
+
+  <p class="body"><a id="pgfId-1018518"/>Pumba is a very convenient tool that you can download and run on your machine. The only dependency is having Docker running.</p>
+
+  <p class="body"><a id="pgfId-1018524"/>We are focusing on two types of failures in our test plan because they are the most relevant to us. You can play with other types of failures just as easily.</p>
+
+  <p class="body"><a id="pgfId-1018530"/>With the 10k steps application running locally, let’s play with Pumba and add some delay to the MongoDB database traffic. Let’s fetch a JWT token with the load-testing/ fetch-token.sh script, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018587"/>Listing 12.6 Fetching a JWT token</p>
+  <pre class="programlisting">$ load-testing/fetch-token.sh      <span class="fm-combinumeral">❶</span>
+HTTP/1.1 200 OK
+Content-Type: application/jwt
+content-length: 528
+
+&lt;VALUE OF THE TOKEN&gt;</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035577"/><span class="fm-combinumeral">❶</span> Found in the part2-steps-challenge folder</p>
+
+  <p class="body"><a id="pgfId-1018681"/>In another terminal, let’s introduce the delays with the following command.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018738"/>Listing 12.7 Introducing some network delays with Pumba</p>
+  <pre class="programlisting">$ pumba netem \                           <span class="fm-combinumeral">❶</span>
+    --duration 1m \                       <span class="fm-combinumeral">❷</span>
+    --tc-image gaiadocker/iproute2 \      <span class="fm-combinumeral">❸</span>
+    delay --time 3000 --jitter 500 \      <span class="fm-combinumeral">❹</span>
+    part2-steps-challenge_mongo_1         <span class="fm-combinumeral">❺</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035258"/><span class="fm-combinumeral">❶</span> netem is the subcommand for network problem emulation.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035279"/><span class="fm-combinumeral">❷</span> There will be delays for one minute.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035296"/><span class="fm-combinumeral">❸</span> A helper Docker image</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035313"/><span class="fm-combinumeral">❹</span> Three-second delays +/- 500 ms</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035330"/><span class="fm-combinumeral">❺</span> Name of the target container (you can have regular expressions to target multiple containers, etc)</p>
+
+  <p class="body"><a id="pgfId-1018915"/>Pumba should now be running for one minute. Try fetching a JWT token again; the command should clearly take more time than before, as shown in the following listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1018972"/>Listing 12.8 Fetching a token with network delays</p>
+  <pre class="programlisting">$ time ./fetch-token.sh        <span class="fm-combinumeral">❶</span>
+HTTP/1.1 200 OK
+Content-Type: application/jwt
+content-length: 528
+
+&lt;TOKEN VALUE&gt;
+
+
+./fetch-token.sh  0.27s user 0.08s system 5% cpu 6.157 total</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035196"/><span class="fm-combinumeral">❶</span> Use time to measure a process execution time.</p>
+
+  <p class="body"><a id="pgfId-1019077"/>The process took 6.157 seconds to fetch a token, due to waiting for I/O. Similarly, you can stop a container with the following command.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019134"/>Listing 12.9 Stopping a container with Pumba</p>
+  <pre class="programlisting">$ pumba stop --restart \       <span class="fm-combinumeral">❶</span>
+  --duration 1m \
+  part2-steps-challenge_mongo_1</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035134"/><span class="fm-combinumeral">❶</span> Stop, then restart the container.</p>
+
+  <p class="body"><a id="pgfId-1019211"/>If you run the script to fetch a token again, you will be waiting, while in the logs you will see some errors due to the MongoDB container being down, as follows.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019268"/>Listing 12.10 Fetching a token with a stopped database server</p>
+  <pre class="programlisting">time ./fetch-token.sh
+HTTP/1.1 200 OK
+Content-Type: application/jwt
+content-length: 528
+
+&lt;TOKEN VALUE&gt;
+
+./fetch-token.sh  0.25s user 0.07s system 0% cpu 57.315 total     <span class="fm-combinumeral">❶</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1035074"/><span class="fm-combinumeral">❶</span> It took a long time!</p>
+
+  <p class="body"><a id="pgfId-1019373"/>The service is now unresponsive. My request took 57.315 seconds to complete because it had to wait for the database to be back.</p>
+
+  <p class="body"><a id="pgfId-1019379"/>Let’s get a clearer understanding by running the test plan, and we’ll see what happens when these failures happen and the system is under load testing. <a id="marker-1019381"/><a id="marker-1019384"/></p>
+
+  <h3 class="fm-head1" id="heading_id_10"><a id="pgfId-1019390"/>12.2.3 We are not resilient (yet)</h3>
+
+  <p class="body"><a id="pgfId-1019400"/>To run these experiments you will use the same shell scripts to launch Hey as we did earlier in this chapter. You will preferably use two machines. The part2-steps-challenge/ load-testing folder contains a run-chaos.sh shell script to automate the test plan by calling Pumba at the right time. The key is to start both the run-chaos.sh and Hey scripts (e.g., run-hey-token.sh) at the same time.</p>
+
+  <p class="body"><a id="pgfId-1019406"/>Figure 12.6 shows the behavior of the service on getting a user’s total steps count. The results show a clear lack of responsiveness when Pumba runs.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F06_Ponge.png" width="860" height="580"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037706"/>Figure 12.6 Total step count load test with failures</p>
+
+  <p class="body"><a id="pgfId-1019422"/>In the phase of network delays, we see a rapid latency increase spike to nearly 20 seconds, after which the throughput implodes. What happens here is that requests are enqueued, waiting for a response in both the public API and user profile services, up to the point where the system is at a halt. The database delays are between 2.5 s and 3.5 s, which can temporarily happen in practice. Of course, the issue is vastly amplified here due to load testing, but any service with some sustained traffic can show this kind of behavior even with smaller delays.</p>
+
+  <p class="body"><a id="pgfId-1019442"/>In the phase where databases are down we see errors for the whole simulated outage duration. While it is hard to be surprised about errors, we can see that the system has not come to a halt either. This is far from perfect, though, since the reduced throughput is a sign that requests need <i class="fm-italics">some</i> time to be given an error, while other requests are waiting until they time out, or they eventually complete when the databases restart.</p>
+
+  <p class="body"><a id="pgfId-1019457"/>Let’s now look at figure 12.7 and see how fetching JWT tokens goes.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F07_Ponge.png" width="862" height="579"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037751"/>Figure 12.7 JWT token load test with failures</p>
+
+  <p class="body"><a id="pgfId-1019473"/>Network delays also cause the system to come to a halt, but we do not observe the same shape in the scatter plot. This is due to the inherently lower throughput of the service for this type of request, and also the fact that two HTTP requests are needed. Requests pile up, waiting for responses to arrive, and once the delays stop, the system gets going again. More interestingly, we do not observe errors in the phase where databases have been stopped. There are just no requests being served anymore as the system is waiting for databases.</p>
+
+  <p class="body"><a id="pgfId-1019493"/>From these two experiments, we can see that the services become unresponsive in the presence of failures, so they are not reactive. The good news is that there are ways to fix this, so let’s see how we can become reactive, again using the public API as a reference. You will then be able to extrapolate the techniques to the other services. <a id="marker-1019495"/></p>
+
+  <h2 class="fm-head" id="heading_id_11"><a id="pgfId-1019502"/>12.3 From “scalable” to “scalable and resilient”</h2>
+
+  <p class="body"><a id="pgfId-1019512"/>To make our application resilient, we have to make changes to the public API and make sure that it responds <i class="fm-italics">quickly</i> when a failure has been detected. We will explore two approaches: enforcing timeouts, and then using a circuit breaker.</p>
+
+  <h3 class="fm-head1" id="heading_id_12"><a id="pgfId-1019527"/>12.3.1 Enforcing timeouts</h3>
+
+  <p class="body"><a id="pgfId-1019537"/><a id="marker-1019538"/>Observations in the preceding experiments showed that requests piled up while waiting for either the databases to get back to nominal conditions, or for TCP errors to arise. A first approach could be to enforce short timeouts in the HTTP client requests, so that they fail fast when the user profile or activity services take too long to respond. The changes are very simple: we just need to add timeouts to the HTTP requests made by the Vert.x web client, as shown in listing 12.11.</p>
+
+  <p class="fm-callout"><a id="pgfId-1019556"/><span class="fm-callout-head">Tip</span> You can find the corresponding code changes in the chapter12/public-api-with-timeouts branch of the Git repository.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1019613"/>Listing 12.11 Implementation of the <code class="fm-code-in-listingcaption">totalSteps</code> method with timeouts</p>
+  <pre class="programlisting">private void totalSteps(RoutingContext ctx) {
+  String deviceId = ctx.user().principal().getString("deviceId");
+  webClient
+    .get(3001, "localhost", "/" + deviceId + "/total")
+    .timeout(5000)                                      <span class="fm-combinumeral">❶</span>
+    .as(BodyCodec.jsonObject())
+    .rxSend()
+    .subscribe(
+      resp -&gt; forwardJsonOrStatusCode(ctx, resp),
+      err -&gt; sendBadGateway(ctx, err));
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034982"/><span class="fm-combinumeral">❶</span> Times out after five seconds</p>
+
+  <p class="body"><a id="pgfId-1019774"/>The changes are <a id="marker-1019753"/>the same in the <code class="fm-code-in-text">fetchUserDetails</code> and <code class="fm-code-in-text">token</code> methods. A timeout of five seconds is relatively short and ensures <a id="marker-1019779"/>a quick notification of an error.</p>
+
+  <p class="body"><a id="pgfId-1019789"/>Intuitively, this should improve the responsiveness of the public API services and avoid throughput coming to a halt. Let’s see what happens by running the chaos testing experiments again, as shown in figure 12.8.</p>
+
+  <p class="body"><a id="pgfId-1019805"/>Compared to the experiment in figure 12.6, we still have drastically reduced throughputs during failures, but at least we see errors being reported, thanks to the timeout enforcements. We also see that the maximum latency is below six seconds, which is in line with the five-second timeouts.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F08_Ponge.png" width="860" height="580"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037796"/>Figure 12.8 Total steps count load test with failures and timeouts</p>
+
+  <p class="body"><a id="pgfId-1019825"/>Let’s now see how the JWT token load test behaves, as shown in figure 12.9. This run confirms what we have observed: timeouts get enforced, ensuring that some requests are still served during the failures. However, the worst-case latencies are worse than without the timeouts: network delays stretch the time for doing two HTTP requests to the user profile service, so the higher values correspond to those requests where the second request timed out.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F09_Ponge.png" width="862" height="578"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037838"/>Figure 12.9 JWT token load test with failures and timeouts</p>
+
+  <p class="body"><a id="pgfId-1019871"/>Timeouts are better than no timeouts when it comes to improving responsiveness, but we cannot qualify our public API service as being resilient. What we need is a way for the service to <i class="fm-italics">know</i> that there is a failure happening, so it fails <i class="fm-italics">fast</i> rather than waiting for a timeout to happen. This is exactly what a circuit breaker is for!<a id="marker-1019876"/></p>
+
+  <h3 class="fm-head1" id="heading_id_13"><a id="pgfId-1019883"/>12.3.2 Using a circuit breaker</h3>
+
+  <p class="body"><a id="pgfId-1019893"/><a id="marker-1019894"/>The goal of a circuit breaker is to prevent the problems observed in the previous section, where requests to unresponsive systems pile up, causing cascading errors between distributed services. A circuit breaker acts as a form of proxy between the code that makes a (networked) request, such as an RPC call, HTTP request, or database call, and the service to be invoked.</p>
+
+  <p class="body"><a id="pgfId-1019902"/>Figure 12.10 shows how a circuit breaker works as a finite state machine. The idea is quite simple. The circuit breaker starts in the <i class="fm-italics">closed</i> state, and for each <a id="marker-1019913"/>request, it observes whether the request succeeded or not. Failing can be because an error has been reported (for example, a TCP timeout or TCP connection error), or because an operation took too long to complete.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F10_Ponge.png" width="647" height="346"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037880"/>Figure 12.10 Circuit breaker state machine</p>
+
+  <p class="body"><a id="pgfId-1019960"/>Once a certain number of errors have been reported, the circuit breaker <a id="marker-1019949"/>goes to the <i class="fm-italics">open</i> state. From here, all operations are notified of a failure due to the circuit being open. This avoids further requests being issued to an unresponsive service, which allows for fast error responses, trying alternative recovery strategies, and reducing the pressure on both the service and requester ends.</p>
+
+  <p class="body"><a id="pgfId-1020059"/>The circuit breaker leaves the <i class="fm-italics">open</i> state and goes to the <i class="fm-italics">half-open</i> state after some <i class="fm-italics">reset</i><a id="marker-1019990"/> timeout. The first request in the <i class="fm-italics">half-open</i> state determines <a id="marker-1020012"/>whether the service has recovered. Unlike the <i class="fm-italics">open</i> state, the <i class="fm-italics">half-open</i> state is where we start doing a real operation again. If it succeeds, the circuit breaker goes <a id="marker-1020038"/>back to the <i class="fm-italics">closed</i> state and resumes normal servicing. If not, another reset period starts before it goes back to the <i class="fm-italics">half-open</i> state and checks if the service is back.</p>
+
+  <p class="fm-callout"><a id="pgfId-1020078"/><span class="fm-callout-head">Tip</span> You can find the code changes discussed here in the chapter12/public-api-with-circuit-breaker branch of the Git repository.</p>
+
+  <p class="body"><a id="pgfId-1020112"/>Vert.x provides the <code class="fm-code-in-text">vertx-circuit-breaker</code> module that needs <a id="marker-1020095"/>to be added to the public API project. We will use two circuit breakers: one for token generation requests, and one for calls to the activity service (such as getting the total steps count for a user). The following listing shows the code to <a id="marker-1020101"/>create a circuit breaker in the <code class="fm-code-in-text">PublicApiVerticlerxStart</code> method.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020178"/>Listing 12.12 Creating a circuit breaker</p>
+  <pre class="programlisting">String tokenCircuitBreakerName = "token-circuit-breaker";
+tokenCircuitBreaker = CircuitBreaker.create(
+  tokenCircuitBreakerName, vertx, circuitBreakerOptions());                 <span class="fm-combinumeral">❶</span>
+
+tokenCircuitBreaker
+  .openHandler(v -&gt; this.logBreakerUpdate("open", tokenCircuitBreakerName));<span class="fm-combinumeral">❷</span>
+tokenCircuitBreaker
+  .halfOpenHandler(v -&gt; this.logBreakerUpdate("half open", 
+  <span class="fm-code-continuation-arrow">➥</span> tokenCircuitBreakerName));                                             <span class="fm-combinumeral">❸</span>
+tokenCircuitBreaker
+  .closeHandler(v -&gt; 
+  <span class="fm-code-continuation-arrow">➥</span> this.logBreakerUpdate("closed", tokenCircuitBreakerName));             <span class="fm-combinumeral">❹</span></pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034706"/><span class="fm-combinumeral">❶</span> Create a circuit breaker with a name and options.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034727"/><span class="fm-combinumeral">❷</span> Callback when entering the open state</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034744"/><span class="fm-combinumeral">❸</span> Callback when entering the half-open state</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034761"/><span class="fm-combinumeral">❹</span> Callback when entering the closed state</p>
+
+  <p class="body"><a id="pgfId-1020400"/>The <code class="fm-code-in-text">tokenCircuitBreakerName</code> reference is <a id="marker-1020373"/>a field of type <code class="fm-code-in-text">CircuitBreaker</code>. There is <a id="marker-1020389"/>another field called <code class="fm-code-in-text">activityCircuitBreaker</code> for the activity <a id="marker-1020405"/>service circuit breaker, and the code is identical. The callbacks on state change can be optionally set. It is a good idea to log these state changes for diagnosis purposes.</p>
+
+  <p class="body"><a id="pgfId-1020415"/>The following listing shows a circuit breaker configuration.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020472"/>Listing 12.13 Configuring a circuit breaker</p>
+  <pre class="programlisting">private CircuitBreakerOptions circuitBreakerOptions() {
+  return new CircuitBreakerOptions()
+    .setMaxFailures(5)                <span class="fm-combinumeral">❶</span>
+    .setMaxRetries(0)                 <span class="fm-combinumeral">❷</span>
+    .setTimeout(5000)                 <span class="fm-combinumeral">❸</span>
+    .setResetTimeout(10_000);         <span class="fm-combinumeral">❹</span>
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034453"/><span class="fm-combinumeral">❶</span> Open after five failures.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034474"/><span class="fm-combinumeral">❷</span> Do not retry a failed operation.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034491"/><span class="fm-combinumeral">❸</span> Report timeout failures after five seconds.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034508"/><span class="fm-combinumeral">❹</span> Reset timeout to 10 seconds.</p>
+
+  <p class="body"><a id="pgfId-1020639"/>We are going to open the circuit breaker after five failures, including operations timing out after five seconds (to be consistent with the previous experiments). The reset timeout is set to 10 seconds, which will let us frequently check how the service goes. How long this value should be depends on your context, but you can anticipate that long timeouts will increase the time a service operates in degraded mode or reports errors, whereas short values may diminish the effectiveness of using a circuit breaker.</p>
+
+  <p class="body"><a id="pgfId-1020645"/>The following listing shows the modified <code class="fm-code-in-text">token</code> method with the code wrapped into a circuit breaker call.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1020711"/>Listing 12.14 Implementation of the token method with a circuit breaker</p>
+  <pre class="programlisting">private void token(RoutingContext ctx) {
+  tokenCircuitBreaker.&lt;String&gt;rxExecute(promise -&gt; {    <span class="fm-combinumeral">❶</span>
+    JsonObject payload = ctx.getBodyAsJson();
+    String username = payload.getString("username");
+    webClient                                           <span class="fm-combinumeral">❷</span>
+      .post(3000, "localhost", "/authenticate")
+// (...)                                                <span class="fm-combinumeral">❸</span>
+      .subscribe(promise::complete, err -&gt; {            <span class="fm-combinumeral">❹</span>
+        if (err instanceof NoStackTraceThrowable) {     <span class="fm-combinumeral">❺</span>
+          promise.complete("");
+        } else {
+          promise.fail(err);                            <span class="fm-combinumeral">❻</span>
+        }
+      });
+  }).subscribe(                                         <span class="fm-combinumeral">❼</span>
+    token -&gt; sendToken(ctx, token),
+    err -&gt; handleAuthError(ctx, err));
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033951"/><span class="fm-combinumeral">❶</span> Execute an operation that provides a String.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033972"/><span class="fm-combinumeral">❷</span> Regular web client call</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033989"/><span class="fm-combinumeral">❸</span> Web client and RxJava operators, as in the previous code</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034006"/><span class="fm-combinumeral">❹</span> Complete with a successful token.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034023"/><span class="fm-combinumeral">❺</span> Check if the service returned a non-200 status code and complete.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034040"/><span class="fm-combinumeral">❻</span> Fail due to some other error.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1034057"/><span class="fm-combinumeral">❼</span> Send the token or manage the authentication error.</p>
+
+  <p class="body"><a id="pgfId-1021010"/>The circuit breaker executes an operation, which here is making two HTTP requests to the user profile service and then making a JWT token. The operation’s result is a <code class="fm-code-in-text">Single&lt;String&gt;</code> of the JWT token value. The execution method passes a promise to the wrapped code, so it can notify if the operation succeeded or not.</p>
+
+  <p class="body"><a id="pgfId-1021025"/>The <code class="fm-code-in-text">handleAuthError</code> method had to be <a id="marker-1021036"/>modified as in the following listing to check the source of any error.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1021097"/>Listing 12.15 Handling authentication errors</p>
+  <pre class="programlisting">private void handleAuthError(RoutingContext ctx, Throwable err) {
+  if (err instanceof OpenCircuitException) {                               <span class="fm-combinumeral">❶</span>
+    logger.error("Circuit breaker is open: {}", tokenCircuitBreaker.name());
+    ctx.fail(504);
+  } else if (err instanceof TimeoutException) {                            <span class="fm-combinumeral">❷</span>
+    logger.error("Circuit breaker timeout: {}", tokenCircuitBreaker.name());
+    ctx.fail(504);
+  } else {                                                                 <span class="fm-combinumeral">❸</span>
+    logger.error("Authentication error", err);
+    ctx.fail(401);
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033679"/><span class="fm-combinumeral">❶</span> The circuit breaker is open.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033700"/><span class="fm-combinumeral">❷</span> The operation timed out.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033717"/><span class="fm-combinumeral">❸</span> Regular authentication error</p>
+
+  <p class="body"><a id="pgfId-1021272"/>The circuit breaker reports open circuit conditions and operation timeouts with dedicated exceptions. In these cases, we report an HTTP 500 status code or a classic 401 so the requester knows if a failure is due to bad credentials or not.</p>
+
+  <p class="body"><a id="pgfId-1021278"/>This is great, but what is the actual effect of the circuit breaker on our system? Let’s see by running the experiment on the JWT token generation. The results are shown in figure 12.11.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F11_Ponge.png" width="861" height="577"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037922"/>Figure 12.11 JTW token load testing with failures and a circuit breaker</p>
+
+  <p class="body"><a id="pgfId-1021294"/>The impact of the circuit breaker is striking: the service is now <i class="fm-italics">highly</i> responsive during failure periods! We get a high throughput during failures, as the service now fails fast when the circuit breaker is open. Interestingly, we can spot when the circuit breaker tries to make requests when in the half-open state: these are the high-latency error points at regular intervals. We can also see that the 99.99th percentile is back to a lower latency compared to the previous runs.</p>
+
+  <p class="body"><a id="pgfId-1021323"/>This is all good, but what about fetching the total steps count for a user?<a id="marker-1021325"/></p>
+
+  <h3 class="fm-head1" id="heading_id_14"><a id="pgfId-1021332"/>12.3.3 Resiliency and fallback strategies</h3>
+
+  <p class="body"><a id="pgfId-1021352"/><a id="marker-1021343"/>The circuit breaker made JWT token generation responsive even with failures, so the endpoint is now fully <i class="fm-italics">reactive</i>. That being said, it did not offer much in the way of fallback strategies: if we can’t talk to the user profile service, there is no way we can authenticate a user and then generate a JWT token. This is why the circuit breaker always reports errors.</p>
+
+  <p class="body"><a id="pgfId-1021361"/>We could adopt the same strategy when issuing requests to the activity service, and simply report errors. That being said, we could provide further resiliency by caching data and provide an older value to a requester. Fallback strategies depend on the functional requirements: we cannot generate a JWT token without authentication working, but we can certainly serve some older step count data if we have it in a cache.</p>
+
+  <p class="body"><a id="pgfId-1024034"/>We will use the efficient in-memory Caffeine caching library (<span class="fm-hyperlink"><a href="https://github.com/ben-manes/caffeine">https://github.com/ ben-manes/caffeine</a></span>). This library provides configurable strategies for managing cached data, including count, access, and time-based eviction policies. We could cache data in a Java <code class="fm-code-in-text">HashMap</code>, but that would <a id="marker-1024062"/>quickly expose us to memory exhaustion problems if we didn’t put a proper eviction policy in place.</p>
+
+  <p class="body"><a id="pgfId-1024072"/>The following listing shows how to create a cache of at most 10,000 entries, where keys are strings and values are long integers.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024129"/>Listing 12.16 Creating a cache</p>
+  <pre class="programlisting">private Cache&lt;String, Long&gt; stepsCache = Caffeine.newBuilder()
+  .maximumSize(10_000)                                          <span class="fm-combinumeral">❶</span>
+  .build();</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033585"/><span class="fm-combinumeral">❶</span> Cache at most 10,000 entries.</p>
+
+  <p class="body"><a id="pgfId-1024206"/>We add entries to the cache with the <code class="fm-code-in-text">cacheTotalSteps</code> method in the <a id="marker-1024217"/>following listing, and Caffeine evicts older entries when the 10,000 entries limit has been reached.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024278"/>Listing 12.17 Caching total steps</p>
+  <pre class="programlisting">private void cacheTotalSteps(String deviceId, HttpResponse&lt;JsonObject&gt; resp) {
+  if (resp.statusCode() == 200) {
+    stepsCache.put("total:" + deviceId, resp.body().getLong("count"));     <span class="fm-combinumeral">❶</span>
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033512"/><span class="fm-combinumeral">❶</span> Store data just like in a regular Java map.</p>
+
+  <p class="body"><a id="pgfId-1024367"/>The preceding method is used in the <code class="fm-code-in-text">totalSteps</code> method, shown next, where the <a id="marker-1024378"/>code has been wrapped using a circuit breaker call.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024439"/>Listing 12.18 Implementation of the <code class="fm-code-in-listingcaption">totalSteps</code> method with a circuit breaker</p>
+  <pre class="programlisting">private void totalSteps(RoutingContext ctx) {
+  String deviceId = ctx.user().principal().getString("deviceId");
+  activityCircuitBreaker.&lt;Void&gt;executeWithFallback(promise -&gt; {   <span class="fm-combinumeral">❶</span>
+    webClient
+      .get(3001, "localhost", "/" + deviceId + "/total")
+      .expect(ResponsePredicate.SC_OK)
+      .as(BodyCodec.jsonObject())
+      .rxSend()
+      .subscribe(resp -&gt; {
+        cacheTotalSteps(deviceId, resp);                          <span class="fm-combinumeral">❷</span>
+        forwardJsonOrStatusCode(ctx, resp);
+        promise.complete();
+      }, err -&gt; {
+        tryToRecoverFromCache(ctx, deviceId);                     <span class="fm-combinumeral">❸</span>
+        promise.fail(err);
+      });
+  }, err -&gt; {                                                     <span class="fm-combinumeral">❹</span>
+    tryToRecoverFromCache(ctx, deviceId);
+    return null;
+  });
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033210"/><span class="fm-combinumeral">❶</span> Variant of execute that takes a fallback</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033231"/><span class="fm-combinumeral">❷</span> Cache total steps.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033248"/><span class="fm-combinumeral">❸</span> Try to recover from the cache.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033272"/><span class="fm-combinumeral">❹</span> Fall back.</p>
+
+  <p class="body"><a id="pgfId-1024742"/>We now use a circuit breaker that does not return <a id="marker-1024705"/>any value, hence the <code class="fm-code-in-text">Void</code> parametric type. The <code class="fm-code-in-text">executeWithFallback</code> method allows us to <a id="marker-1024731"/>provide a fallback when the circuit is open, so we can try to recover a value from the cache. This is done in the <code class="fm-code-in-text">tryToRecoverFromCache</code> method in the following <a id="marker-1024747"/>listing.</p>
+
+  <p class="fm-code-listing-caption"><a id="pgfId-1024808"/>Listing 12.19 Implementation of the recovery from cache</p>
+  <pre class="programlisting">private void tryToRecoverFromCache(RoutingContext ctx, String deviceId) {
+  Long steps = stepsCache.getIfPresent("total:" + deviceId);
+  if (steps == null) {                                        <span class="fm-combinumeral">❶</span>
+    logger.error("No cached data for the total steps of device {}", deviceId);
+    ctx.fail(502);
+  } else {                                                    <span class="fm-combinumeral">❷</span>
+    JsonObject payload = new JsonObject()
+      .put("count", steps);
+    ctx.response()
+      .putHeader("Content-Type", "application/json")
+      .end(payload.encode());
+  }
+}</pre>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033012"/><span class="fm-combinumeral">❶</span> Send cached data as a successful response.</p>
+
+  <p class="fm-code-annotation-mob"><a id="pgfId-1033029"/><span class="fm-combinumeral">❷</span> Send an error because we don’t have any data.</p>
+
+  <p class="body"><a id="pgfId-1024967"/>By recovering from a cache in the <code class="fm-code-in-text">tryToRecoverFromCache</code> method, we don’t always <a id="marker-1024978"/>send errors. If we have data in the cache, we can still provide a response, albeit with a possibly outdated value.</p>
+
+  <p class="fm-callout"><a id="pgfId-1024998"/><span class="fm-callout-head">note</span> Caching step counts and recovering from older values with a circuit breaker fallback could also be done directly in the activity service.</p>
+
+  <p class="body"><a id="pgfId-1025004"/>It is now time to check the behavior of the service when fetching step counts. First, let’s have a cold-start run where the database is initially down and the service has just started. Figure 12.12 shows a two-minute run where the database starts after a minute.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F12_Ponge.png" width="861" height="578"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1037964"/>Figure 12.12 Total step count load test with failures, a circuit breaker, and a cold start</p>
+
+  <p class="body"><a id="pgfId-1025020"/>The service immediately starts with a few errors, and then the circuit breaker opens, at which point the service consistently provides errors with a very low latency. Remember that the service hasn’t cached any data yet.</p>
+
+  <p class="body"><a id="pgfId-1025040"/>When the database starts, we can see a latency spike as errors turn into successes, and then the service is able to respond nominally. Note that in the first success seconds, the JVM will start optimizing the code that talks to the database, so there is an improved throughput.</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F13_Ponge.png" width="861" height="574"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1038013"/>Figure 12.13 Total step count load test with failures and a circuit breaker</p>
+
+  <p class="body"><a id="pgfId-1025046"/>Figure 12.13 shows the service behavior over the full five-minute test plan. Since the test plan starts with databases running nominally, the service manages to cache data for the test user. This is why we get no errors across the whole run. We see a few successes with higher latency when the network delays appear, which actually impact the last few percentiles above 99.99th. These are due to the circuit breaker reporting timeouts on making HTTP requests, but note that the circuit breaker cannot <i class="fm-italics">cancel</i> the HTTP requests. Hence, we have a few HTTP requests waiting for an unresponsive activity service, while the circuit breaker meanwhile completes the corresponding HTTP responses with some cached data.</p>
+
+  <p class="body"><a id="pgfId-1025071"/>Figure 12.14 shows the effect of combining the circuit breaker with a five-second timeout on the web client HTTP requests (see the chapter12/public-api-with-circuit-breaker-and-timeouts branch of the Git repository).</p>
+
+  <p class="fm-figure"><img alt="" class="calibre11" src="Images/CH12_F14_Ponge.png" width="861" height="574"/></p>
+
+  <p class="fm-figure-caption"><a id="pgfId-1038179"/>Figure 12.14 Total step count load test with failures, timeouts, and a circuit breaker</p>
+
+  <p class="body"><a id="pgfId-1025101"/>This clearly improves the result, as we don’t have any worst-case latency around 20 seconds anymore. Other than that, the latency and throughputs are consistent over the rest of the run, and they’re barely impacted by the databases being stopped around minute 4.</p>
+
+  <p class="fm-callout"><a id="pgfId-1025131"/><span class="fm-callout-head">note</span> A circuit breaker is a very useful tool for avoiding cascading failures, but you don’t have to wrap every operation over the network in a circuit breaker. Every abstraction has a cost, and circuit breakers do add a level of indirection. Instead, it is best to use chaos testing and identify where they are most likely to have a positive effect on the overall system behavior.</p>
+
+  <p class="body"><a id="pgfId-1025137"/>We now have a reactive service: it is not just resource-efficient and scalable, but is also resilient to failures. The service keeps responding in all situations, and the latency is kept under control.</p>
+
+  <p class="body"><a id="pgfId-1025143"/>The next and final chapter discusses running Vert.x applications in container environments. <a id="marker-1025145"/></p>
+
+  <h2 class="fm-head" id="heading_id_15"><a id="pgfId-1025152"/>Summary</h2>
+
+  <ul class="calibre8">
+    <li class="fm-list-bullet">
+      <p class="list"><a class="calibre9" id="pgfId-1025162"/>A reactive service is not just scalable; it has to be resilient and responsive.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1025176"/>Load testing and chaos testing tools are key to analyzing service behavior both when operating in nominal conditions, and when surrounded by failures from the network and services it relies on.</p>
+    </li>
+
+    <li class="fm-list-bullet1">
+      <p class="list"><a class="calibre9" id="pgfId-1025186"/>Circuit breakers are the most efficient tool for shielding a service from unresponsive services and network failures.</p>
+    </li>
+
+    <li class="fm-list-bullet-last">
+      <p class="list"><a class="calibre9" id="pgfId-1025196"/>A resilient service is not just responsive when it can quickly notify of an error; it may still be able to respond successfully, such as by using cached data if the application domain allows it.</p>
+    </li>
+  </ul>
+  <hr class="calibre12"/>
+
+  <p class="fm-footnote"><span class="footnotenumber">1.</span><a id="pgfId-1014523"/>Gil Tene, “How NOT to Measure Latency,” talk given at the Strange Loop conference, 2015; <span class="fm-hyperlink"><a href="https://www.youtube.com/watch?v=lJ8ydIuPFeU">www.youtube.com/ watch?v=lJ8ydIuPFeU</a></span>.</p>
+</div></body>
+</html>
